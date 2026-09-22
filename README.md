@@ -53,8 +53,7 @@ Eukolia is still at an early stage of development and is currently intended prim
 Some known limitations include:
 
 * The UI has not yet been fully optimized.
-* Scrolling in the visual editor may occasionally stutter or feel laggy.
-* Switching to focus mode may reduce some visual-editor scrolling issues.
+* Scrolling in the visual editor may occasionally stutter or feel laggy. Switching to focus mode may reduce some visual-editor scrolling issues.
 * Mouse scrolling in the PDF viewer currently has a relatively low frame rate. Improving PDF rendering and scrolling performance is a development priority.
 * The mathematical symbols panel has not yet been implemented.
 * Bugs and incomplete features should be expected.
