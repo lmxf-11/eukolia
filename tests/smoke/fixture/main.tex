@@ -1,0 +1,64 @@
+% Eukolia smoke-test fixture.
+%
+% Deliberately exercises the merged subsystems:
+%   - sectioning and labels for the outline and reference completion;
+%   - mathematics for MathJax rendering in Visual Mode;
+%   - an `align` block with ragged ampersands for the tex-aligner port;
+%   - a `\newcommand` so the project macro table has something to render.
+\documentclass[11pt]{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Z}{\mathbb{Z}}
+
+\title{Eukolia Smoke Test}
+\author{Eukolia}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Groups}\label{sec:groups}
+
+A subgroup \(H\leq G\) is \emph{normal} if
+\[
+  gHg^{-1}=H.
+\]
+We write \(f:\R\to\R\) for a real function, and \(\Z\subset\R\).
+
+\subsection{Alignment}\label{sec:alignment}
+
+The ampersands below are deliberately ragged so the aligner has work to do:
+
+\begin{align}
+a &= b \\
+abc &= d \\
+x+y &= z
+\end{align}
+
+\section{References}\label{sec:references}
+
+See Section~\ref{sec:groups} and Section~\ref{sec:alignment}.
+
+\begin{itemize}
+  \item first item
+  \item second item
+\end{itemize}
+
+\begin{equation}\label{eq:pythagoras}
+  a^2 + b^2 = c^2
+\end{equation}
+
+Equation~\eqref{eq:pythagoras} is famous.
+
+\section{Probe targets}\label{sec:probe}
+
+\end{document}
+
+% Smoke-test landing pad. This must be the LAST line of the file: the probe
+% presses Ctrl+End and then ArrowLeft twice, which lands the caret inside the
+% maths span below at a deterministic offset, and then types a snippet trigger
+% that only expands in maths mode. Content after \end{document} is ignored by
+% LaTeX, so the build is unaffected.
+\(x\)

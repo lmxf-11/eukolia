@@ -1,0 +1,9 @@
+\documentclass[border=8pt]{standalone}
+\usepackage{amsmath,tikz-cd}
+\begin{document}
+\begin{tikzcd}[row sep=large,column sep=large]
+A \arrow[r,hookrightarrow,"i"] \arrow[loop above,"f"] & B \arrow[r,mapsto] & C \\
+A \arrow[r,rightharpoonup,shift left] \arrow[r,rightharpoondown,shift right] & B \arrow[r,Rightarrow,bend left=30,"F"{sloped}] & C \\
+A \arrow[r,"\alpha" description] & B \arrow[r,"g"{pos=.25}] & C
+\end{tikzcd}
+\end{document}

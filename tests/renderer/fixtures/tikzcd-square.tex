@@ -1,0 +1,11 @@
+% Visual reference for the MathJax port. Compile with pdflatex.
+% At 10pt, the PDF has column centers about 4.067em apart and
+% row baselines about 3.215em apart; the arrow rule is 0.04em.
+\documentclass[border=8pt]{standalone}
+\usepackage{tikz-cd}
+\begin{document}
+\begin{tikzcd}
+A \arrow[r] \arrow[d] & B \arrow[d] \\
+C \arrow[r] & D
+\end{tikzcd}
+\end{document}

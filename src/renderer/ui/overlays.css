@@ -1,0 +1,888 @@
+/**
+ * Eukolia — the floating surfaces.
+ *
+ * Four things in this application are drawn *above* the work rather than beside
+ * it: the modal dialog, the command palette, quick open, the `Ctrl+Tab` switcher
+ * and the Focus Mode PDF overlay. They are collected in one sheet because they
+ * are one problem — a surface with no neighbours. A panel can lean on the pane
+ * next to it for a border, an alignment or a background; a floating surface has
+ * to state all three itself, and when each of the five did that from its own
+ * inline styles the palette and quick open — which the user meets as the same
+ * gesture twice — ended up 5px apart on their radius and two greys apart on
+ * their footer.
+ *
+ * The rules here are the *specific* end of the design system: `eukolia-design.css`
+ * owns what all five share (`.eu-backdrop`, `.eu-dialog`, `.eu-popover`,
+ * `.eu-row`, `.eu-section`, `.eu-kbd`), and this sheet owns what each one needs
+ * on top of that. So a rule below should always read as "the palette is the
+ * shared dialog, with…" rather than as a fresh definition of a dialog.
+ *
+ * Geometry that a component must compute per render — a width prop, a drag
+ * position, a z-index that has to beat one of its siblings, an indent that comes
+ * from the data — stays inline in the component, where it can be read next to
+ * the code that decides it. Everything that is a *decision about how the app
+ * looks* lives here, where all five decisions can be compared at once.
+ *
+ * Every value is a `--eu-*` token; see `core/themes.ts`. Nothing here hard-codes
+ * a colour, a size or a font, which is what makes all eight themes work without
+ * a single rule of their own.
+ */
+
+/* ==========================================================================
+   1 · The shared overlay frame
+   ========================================================================== */
+
+/*
+ * The palette and quick open are *not* centred: they hang from the top of the
+ * window at a fixed distance, the way a search field that is about to produce a
+ * long list should. Centring them would make the panel jump downward as results
+ * arrive, and the eye tracks the first result rather than the input.
+ *
+ * The alignment and the drop are the only reasons this class exists; the blur,
+ * the fade and the overlay tint are `.eu-backdrop`'s, from the design system.
+ */
+.eu-overlay--top {
+  align-items: flex-start;
+  padding-top: 10vh;
+}
+
+/*
+ * The dialog's own scrim.
+ *
+ * `.eu-backdrop` already fades in and blurs by 2px; a *modal* is the case that
+ * earns one more pixel of separation, because it is the only overlay the user
+ * has to answer rather than may abandon. It also needs a margin: a dialog that
+ * asks for `calc(100vh - 32px)` of height has to be measured against something,
+ * and `--eu-space-4` on every edge is what keeps the tallest dialog from
+ * touching the window's own chrome.
+ */
+.eu-overlay--modal {
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  padding: var(--eu-space-4);
+}
+
+/* ==========================================================================
+   2 · Modal — the application's one dialog primitive
+   ========================================================================== */
+
+/*
+ * The dialog box itself: `.eu-dialog` supplies the surface, the radius, the
+ * elevation and the arrival animation, so what is added here is only what a
+ * *window-sized* panel needs that a popover does not.
+ *
+ * The two caps are the interesting part. They are what lets a caller ask for
+ * `calc(100vh - 48px)` of the snippet library and still be told no: the dialog
+ * can never be taller than the window, and never so wide that the scrim around
+ * it disappears. They are stated as `max-*` rather than subtracted from the
+ * caller's value because a dialog that fits must keep the size it asked for.
+ */
+.eu-modal {
+  max-width: calc(100vw - var(--eu-space-8));
+  /* The scrim's own padding is the margin: `--eu-space-4` either side is the
+     32px this subtracts, so the dialog's edge and the window's edge never meet. */
+  max-height: calc(100vh - var(--eu-space-8));
+  /* No outline on the container: it receives focus programmatically so the focus
+     trap has somewhere to start, and a ring drawn around a whole dialog reads as
+     a selection rather than as focus. */
+  outline: none;
+}
+
+/*
+ * A dialog is a *window* inside the window, so its header is a title bar: it
+ * carries the surface's own background rather than the body's, and the border
+ * under it is the same one the shell's title bar draws. `.eu-dialog-header`
+ * supplies the arrangement; the two rules below are the promotion from "a band
+ * at the top of a box" to "the title bar of this box", which is why they are
+ * not in the design system: a nested dialog or an inline panel header should not
+ * inherit them.
+ */
+.eu-dialog__header {
+  /* Slightly heavier than the toolbar band the design system draws, because
+     there is nothing else on screen for the eye to use as a title. */
+  font-weight: var(--eu-weight-semibold);
+  box-shadow: var(--eu-sheen);
+}
+
+/*
+ * The close control is the one thing in a dialog that is always in the same
+ * place, so it is sized once here rather than by the caller. `--eu-space-2`
+ * either side of a 14px glyph is the 22px box the shell's other quiet icon
+ * buttons use, and `.eu-icon-btn` (applied in the component) supplies the hover,
+ * the press and the muted colour.
+ */
+.eu-dialog__close {
+  width: 22px;
+  height: 22px;
+  /* No `flex-shrink` needed: `.eu-icon-btn` is already `flex-shrink: 0`, which
+     is what keeps the X on its own edge while a long title pushes against it. */
+}
+
+/*
+ * The body's padding is the dialog's inner margin, and it belongs to whoever
+ * lays the content out — which is why it is a class the component applies to
+ * exactly one of its two body variants.
+ *
+ * A dialog whose content lays itself out (`fill`) gets none: the snippet library
+ * and the project library both draw their own toolbar flush with the header, and
+ * a margin here would put a strip of the dialog's background between the two.
+ */
+.eu-dialog__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--eu-space-4) var(--eu-space-5);
+}
+
+.eu-dialog__body--fill {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * The footer is where the buttons go, and it is quiet on purpose: a dialog's
+ * last row should read as "and then…" rather than compete with the content above
+ * it. `.eu-dialog-footer` supplies the border, the background and the alignment.
+ */
+.eu-dialog__footer {
+  padding: var(--eu-space-2) var(--eu-space-4);
+}
+
+/* ==========================================================================
+   3 · Command palette and quick open
+   ==========================================================================
+   These two are one control seen twice — the user opens both with a keystroke
+   and types into both — so they share every rule in this section and differ only
+   in the shape of a row. Anything changed here changes both, which is the point.
+   -------------------------------------------------------------------------- */
+
+/*
+ * The panel. `.eu-dialog` gives it the surface, the radius, the hairline and the
+ * arrival animation; what is added here is where it sits in the window and how
+ * tall it may grow.
+ *
+ * `min(...)` rather than a plain `92vw`: on a narrow window the panel keeps a
+ * margin on both sides, and on a wide one it stops growing at a comfortable
+ * reading measure, because a 1600px-wide row of command titles is not easier to
+ * scan than a 680px one. The height cap leaves the field's 10vh of headroom and
+ * a little of the window visible under the panel, so it never reads as having
+ * filled the screen.
+ */
+.eu-palette {
+  width: min(680px, 92vw);
+  max-height: calc(100vh - 20vh - var(--eu-space-6));
+}
+
+/*
+ * The search field is the palette's face: it is the only thing on screen the
+ * user is looking at while typing, so it is the largest type in the panel and
+ * the only element with generous padding.
+ *
+ * It is a *band* rather than an inset field — no border of its own, a rule under
+ * it — because the list below is visually part of the same control. An inset box
+ * here would cut the panel in two.
+ */
+.eu-palette__search {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-3);
+  flex-shrink: 0;
+  padding: var(--eu-space-3) var(--eu-space-4);
+  border-bottom: 1px solid var(--eu-border);
+  background: var(--eu-bg-panel);
+  color: var(--eu-fg-muted);
+}
+
+/* The leading glyph is part of the field, not a label for it: it takes the
+   pointer with the input so a click anywhere in the band lands in the text. */
+.eu-palette__search > svg {
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.eu-palette__input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--eu-fg-primary);
+  font-family: inherit;
+  font-size: var(--eu-text-lg);
+  line-height: var(--eu-leading-snug);
+  outline: none;
+  /* No `box-shadow` transition: this field is focused for the whole life of the
+     panel, so an entrance glow would be a flash nobody asked for. */
+}
+
+.eu-palette__input::placeholder {
+  color: var(--eu-fg-muted);
+}
+
+/*
+ * The trailing hint. It is a keycap group rather than prose — the design
+ * system's `.eu-kbd` is applied per key — and it sits on the field's baseline
+ * because that is where the eye already is.
+ */
+.eu-palette__hint {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eu-space-1);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* ---- the result list ------------------------------------------------------ */
+
+/*
+ * The scrolling box. `maxHeight` is set inline by the component (it is a layout
+ * decision the caller owns), so what is here is the list's own padding: two
+ * pixels so a highlighted row's tinted surface does not touch the panel's edge,
+ * which is the difference between "a row is selected" and "the panel is
+ * selected".
+ */
+.eu-palette__list {
+  padding: var(--eu-space-half) 0;
+}
+
+/*
+ * A group band — "Recently used", "All commands".
+ *
+ * `.eu-section` already draws the sticky, opaque, all-caps eyebrow this needs.
+ * The overrides are the two ways a *floating* list differs from a panel: the
+ * band belongs to the panel rather than the sidebar, so it borrows the panel's
+ * background; and it is sticky inside a scroll box whose rows are inset by 2px,
+ * so it needs its own top offset to sit flush.
+ */
+.eu-palette__group {
+  background: var(--eu-bg-panel);
+  box-shadow: inset 0 -1px 0 var(--eu-hairline);
+}
+
+/*
+ * The very first band lands directly under the search field's own rule, so the
+ * hairline it would otherwise draw under itself is the only one left — a 2px
+ * seam between the field and the first group is the kind of detail that reads as
+ * a rendering bug.
+ */
+.eu-palette__list > div > .eu-palette__group:first-child {
+  border-bottom: none;
+}
+
+/*
+ * One result.
+ *
+ * `.eu-row` supplies the flex arrangement, the hover tint and the selected
+ * tint; the two rules below are what make the *highlighted* row unmistakable,
+ * and they are the whole reason the palette is usable from the keyboard.
+ *
+ * The rule is a left accent bar drawn as a pseudo-element rather than a border,
+ * because a border would shift the row's text by 2px the moment it was selected
+ * — every arrow keypress would visibly nudge every row. The bar is always there
+ * and merely changes colour, so nothing moves.
+ *
+ * The background is the accent tint, not the accent: the row's title is
+ * `--eu-fg-primary` and its hint is `--eu-fg-muted`, and both have to stay
+ * legible. Accent text on an accent fill is the classic way a "highlighted" row
+ * becomes an unreadable one.
+ */
+.eu-palette__row {
+  position: relative;
+  width: 100%;
+  padding: var(--eu-space-1) var(--eu-space-4) var(--eu-space-1) var(--eu-space-5);
+  font-size: var(--eu-text-sm);
+  border-radius: 0;
+}
+
+.eu-palette__row::before {
+  content: '';
+  position: absolute;
+  left: var(--eu-space-2);
+  top: var(--eu-space-half);
+  bottom: var(--eu-space-half);
+  width: 2px;
+  border-radius: var(--eu-radius-pill);
+  background: var(--eu-accent);
+  opacity: 0;
+  /* Colour and opacity only. The highlight moves on every arrow keypress, and a
+     transition on anything that affects layout — or a transform that reflows the
+     text — turns a held-down arrow key into a list that lags behind the cursor. */
+  transition: opacity var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-palette__row[aria-selected='true']::before {
+  opacity: 1;
+}
+
+/*
+ * The selected row's surface is the accent tint plus the ordinary selection
+ * grey: one alone is too quiet against `--eu-bg-panel` on the themes whose
+ * accent is close to their panel colour, and the pair reads the same on all
+ * eight.
+ */
+.eu-palette__row[aria-selected='true'] {
+  background: var(--eu-bg-selection-list);
+  box-shadow: inset 0 0 0 1px var(--eu-accent-muted);
+}
+
+.eu-palette__row[aria-selected='true']:hover {
+  background: var(--eu-bg-selection-list);
+}
+
+/*
+ * The leading icon slot.
+ *
+ * It has a *fixed width* rather than being sized by its glyph, which is what
+ * makes the titles of every row start on the same vertical line. A palette whose
+ * labels are ragged by one or two pixels per row is read as a list of unrelated
+ * things rather than as one list.
+ */
+.eu-palette__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  flex-shrink: 0;
+  color: var(--eu-fg-muted);
+}
+
+.eu-palette__row[aria-selected='true'] .eu-palette__icon {
+  color: var(--eu-accent);
+}
+
+/*
+ * The command title. It grows and it truncates: a long command name must not
+ * push the shortcut off the right edge, because the shortcut is the half of the
+ * row the user is reading it *for*.
+ */
+.eu-palette__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  color: var(--eu-fg-primary);
+}
+
+/*
+ * The matched run inside a title. Weight and colour together rather than colour
+ * alone: the accent is one of eight theme colours and on two of them a colour-only
+ * emphasis against `--eu-fg-primary` is barely a difference. Weight survives that.
+ */
+.eu-palette__match {
+  color: var(--eu-accent);
+  font-weight: var(--eu-weight-semibold);
+}
+
+/*
+ * The category, shown inside a row rather than as a column of its own: it is
+ * secondary information about *this* result. It recedes to a hairline chip so it
+ * cannot be mistaken for part of the title — and it is *not* a chip the user can
+ * press, so it does not light up under the pointer the way one can.
+ */
+.eu-palette__category {
+  flex-shrink: 0;
+  cursor: default;
+}
+
+.eu-palette__category:hover {
+  border-color: var(--eu-border);
+  color: var(--eu-fg-muted);
+}
+
+.eu-palette__row[aria-selected='true'] .eu-palette__category {
+  border-color: var(--eu-border-strong);
+  color: var(--eu-fg-secondary);
+}
+
+/* The shortcut. Same chip as the footer's keycaps, so a key looks like a key
+   wherever the application draws one. */
+.eu-palette__key {
+  flex-shrink: 0;
+}
+
+/* ---- the footer ----------------------------------------------------------- */
+
+/*
+ * The foot strip is the panel's legend: it says what the keys do, and it is the
+ * last thing on screen so it is the quietest. It carries the toolbar background
+ * — one step away from the panel's — because it is chrome, not content.
+ */
+.eu-palette__footer {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-4);
+  flex-shrink: 0;
+  min-height: 28px;
+  padding: var(--eu-space-1) var(--eu-space-4);
+  border-top: 1px solid var(--eu-border);
+  background: var(--eu-bg-toolbar);
+  color: var(--eu-fg-secondary);
+  font-size: var(--eu-text-xs);
+}
+
+/* One "key — what it does" pair. The keycap sits on the text's baseline rather
+   than beside it, which is what stops the footer reading as a row of loose
+   boxes. */
+.eu-palette__legend {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eu-space-1);
+  white-space: nowrap;
+}
+
+/* The result count is pushed to the far edge: it is a statement about the list
+   rather than a legend for the keys. */
+.eu-palette__count {
+  margin-left: auto;
+  color: var(--eu-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * A file path, split into its two halves.
+ *
+ * The directory is dim and the name is bright because that is the order the eye
+ * needs them in: two `main.tex` in different chapters are told apart by the
+ * directory, but the user is looking *for* the name. The directory is clipped
+ * from the left in the monospaced face — `direction: rtl` with an LTR override
+ * is the standard trick for ellipsing a path at its *start*, where the
+ * information the user needs is, rather than at its end, where every path agrees.
+ */
+.eu-palette__dirname {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: right;
+  color: var(--eu-fg-muted);
+}
+
+.eu-palette__dirname > * {
+  direction: ltr;
+  unicode-bidi: embed;
+}
+
+/*
+ * The basename: the bright half, and the half that keeps most of the row's
+ * width even in a narrow panel, because a truncated file name is not a file
+ * name. It is drawn in the monospaced face (the component adds `.eu-mono`),
+ * so `main.tex` and `main.tex.bak` differ in a way the eye can measure.
+ */
+.eu-palette__basename {
+  flex-shrink: 0;
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--eu-fg-primary);
+}
+
+/*
+ * A `:line[:column]` jump target, drawn as a keycap-adjacent chip rather than as
+ * prose so it cannot be read as part of the file name it follows. It is the
+ * accent colour because it is an instruction the user typed, not a property of
+ * the file.
+ */
+.eu-palette__position {
+  flex-shrink: 0;
+  padding: 0 var(--eu-space-1);
+  border: 1px solid var(--eu-border);
+  border-radius: var(--eu-radius-xs);
+  background: var(--eu-bg-input);
+  color: var(--eu-accent);
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-2xs);
+}
+
+/*
+ * An outline entry's line number. Tabular figures and a fixed lane, so the
+ * titles of a symbol list line up down the column instead of stepping in and out
+ * as the line numbers change width.
+ */
+.eu-palette__line {
+  flex-shrink: 0;
+  width: 3.5ch;
+  text-align: right;
+  color: var(--eu-fg-muted);
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-2xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * A symbol's trailing labels (`\\label{…}` names). They are the last thing in
+ * the row and the least likely to be what the user is looking for, so they are
+ * capped: a document with six labels on one section must not squeeze the title.
+ *
+ * Only the first is shown by the component's own choice of markup; this rule
+ * simply makes the overflow impossible.
+ */
+.eu-palette__labels {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eu-space-1);
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.eu-palette__label {
+  flex-shrink: 0;
+  padding: 0 var(--eu-space-1);
+  border: 1px solid var(--eu-border);
+  border-radius: var(--eu-radius-xs);
+  color: var(--eu-fg-muted);
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-2xs);
+  white-space: nowrap;
+}
+
+/*
+ * The hint text inside quick open's footer — `:line:col` and `@`. It is quoted
+ * syntax rather than a label, so it is drawn in the monospaced face; the
+ * punctuation between the two hints is separated out so it can be dimmed without
+ * dimming the words around it.
+ */
+.eu-palette__syntax {
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-2xs);
+  color: var(--eu-fg-secondary);
+}
+
+.eu-palette__footer-sep {
+  color: var(--eu-fg-muted);
+}
+
+/* ==========================================================================
+   4 · Tab switcher
+   ==========================================================================
+   The `Ctrl+Tab` popup. Its backdrop is transparent — the user is looking at the
+   window while holding the key — so the panel has to carry the whole of the
+   "this is above everything" claim on its own: `.eu-popover`'s border and shadow
+   plus the arrival animation named here.
+   -------------------------------------------------------------------------- */
+
+/*
+ * This is the only overlay in the application with no scrim at all, which is
+ * deliberate: `Ctrl` is *held* for the whole gesture, so anything that dimmed
+ * the editor would flicker on and off under a held key. The panel itself is
+ * therefore the entire visual signal, and it is drawn a size larger and a
+ * shadow deeper than a menu to say so.
+ */
+.eu-tab-switcher {
+  width: 460px;
+  max-width: 80vw;
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: eu-menu-in var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+/*
+ * The header is the popup's *foot hint*, drawn at the top: it says how far
+ * through the list the highlight is and what letting go of `Ctrl` will do. It is
+ * pinned (`flex-shrink: 0`) because the list below is what flexes when the panel
+ * reaches its maximum height — a header that scrolled away would take the one
+ * instruction the gesture needs with it.
+ */
+.eu-tab-switcher__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--eu-space-3);
+  flex-shrink: 0;
+  padding: var(--eu-space-2) var(--eu-space-3);
+  border-bottom: 1px solid var(--eu-border);
+  background: var(--eu-bg-toolbar);
+  color: var(--eu-fg-secondary);
+  font-size: var(--eu-text-xs);
+}
+
+/* The counter and the "release Ctrl" instruction are the quiet half of the
+   header; the word "Tabs" is what the popup is. The first one is an eyebrow, so
+   it reads as a label rather than as a title competing with the row beneath it. */
+.eu-tab-switcher__hint {
+  color: var(--eu-fg-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/*
+ * The list. `min-height: 0` is doing real work: without it a flex item refuses
+ * to shrink below its content, which is what once stopped the rows scrolling and
+ * let the panel grow past its cap.
+ */
+.eu-tab-switcher__list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--eu-space-1);
+}
+
+/*
+ * One row.
+ *
+ * A row is two tight lines — the title over its path — so a long list fits in
+ * the popup without the panel growing. The row's *rhythm* is deliberately not
+ * here: the component pins it inline (2px of padding, a 13px title and an 11px
+ * path) because that sum is what the row's height is, and because
+ * `tests/ui/tab-switcher.test.ts` reads those three numbers back off the
+ * elements. So this rule supplies everything the inline style cannot: the
+ * arrangement, the hover surface and the transition into it.
+ *
+ * The selection is drawn as the accent tint plus the leading rule, the same
+ * vocabulary the palette uses for its highlighted row: one application should
+ * have one way of saying "this is the row the keyboard is on".
+ */
+.eu-tab-switcher__row {
+  position: relative;
+  gap: var(--eu-space-2);
+  border-radius: var(--eu-radius-md);
+}
+
+.eu-tab-switcher__row::before {
+  content: '';
+  position: absolute;
+  /* Just inside the row's own 6px of inline padding, so the rule sits on the
+     row's edge rather than in the gutter the list gives it. */
+  left: var(--eu-space-1);
+  top: var(--eu-space-half);
+  bottom: var(--eu-space-half);
+  width: 2px;
+  border-radius: var(--eu-radius-pill);
+  background: var(--eu-accent);
+  opacity: 0;
+  transition: opacity var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-tab-switcher__row[aria-selected='true']::before {
+  opacity: 1;
+}
+
+/* The pointer's row is a hint, not a selection: the keyboard's row is the one
+   that will be switched to when `Ctrl` is released, so only that one carries the
+   rule. The hover is a surface and nothing more — and it is stated at the same
+   specificity as `.eu-row:hover` so that the *unselected* case is the one it
+   applies to. */
+.eu-tab-switcher__row:hover:not([aria-selected='true']) {
+  background: var(--eu-bg-hover);
+}
+
+/*
+ * The document glyph. It is the row's left edge and the only thing in the popup
+ * that is not text, which is what lets a glance down the list find a file by
+ * shape before reading a single name.
+ */
+.eu-tab-switcher__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  flex-shrink: 0;
+  color: var(--eu-fg-muted);
+}
+
+.eu-tab-switcher__row[aria-selected='true'] .eu-tab-switcher__icon {
+  color: var(--eu-accent);
+}
+
+/* The title and the path stack in their own column; both must be able to
+   truncate, which needs `min-width: 0` on the column itself. */
+.eu-tab-switcher__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.eu-tab-switcher__title {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-1);
+  min-width: 0;
+  color: var(--eu-fg-primary);
+}
+
+/*
+ * The path line. Every row shows its path — a column of bare file names cannot
+ * tell two `main.tex` apart — and the focused row's is the one that slides, so
+ * this element is the *clip* the sliding text moves behind and therefore owns
+ * the overflow.
+ */
+.eu-tab-switcher__path {
+  color: var(--eu-fg-muted);
+  overflow: hidden;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/*
+ * The pin and close controls.
+ *
+ * They are quiet icon buttons that become visible rather than appearing: at rest
+ * the popup is a list of documents, and a pair of glyphs on every one of them
+ * would be eight controls in a five-row list. `.eu-icon-btn` supplies the hover
+ * and the press; only the box is stated here.
+ */
+.eu-tab-switcher__action {
+  width: var(--eu-space-5);
+  height: var(--eu-space-5);
+  border-radius: var(--eu-radius-sm);
+}
+
+/* ==========================================================================
+   5 · Focus Mode's floating PDF viewer
+   ==========================================================================
+   The overlay is inside the shell rather than over it — it must not cover the
+   window's own chrome — so this section styles the *surface* and leaves the
+   placement (top, bottom, right, width, z-index) to the component, which is the
+   only place that knows the chrome's height.
+   -------------------------------------------------------------------------- */
+
+/*
+ * A raised panel, and the only one in the application that floats over the
+ * editor while the editor keeps its full width. It therefore has to be
+ * unmistakably *above* the page rather than beside it: the large shadow, the
+ * hairline border and the rounded right-hand corners together do that, and any
+ * one of them alone would leave it looking like a pane that had come loose.
+ */
+.eu-focus-float {
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  border-radius: 0 var(--eu-radius-lg) var(--eu-radius-lg) 0;
+  /* A hairline on the three edges that face the window, and the strong border on
+     the one that faces the editor: that left edge is the seam the drag handle
+     lives on, and a seam has to be findable before the pointer is on it. */
+  border-top: 1px solid var(--eu-hairline);
+  border-right: 1px solid var(--eu-hairline);
+  border-bottom: 1px solid var(--eu-hairline);
+  border-left: 1px solid var(--eu-border-strong);
+  box-shadow: var(--eu-shadow-lg);
+  background: var(--eu-bg-app);
+  /* Staying out of the way rather than vanishing is what makes the reveal read
+     as the viewer arriving from the right edge instead of being switched on. */
+  transition: transform var(--eu-dur-base) var(--eu-ease-out),
+    opacity var(--eu-dur-fast) linear;
+}
+
+/*
+ * The drag handle: a grab strip down the left edge, half of it hanging over the
+ * editor, because that is where a pointer reaching for the seam actually is.
+ *
+ * Its geometry is inline in the component (it is derived from
+ * `FOCUS_FLOAT_HANDLE_PIXELS`, which is exported and used to reason about the
+ * strip's hit area), so what is here is the *highlight*: a quiet 2px seam while
+ * the pointer is elsewhere in the window, a full accent line under the pointer
+ * or mid-drag. A permanently accent-coloured band between the editor and the
+ * viewer would read as a border rather than as something you can take hold of.
+ */
+.eu-focus-float__handle {
+  position: relative;
+  /* The strip is a flex item in a row; stretching it is what makes its
+     pseudo-element a full-height seam rather than a short dash at the top. */
+  align-self: stretch;
+}
+
+.eu-focus-float__handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: var(--eu-border-strong);
+  opacity: 0.55;
+  transition: background var(--eu-dur-fast) var(--eu-ease-out),
+    opacity var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-focus-float__handle:hover::after,
+.eu-focus-float__handle:focus-visible::after,
+.eu-focus-float__handle[data-eu-dragging='true']::after {
+  background: var(--eu-accent);
+  opacity: 1;
+}
+
+/* The viewer's own column. It is the overlay's content box and nothing more:
+   the viewer inside brings its own toolbar, pages and scrollbar. */
+.eu-focus-float__viewer {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * Dragging must be *instant*: while the pointer is down the overlay follows it
+ * with no easing at all, because an eased drag is an overlay that lags behind
+ * the cursor that is drawing it.
+ */
+.eu-focus-float[data-eu-dragging='true'] {
+  transition: none;
+}
+
+/* ==========================================================================
+   6 · The top-left menu button
+   ==========================================================================
+   The compact menu control that appears at the leading edge of the tab strip
+   when the panel bar is collapsed. It is an ordinary quiet icon button — that is
+   the whole point, it has to look like it has always been part of the strip —
+   with one thing of its own: it is *toggle-shaped*, so its expanded state is the
+   accent tint the design system already gives `aria-pressed`/`aria-expanded`
+   controls.
+   -------------------------------------------------------------------------- */
+
+.eu-menu-button {
+  position: relative;
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--eu-radius-sm);
+  background: transparent;
+  color: var(--eu-fg-secondary);
+  cursor: pointer;
+  user-select: none;
+  overflow: hidden;
+  flex-shrink: 0;
+  /* The strip is a drag region; the control in it is not. */
+  -webkit-app-region: no-drag;
+}
+
+.eu-menu-button:hover {
+  border-color: var(--eu-border-strong);
+  background: var(--eu-bg-hover);
+  color: var(--eu-fg-primary);
+}
+
+/*
+ * Expanded: the menu view is showing, so the button is *on*. `aria-expanded` is
+ * the source of truth rather than a class, so the control cannot render as
+ * pressed while telling assistive technology it is not.
+ */
+.eu-menu-button[aria-expanded='true'] {
+  border-color: var(--eu-accent);
+  background: var(--eu-accent-muted);
+  color: var(--eu-fg-primary);
+}
+
+.eu-menu-button[aria-expanded='true']:hover {
+  border-color: var(--eu-accent);
+  background: var(--eu-accent-muted);
+}
+
+/* The glyph. `display: block` removes the inline baseline gap that otherwise
+   centres a 14px icon one pixel high in a 22px box. */
+.eu-menu-button > span > svg {
+  display: block;
+}

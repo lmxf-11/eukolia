@@ -1,0 +1,14 @@
+% Visual reference, top to bottom: surjection, implication, equivalence,
+% equality, leftward surjection, ordinary bidirectional arrow.
+\documentclass[border=8pt]{standalone}
+\usepackage{tikz-cd}
+\begin{document}
+\begin{tikzcd}[row sep=small]
+A \arrow[r,two heads] & B \\
+A \arrow[r,Rightarrow] & B \\
+A \arrow[r,Leftrightarrow] & B \\
+A \arrow[r,equal] & B \\
+A \arrow[r,twoheadleftarrow] & B \\
+A \arrow[r,leftrightarrow] & B
+\end{tikzcd}
+\end{document}

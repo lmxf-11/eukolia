@@ -1,0 +1,62 @@
+/*
+ * Latin Modern Roman, served locally.
+ *
+ * Eukolia's document face is `--eu-serif-font`, whose first entry is Latin
+ * Modern Roman — the face LaTeX itself sets a document in, and the face MathJax
+ * draws the mathematics with. It is *not* a font Windows ships and the browser
+ * cannot see inside a TeX installation, so on a machine without it registered as
+ * a system font the stack silently resolved to Cambria. The mathematics was then
+ * set in Computer Modern while the prose around it was set in Cambria: two
+ * typefaces, one document, and no warning anywhere. That is also the whole of
+ * the report that "the rendered text does not work well for Vietnamese" — the
+ * substitution was per-stack rather than per-character, so the prose came out in
+ * whichever face happened to be installed.
+ *
+ * Vendored rather than left to the platform, for the same reason MathJax and the
+ * Material Symbols are vendored: an offline desktop application cannot fetch a
+ * stylesheet, and a LaTeX editor whose manuscript is set in something other than
+ * the face LaTeX will use is showing the author a document they do not have.
+ *
+ * The four styles are the 10pt optical size, which is the one LaTeX uses at
+ * ordinary text sizes. `lmroman10-regular.otf` covers the whole of Vietnamese:
+ * all ninety precomposed codepoints in Latin Extended Additional (U+1EA0–U+1EF9)
+ * plus the D-stroke, both horned vowels, and the combining grave, acute, tilde,
+ * hook-above and dot-below, so no character in Vietnamese prose falls through to
+ * a second face. `scripts/check-document-face.py` asserts that from the font's
+ * own character map.
+ *
+ * Licensed under the GUST Font License, which permits redistribution provided
+ * the license travels with the fonts; see
+ * `vendor-licenses/latin-modern-GUST-FONT-LICENSE.txt`.
+ */
+@font-face {
+  font-family: 'Latin Modern Roman';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('/latin-modern/lmroman10-regular.otf') format('opentype');
+}
+
+@font-face {
+  font-family: 'Latin Modern Roman';
+  font-style: italic;
+  font-weight: 400;
+  font-display: block;
+  src: url('/latin-modern/lmroman10-italic.otf') format('opentype');
+}
+
+@font-face {
+  font-family: 'Latin Modern Roman';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('/latin-modern/lmroman10-bold.otf') format('opentype');
+}
+
+@font-face {
+  font-family: 'Latin Modern Roman';
+  font-style: italic;
+  font-weight: 700;
+  font-display: block;
+  src: url('/latin-modern/lmroman10-bolditalic.otf') format('opentype');
+}

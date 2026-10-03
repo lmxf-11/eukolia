@@ -1,0 +1,446 @@
+/**
+ * Eukolia — global styles.
+ *
+ * The document-level baseline: the theme's fallback values, the box model, the
+ * type defaults every surface inherits, and the scroll container rules the
+ * application's "smooth scrolling" requirement is built on.
+ *
+ * Everything else lives in two places, on purpose:
+ *
+ *   • `ui/eukolia-design.css` — the design system: the spacing, radius, type,
+ *     motion and elevation scales, and the control primitives (buttons, fields,
+ *     chips, rows, menus, dialogs) every panel composes from;
+ *   • the component's own stylesheet — `ui/eukolia-shell.css` for the three
+ *     chrome strips and the stage, and one file per panel group.
+ *
+ * The split is what keeps this file small. A rule belongs here only if it
+ * applies to the *document* rather than to a thing drawn in it.
+ *
+ * Every colour comes from the CSS custom properties written by
+ * `core/themes.ts`; the values in `:root` below are only fallbacks for the first
+ * paint, before the theme manager has run.
+ */
+
+:root {
+  /* Fallbacks matching the dark theme, replaced at startup. */
+  --eu-bg-app: #0e1017;
+  --eu-bg-sidebar: #12141c;
+  --eu-bg-toolbar: #161923;
+  --eu-bg-panel: #12141c;
+  --eu-bg-card: #181b25;
+  --eu-bg-hover: #1e2230;
+  --eu-bg-active: #232838;
+  --eu-bg-input: #0b0d13;
+  --eu-bg-overlay: rgba(6, 8, 12, 0.62);
+  --eu-bg-tab-active: #0e1017;
+  --eu-bg-tab-inactive: #161923;
+  --eu-bg-selection-list: #1b2030;
+
+  --eu-fg-primary: #e8ecf4;
+  --eu-fg-secondary: #a2acc0;
+  --eu-fg-muted: #6e7889;
+  --eu-fg-inverted: #0e1017;
+  --eu-fg-link: #6aa6ff;
+
+  --eu-border: #232838;
+  --eu-border-strong: #333a4e;
+  --eu-border-focus: #3d7dff;
+
+  --eu-accent: #3d7dff;
+  --eu-accent-hover: #5a92ff;
+  --eu-accent-muted: rgba(61, 125, 255, 0.16);
+  --eu-accent-fg: #ffffff;
+
+  --eu-error: #ff6b6b;
+  --eu-error-bg: rgba(255, 107, 107, 0.14);
+  --eu-warning: #f0b429;
+  --eu-warning-bg: rgba(240, 180, 41, 0.14);
+  --eu-info: #4dabf7;
+  --eu-info-bg: rgba(77, 171, 247, 0.14);
+  --eu-success: #37b24d;
+  --eu-success-bg: rgba(55, 178, 77, 0.14);
+
+  --eu-editor-bg: #0e1017;
+  --eu-editor-fg: #e8ecf4;
+  --eu-pdf-backdrop: #1a1d26;
+  --eu-pdf-shadow: rgba(0, 0, 0, 0.55);
+  --eu-pdf-sync-highlight: rgba(61, 125, 255, 0.35);
+
+  --eu-visual-bg: #12141c;
+  --eu-visual-fg: #e8ecf4;
+
+  --eu-ui-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --eu-mono-font: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, 'Courier New', monospace;
+
+  /*
+   * The document face: prose the visual editor renders.
+   *
+   * `Latin Modern Roman` is the face LaTeX sets a document in and the one MathJax
+   * draws the mathematics with, and it is *shipped with Eukolia* rather than
+   * hoped for — see `latin-modern.css`. It is not a font Windows provides and the
+   * browser cannot read a TeX installation, so before it was vendored this entry
+   * was skipped on every ordinary machine and the stack resolved to Cambria: the
+   * mathematics set in Computer Modern and the prose around it in Cambria, with
+   * no warning anywhere. Eukolia is a LaTeX editor, so the manuscript it shows
+   * has to be the manuscript LaTeX will typeset.
+   *
+   * Because it is vendored, it is also the face that answers the multilingual
+   * report. Read from the font file, `lmroman10-regular.otf` covers all ninety
+   * precomposed codepoints of Latin Extended Additional (U+1EA0–U+1EF9), both
+   * horned vowels, the D-stroke, and the combining grave, acute, tilde,
+   * hook-above and dot-below — every character Vietnamese prose uses, so no
+   * letter of a word falls through to a second face.
+   *
+   * `Georgia` was in this stack and is deliberately gone, which was the earlier
+   * half of the same fix. It is a fine text face whose *character set stops
+   * short*: `georgia.ttf` holds 619 characters and is missing ten that Vietnamese
+   * needs — `ơ ư` from Latin Extended-A and `ạ ế ộ ở ợ ữ ẫ ặ ệ ị ồ` from Latin
+   * Extended Additional. Chromium does not report a gap; it silently substitutes
+   * another face for those characters and keeps the rest, so `Tôpô compact-mở`
+   * came out with `Tôpô` in Georgia and `ở` in whatever the system offered — a
+   * word changing typeface in its last letter. `Book Antiqua` has the same gaps.
+   *
+   * The rest of the stack is the fallback for a build whose font failed to load:
+   * `Computer Modern` if the machine has one, then the two faces Windows ships
+   * that cover the whole set (4649 and 3678 characters, verified the same way),
+   * then the generic `serif`. `scripts/check-document-face.py` asserts the
+   * coverage from the character maps themselves.
+   */
+  --eu-serif-font: 'Latin Modern Roman', 'Computer Modern', Cambria, 'Times New Roman', Palatino, serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--eu-bg-app);
+  color: var(--eu-fg-primary);
+}
+
+body {
+  font-family: var(--eu-ui-font);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* The application owns all scrolling; the document itself never scrolls. */
+  overscroll-behavior: none;
+}
+
+/* ---------------------------------------------------------------- scrolling */
+
+/*
+ * Smooth scrolling is a core product requirement (Instructions.md §35), so the
+ * scroll container is styled once here for the whole app. The editor's scroller
+ * is the one long surface that is not built on `ScrollArea` — CodeMirror owns
+ * that element — so it is named alongside the attribute rather than wrapped.
+ *
+ * The bar is drawn *inside* the track with a transparent border and
+ * `background-clip: content-box`, which is what makes a 10px scrollbar read as a
+ * 6px thumb with air around it rather than as a slab bolted to the window edge.
+ */
+.eu-scroll,
+[data-scroll],
+.eukolia-visual-editor .cm-scroller {
+  scrollbar-width: thin;
+  scrollbar-color: var(--eu-border-strong) transparent;
+  overscroll-behavior: contain;
+}
+
+.eu-scroll::-webkit-scrollbar,
+[data-scroll]::-webkit-scrollbar,
+.eukolia-visual-editor .cm-scroller::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.eu-scroll::-webkit-scrollbar-track,
+[data-scroll]::-webkit-scrollbar-track,
+.eukolia-visual-editor .cm-scroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.eu-scroll::-webkit-scrollbar-thumb,
+[data-scroll]::-webkit-scrollbar-thumb,
+.eukolia-visual-editor .cm-scroller::-webkit-scrollbar-thumb {
+  background: var(--eu-border-strong);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+  transition: background-color 140ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.eu-scroll::-webkit-scrollbar-thumb:hover,
+[data-scroll]::-webkit-scrollbar-thumb:hover,
+.eukolia-visual-editor .cm-scroller::-webkit-scrollbar-thumb:hover {
+  background: var(--eu-fg-muted);
+  background-clip: content-box;
+}
+
+.eu-scroll::-webkit-scrollbar-corner,
+[data-scroll]::-webkit-scrollbar-corner,
+.eukolia-visual-editor .cm-scroller::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ------------------------------------------------------------------ controls */
+
+/*
+ * Form controls do not inherit type, and a `button` that falls back to the user
+ * agent's font is the single most common way a careful interface acquires one
+ * element set in the wrong face.
+ */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+/*
+ * The focus ring itself lives in `ui/eukolia-design.css`, where the rest of the
+ * interaction vocabulary is. This is the one exception the document has to
+ * state: an element that is focused *programmatically* — a pane, a scroll
+ * region, a dialog shell — must not draw a box around itself.
+ */
+[tabindex='-1']:focus {
+  outline: none;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--eu-fg-muted);
+}
+
+::selection {
+  background: var(--eu-accent-muted);
+}
+
+/* ------------------------------------------------------------------- Monaco */
+
+/*
+ * Monaco sets its own colours from the Eukolia theme, but the surrounding
+ * widget chrome needs to follow the app theme too.
+ */
+.monaco-editor .scroll-decoration {
+  box-shadow: none !important;
+}
+
+.monaco-editor .suggest-widget,
+.monaco-editor .monaco-hover,
+.monaco-editor .parameter-hints-widget {
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.monaco-editor .find-widget {
+  border-radius: 0 0 6px 6px;
+}
+
+/* ------------------------------------------------------------------ MathJax */
+
+mjx-container {
+  color: inherit;
+  line-height: 0;
+}
+
+mjx-container[display='true'] {
+  display: block;
+  margin: 0.75em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+mjx-container svg {
+  max-width: 100%;
+}
+
+/* -------------------------------------------------------------- Visual Mode */
+
+/*
+ * The editor surface itself — its background, text colour, font and gutter —
+ * lives in `visual/visual-editor.css`, which is loaded with the editor and
+ * scoped to the `.eukolia-visual-editor` wrapper. It used to be here, unscoped
+ * (`.cm-editor` / `.cm-content` / `.cm-scroller`), which made this file the
+ * last matching declaration for the editor element — CodeMirror mounts its own
+ * stylesheet as the first child of `<head>` and this one is linked after it —
+ * so `font-family: var(--eu-serif-font)` on `.cm-editor` overrode the ported
+ * theme's `--source-font-family` on `.cm-content` and Code Mode rendered LaTeX
+ * source in a serif face. The MathJax output the visual editor renders is
+ * covered by the rules above, because it is not part of the editor surface.
+ */
+
+/* ------------------------------------------------------------------- motion */
+
+/**
+ * A rotating glyph, for the one control that has work in flight: the tab bar's
+ * compile button while a build is running.
+ *
+ * The keyframes live here rather than only in `eukolia-design.css` because the
+ * name `eu-spin` is what the component asks for by class, and this is the
+ * stylesheet that is always loaded — the design system states the same keyframes
+ * and is loaded immediately after, so either alone is enough. `eu-spin` is the
+ * only animation the shell itself needs at this level: everything newer uses the
+ * design system's named keyframes.
+ */
+.eu-spin {
+  animation: eu-spin 1s linear infinite;
+}
+
+@keyframes eu-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ------------------------------------------------------- chrome transitions */
+
+/**
+ * The menu button's migration between the activity bar and the tab strip.
+ *
+ * Four named keyframes rather than one parameterised animation, because each
+ * describes a *different journey*: the menu glyph expands out of the strip when
+ * the panel bar is collapsed away, docks into the activity bar, cascades with its
+ * neighbours when the strip returns, and the strip's wrapper grows to make room.
+ * Naming them after the destinations is what keeps that readable.
+ *
+ * These are the classic names the components inline (`animation: 'menuTransition
+ * ToActivityBar …'`), so they live in the always-loaded document sheet rather
+ * than in a panel stylesheet that may not be imported yet.
+ */
+@keyframes eu-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes activityBarSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes menuTransitionToTabBar {
+  0% {
+    opacity: 0.6;
+    transform: translateY(5px) scale(1.25);
+  }
+  60% {
+    transform: translateY(-1px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes menuIconDock {
+  0% {
+    transform: rotate(-35deg) scale(1.15);
+  }
+  100% {
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+@keyframes menuTransitionToActivityBar {
+  0% {
+    opacity: 0.7;
+    transform: translateY(-5px) scale(0.78);
+  }
+  60% {
+    transform: translateY(1px) scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes panelButtonsCascadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes topLeftWrapperExpand {
+  0% {
+    max-width: 0;
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  100% {
+    max-width: 48px;
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ---------------------------------------------------------------- dividers */
+
+/*
+ * The draggable rule between two panes.
+ *
+ * The transition is what makes the highlight read as a *response* to the pointer
+ * rather than as a repaint, and it is the reason the seam can be a single pixel
+ * at rest: a 1px line that lights up under the cursor is a handle, and a 1px
+ * line that is always bright is a border.
+ */
+.eu-panel-divider {
+  flex-shrink: 0;
+  background: var(--eu-border);
+  transition: background 120ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.eu-panel-divider:hover,
+.eu-panel-divider:focus-visible {
+  background: var(--eu-accent);
+}
+
+/* ------------------------------------------------------------- preferences */
+
+/*
+ * Reduced motion removes the animations rather than shortening them: the design
+ * system's own rule covers a hundredth-of-a-millisecond transitions, and the
+ * spinner is the one exception — it is the only indication a build is running, so
+ * stopping it would remove information rather than motion.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .eu-spin {
+    animation: eu-spin 2.4s linear infinite !important;
+  }
+}

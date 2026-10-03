@@ -1,0 +1,1734 @@
+/**
+ * Eukolia — the sidebar panels.
+ *
+ * The Explorer, Search, Outline, Symbols, Problems, Snippets and Menu views all
+ * live in one component (`ui/components/Sidebar.tsx`) and are switched by
+ * `sidebarView`. They used to carry their own inline styles, one object per
+ * view, and the result was seven panels that agreed on nothing: four different
+ * header heights, three indents, a focus ring that appeared in some lists and
+ * not others, and a "selected row" that was a full-bleed band in the tree but a
+ * bare text colour in the results.
+ *
+ * So this file is the panels' *look*, exactly as `eukolia-design.css` is the
+ * application's. It is loaded by `Sidebar.tsx` itself (`import
+ * '../sidebar-panels.css'`), which is what keeps it honest: the stylesheet and
+ * the markup it dresses ship together, and a panel that stops rendering takes
+ * its rules out of the cascade with it. Nothing here is *load-bearing for
+ * behaviour* — every rule adds a surface, a radius, a transition or a
+ * hierarchy, so a component that keeps an inline declaration keeps working.
+ *
+ * Naming: `eu-sidebar-panel__*` for the shared shell, `eu-sidebar-<view>__*`
+ * for a view's own rows, and `eu-sidebar-*` for the small pieces several views
+ * share — all following `eukolia-shell.css`. Every rule is prefixed, so nothing
+ * here can leak into the editor, the PDF viewer or the bottom panel; the only
+ * unprefixed selectors in the file are the design system's own primitives,
+ * which are composed rather than restated.
+ *
+ * Inline styles are still load-bearing, and every one of them is deliberate:
+ *
+ *  * **`tests/ui/*` reads geometry back off the element** — the Explorer row's
+ *    `background` (the selected-file fill), the Outline row's `height` and
+ *    `paddingLeft` (the 20px row and the 10px indent step), and the Outline
+ *    title's `flex`/`min-width`/`text-overflow`. Those values stay inline, are
+ *    commented in the component, and this file never tries to override them.
+ *  * **A value is genuinely computed per render** — the tree's indent from its
+ *    depth, a context menu's position from the pointer, a dialog's position from
+ *    where its row sits on screen, an inline editor's busy dim. A class cannot
+ *    express any of them.
+ *
+ * Where a test-pinned inline value needs a *transition* or a hover that the
+ * inline declaration would otherwise win against, the workaround is the one
+ * `eukolia-shell.css` established for the tab strip: paint the extra surface
+ * with `background-image` on top of the inline `background`, so the two compose
+ * instead of competing and no `!important` is needed.
+ */
+
+/* ==========================================================================
+   1 · The panel shell
+   ========================================================================== */
+
+/*
+ * The column every view is drawn in. It owns the sidebar's background rather
+ * than leaving it transparent: `.eu-section` bands assume an opaque surface
+ * behind them (they are sticky, and a translucent band that rows scroll
+ * through is worse than no band at all), so the surface has to start here.
+ */
+.eu-sidebar-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--eu-bg-sidebar);
+  color: var(--eu-fg-primary);
+}
+
+/* The one scrolling box in a view, under the header. */
+.eu-sidebar-panel__scroll {
+  flex: 1;
+  min-height: 0;
+}
+
+/*
+ * The header, and the same header in every view.
+ *
+ * 28px rather than the 26 it was: the title is now a real `--eu-text-xs` label
+ * with tracking rather than an 11px uppercase string with a letter-spacing
+ * picked per call site, and two of the panels put a badge beside it. A header
+ * that changes height between views is the single most visible way a set of
+ * panels reads as seven unrelated screens, so the height is stated once, here.
+ */
+.eu-sidebar-panel__header {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  flex-shrink: 0;
+  min-height: 28px;
+  padding: 0 var(--eu-space-1) 0 var(--eu-space-3);
+  border-bottom: 1px solid var(--eu-border);
+  background: var(--eu-bg-sidebar);
+  user-select: none;
+}
+
+.eu-sidebar-panel__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--eu-fg-secondary);
+}
+
+/* The icon cluster. `--eu-space-half` keeps three 22px buttons from reading as
+   one 66px slab, which a 0 gap does at this size. */
+.eu-sidebar-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-half);
+  flex-shrink: 0;
+}
+
+/* A header button and every other quiet icon button in the sidebar. 22px is
+   the size the rest of the shell uses for a glyph in a strip. */
+.eu-sidebar-icon-btn {
+  width: 22px;
+  height: 22px;
+}
+
+/*
+ * An icon button that sits beside a text field rather than in a header, so it
+ * has to look like the field's neighbour: same radius, same border, same
+ * inset. It used to be a bordered square with no hover at all, which made the
+ * one control you press most often in the Search panel the only one that never
+ * responded to the pointer.
+ */
+.eu-sidebar-field-btn {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--eu-border);
+  background: var(--eu-bg-input);
+  box-shadow: var(--eu-inset-field);
+}
+
+.eu-sidebar-field-btn:hover:not(:disabled) {
+  border-color: var(--eu-border-strong);
+}
+
+.eu-sidebar-field-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* A count or a state, sitting in a header's right-hand cluster. */
+.eu-sidebar-header-badge {
+  font-variant-numeric: tabular-nums;
+}
+
+.eu-sidebar-badge-error {
+  background: var(--eu-error-bg);
+  color: var(--eu-error);
+}
+
+.eu-sidebar-badge-warning {
+  background: var(--eu-warning-bg);
+  color: var(--eu-warning);
+}
+
+/* -------------------------------------------------------- the body rhythm -- */
+
+/*
+ * Every panel body is a 4px column with 12px gutters. Stated once so a new
+ * view cannot invent a third indent.
+ */
+.eu-sidebar-panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eu-space-1);
+  padding: 0 var(--eu-space-3) var(--eu-space-2);
+}
+
+/* A field in a panel body (`Search`, `Symbols`, `Problems`, `Snippets`). */
+.eu-sidebar-panel__field {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The scope note above the Search fields: what is being searched, said once. */
+.eu-sidebar-scope {
+  padding: 0 1px;
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-2xs);
+  line-height: var(--eu-leading-snug);
+}
+
+/*
+ * One field and the button that acts on it.
+ *
+ * The pairing is the layout's whole argument: the glyph to the right of a row
+ * is what that row's text does, so "run this search" sits on the search row and
+ * "replace every match" sits on the replacement row, instead of both living in a
+ * toolbar the reader has to map back onto the fields.
+ */
+.eu-sidebar-search-row {
+  display: flex;
+  gap: var(--eu-space-1);
+}
+
+/*
+ * The match modes and the file filter, on one line below the two fields.
+ *
+ * Chips rather than 22px bordered squares: three settings of the same search
+ * read as three settings when they are shaped like a row of chips, and as three
+ * unrelated controls when each one carries its own box. `.eu-chip` already
+ * states its pressed treatment against `aria-pressed`, which these buttons
+ * publish, so the on/off colour is the design system's and not a second copy.
+ */
+.eu-sidebar-search-options {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-1);
+}
+
+.eu-sidebar-search-options__glob {
+  flex: 1;
+  min-width: 0;
+}
+
+/* A chip whose content is a glyph: the design system's 2px inline padding is
+   right for a word and clips a 13px icon, so the chip is squared off instead. */
+.eu-sidebar-chip {
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: var(--eu-radius-sm);
+  color: var(--eu-fg-secondary);
+}
+
+.eu-sidebar-chip[aria-pressed='true'] {
+  color: var(--eu-accent);
+}
+
+/*
+ * A severity glyph.
+ *
+ * One `class` for the shape and one `data-eu-severity` for the state, so the
+ * colour is chosen from the semantic tokens here rather than assembled in the
+ * component — and the same three elements are rendered by the bottom panel's
+ * Problems tab, which means the two lists cannot drift apart. This is the
+ * convention the design system uses for state a component publishes
+ * (`data-eu-active`, `data-eu-pressed`).
+ */
+.eu-sidebar-severity {
+  display: block;
+  flex-shrink: 0;
+}
+
+.eu-sidebar-severity[data-eu-severity='error'] {
+  color: var(--eu-error);
+}
+
+.eu-sidebar-severity[data-eu-severity='warning'] {
+  color: var(--eu-warning);
+}
+
+.eu-sidebar-severity[data-eu-severity='information'] {
+  color: var(--eu-info);
+}
+
+/* A running search, its tally, a truncation notice or an error. It reserves
+   its line so the results below do not jump when a search finishes. */
+.eu-sidebar-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  min-height: 16px;
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-2xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.eu-sidebar-meta--warning {
+  color: var(--eu-warning);
+}
+
+.eu-sidebar-meta--error {
+  color: var(--eu-error);
+}
+
+/* ==========================================================================
+   2 · Explorer
+   ========================================================================== */
+
+/*
+ * The open project's path, above the tree.
+ *
+ * A row of the scroll area rather than part of the header (see the component
+ * for why), which is why it carries its own bottom hairline: it has to read as
+ * a caption *for* the tree and not as the first entry in it. Monospaced,
+ * because a path is read character by character.
+ */
+.eu-sidebar-project-path {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-1);
+  padding: var(--eu-space-1) var(--eu-space-3);
+  border-bottom: 1px solid var(--eu-hairline);
+  color: var(--eu-fg-muted);
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-2xs);
+  line-height: var(--eu-leading-snug);
+  /* A path is quoted, copied and pasted, so unlike every other row in the tree
+     it must stay selectable. */
+  user-select: text;
+}
+
+.eu-sidebar-project-path > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The folder glyph is orientation, not content, so it takes the muted token —
+   and it is the row's flex child, so it must not be compressed by a long path
+   beside it. */
+.eu-sidebar-project-path > svg {
+  flex-shrink: 0;
+  color: var(--eu-fg-muted);
+}
+
+/* The tree itself. `flex: 1 0 auto` is what lets the indentation guides below
+   span the full scrolled height rather than only the visible part. */
+.eu-sidebar-tree {
+  flex: 1 0 auto;
+  padding: var(--eu-space-1) var(--eu-space-1) var(--eu-space-2);
+}
+
+/*
+ * One entry.
+ *
+ * The inset is on the *container* and the surface is on the row: a hover fill
+ * that ran the full width of the panel would read as a selection, and the only
+ * thing that should read as a selection here is the file you have open.
+ *
+ * `--eu-row-inset` is the trick that lets a 2px pill inset and a 12px indent
+ * step share one number. The row's `paddingLeft` is `6 + depth * 12` (stated
+ * inline, because the depth is what the component computes), and the inset is
+ * added to the *container* rather than to the row, so every row starts 2px
+ * inside its own hit area while the whole tree steps by the same 12px.
+ *
+ * The guides then follow from that arithmetic instead of being tuned by eye. A
+ * box-shadow's offset is measured from the element's own border box, and the
+ * row's content starts `6 + depth * 12` in from there, so the grid a row at
+ * depth *d* has to draw is `{6 + j * 12 − (6 + d * 12)}` for `j = 0…d−1`,
+ * which simplifies to `12 * (j − d)` — i.e. `0, −12, −24, …` from the right
+ * and, read from the left, `12·(d−j)`. Those are the numbers below, and the
+ * reason they look like they count backwards is that they do: each row stands
+ * *inside* the indentation rather than at the left of it.
+ */
+.eu-sidebar-tree__row {
+  --eu-row-inset: 2px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-1);
+  min-width: 0;
+  margin-left: var(--eu-row-inset);
+  padding-right: var(--eu-space-1);
+  border-radius: var(--eu-radius-sm);
+  cursor: pointer;
+  font-size: var(--eu-text-sm);
+  color: var(--eu-fg-primary);
+  transition: background-color var(--eu-dur-fast) var(--eu-ease-out),
+    box-shadow var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+/*
+ * A file tree *arrives*, it does not appear.
+ *
+ * Opening a folder is the one moment the explorer has something new to say, and
+ * a list that is simply there afterwards reads as having always been there. The
+ * rows step in over a tenth of a second.
+ *
+ * The animation is scoped to the first twelve rows, and that bound is the point
+ * rather than a detail: an animation is a compositor object, and a rule that
+ * matched every row would allocate one per file — eight hundred of them for a
+ * real project — to animate rows that are below the fold the whole time. Only
+ * the rows that are *visible when the folder opens* are worth the object, and
+ * after the twelfth the row is simply drawn.
+ *
+ * `nth-child` rather than a per-row style, so this costs no JavaScript at all.
+ */
+.eu-sidebar-tree__row:nth-child(-n + 12) {
+  animation: eu-tree-row-in var(--eu-dur-fast) var(--eu-ease-out) both;
+}
+
+.eu-sidebar-tree__row:nth-child(1) { animation-delay: 0ms; }
+.eu-sidebar-tree__row:nth-child(2) { animation-delay: 7ms; }
+.eu-sidebar-tree__row:nth-child(3) { animation-delay: 14ms; }
+.eu-sidebar-tree__row:nth-child(4) { animation-delay: 21ms; }
+.eu-sidebar-tree__row:nth-child(5) { animation-delay: 28ms; }
+.eu-sidebar-tree__row:nth-child(6) { animation-delay: 35ms; }
+.eu-sidebar-tree__row:nth-child(7) { animation-delay: 42ms; }
+.eu-sidebar-tree__row:nth-child(8) { animation-delay: 49ms; }
+.eu-sidebar-tree__row:nth-child(9) { animation-delay: 56ms; }
+.eu-sidebar-tree__row:nth-child(10) { animation-delay: 63ms; }
+.eu-sidebar-tree__row:nth-child(11) { animation-delay: 70ms; }
+.eu-sidebar-tree__row:nth-child(12) { animation-delay: 77ms; }
+
+@keyframes eu-tree-row-in {
+  from {
+    opacity: 0;
+    transform: translateX(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/*
+ * The indentation guides.
+ *
+ * They are a `background-image` rather than the box-shadow the rest of this
+ * file would reach for, and rather than a child element, for three reasons:
+ *
+ *  * a guide *child* would take part in the row's flex layout and push the icon
+ *    along, which is the one thing the indent geometry must not do;
+ *  * a `border-left` would grow the row's box by a pixel per level;
+ *  * a background is the only one of the three that survives a forced-colours
+ *    mode. A box-shadow is dropped entirely there and a hairline background is
+ *    flattened to the canvas colour, but a *gradient* is a colour stop the
+ *    scheme does not rewrite — so the guides are one of the few pieces of
+ *    sidebar decoration that still reads for a user in high-contrast mode.
+ *
+ * The offsets are the arithmetic above and not tuned by eye: a row at depth *d*
+ * stands `6 + d·12` in from the tree's left edge, so the guides it draws are
+ * at `0, 12, 24, …` from its own left edge, which lands each rule exactly on
+ * the `paddingLeft` of the rows it groups. One gradient per level, so the
+ * count of stops *is* the depth and there is no second list of offsets to keep
+ * in step.
+ *
+ * These come *before* the hover and active rules, which have the same
+ * specificity: the wash is what the pointer is asking for and it therefore has
+ * to be the declaration that wins. The guides are hidden for as long as a row
+ * is under the pointer, which is the same bargain the tab strip makes — the
+ * hover tint replaces the surface rather than layering onto it.
+ */
+.eu-sidebar-tree__row--d2 {
+  background-image: linear-gradient(var(--eu-hairline), var(--eu-hairline));
+  background-size: 1px 100%;
+  background-position: 12px 0;
+  background-repeat: no-repeat;
+}
+
+.eu-sidebar-tree__row--d3 {
+  background-image: linear-gradient(var(--eu-hairline), var(--eu-hairline)),
+    linear-gradient(var(--eu-hairline), var(--eu-hairline));
+  background-size: 1px 100%;
+  background-position: 12px 0, 24px 0;
+  background-repeat: no-repeat;
+}
+
+.eu-sidebar-tree__row--d4 {
+  background-image: linear-gradient(var(--eu-hairline), var(--eu-hairline)),
+    linear-gradient(var(--eu-hairline), var(--eu-hairline)),
+    linear-gradient(var(--eu-hairline), var(--eu-hairline));
+  background-size: 1px 100%;
+  background-position: 12px 0, 24px 0, 36px 0;
+  background-repeat: no-repeat;
+}
+
+.eu-sidebar-tree__row--d5 {
+  background-image: linear-gradient(var(--eu-hairline), var(--eu-hairline)),
+    linear-gradient(var(--eu-hairline), var(--eu-hairline)),
+    linear-gradient(var(--eu-hairline), var(--eu-hairline)),
+    linear-gradient(var(--eu-hairline), var(--eu-hairline));
+  background-size: 1px 100%;
+  background-position: 12px 0, 24px 0, 36px 0, 48px 0;
+  background-repeat: no-repeat;
+}
+
+.eu-sidebar-tree__row--d6 {
+  background-image: linear-gradient(var(--eu-hairline), var(--eu-hairline)),
+    linear-gradient(var(--eu-hairline), var(--eu-hairline)),
+    linear-gradient(var(--eu-hairline), var(--eu-hairline)),
+    linear-gradient(var(--eu-hairline), var(--eu-hairline)),
+    linear-gradient(var(--eu-hairline), var(--eu-hairline));
+  background-size: 1px 100%;
+  background-position: 12px 0, 24px 0, 36px 0, 48px 0, 60px 0;
+  background-repeat: no-repeat;
+}
+
+/*
+ * Deeper than six levels keeps the tree's rhythm and loses only the guides.
+ *
+ * The list has to stop somewhere — CSS has no loop, and a chain of `\input`s
+ * can nest a project arbitrarily deep — and the guide is the part of this that
+ * is decoration rather than structure: the *indent* is what says which folder a
+ * file is in, and the indent is inline and correct at every depth. So the
+ * cutoff falls on the decoration, where it costs nothing, rather than on the
+ * padding, where it would silently misplace rows.
+ */
+
+/*
+ * Hover and press, last so they beat the guides above.
+ *
+ * The wash is a translucent gradient laid *over* the row rather than a
+ * replacement for it, for the reason `eukolia-shell.css` gives for the tab
+ * strip: the component states `transparent` or the selected fill inline
+ * because a test reads it back, and an inline declaration beats a class. A
+ * gradient background-image composes with it — and because the wash is
+ * translucent, the selected row keeps its fill *and* still answers the
+ * pointer, so the one file you already have open is not the only row where
+ * nothing happens under the cursor.
+ */
+.eu-sidebar-tree__row:hover {
+  background-image: linear-gradient(var(--eu-bg-hover), var(--eu-bg-hover));
+}
+
+.eu-sidebar-tree__row:active {
+  background-image: linear-gradient(var(--eu-bg-active), var(--eu-bg-active));
+}
+
+/* A drop in progress outranks both: it is the more immediate thing to show,
+   and the only state in this list that has an outcome. */
+.eu-sidebar-tree__row--drop,
+.eu-sidebar-tree__row--drop:hover {
+  background-image: linear-gradient(var(--eu-accent-muted), var(--eu-accent-muted));
+}
+
+.eu-sidebar-tree__row:focus-visible {
+  outline: 2px solid var(--eu-border-focus);
+  /* Negative, because the row is flush with its neighbours. */
+  outline-offset: -2px;
+}
+
+.eu-sidebar-tree__row--excluded {
+  opacity: 0.5;
+}
+
+.eu-sidebar-tree__chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  color: var(--eu-fg-muted);
+  transition: transform var(--eu-dur-fast) var(--eu-ease-out),
+    color var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-sidebar-tree__chevron--open {
+  transform: rotate(90deg);
+}
+
+.eu-sidebar-tree__row:hover .eu-sidebar-tree__chevron {
+  color: var(--eu-fg-secondary);
+}
+
+/* The slot a file row leaves where a folder's chevron would be, so names at
+   one level line up whether their siblings are folders or files. */
+.eu-sidebar-tree__spacer {
+  width: 12px;
+  flex-shrink: 0;
+}
+
+.eu-sidebar-tree__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* A folder's glyph, tinted by its state. Open is the accent — it is the branch
+   you are inside, and the accent is the one colour in the tree that means "this
+   is where you are". */
+.eu-sidebar-tree__folder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--eu-fg-secondary);
+  transition: color var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-sidebar-tree__folder[data-eu-folder-open='true'] {
+  color: var(--eu-accent);
+}
+
+.eu-sidebar-tree__name {
+  min-width: 0;
+}
+
+/*
+ * The rows that are *not* placed by the component: the new-file/rename editor
+ * and the empty-tree hint. They sit inside the tree, so they take the same 2px
+ * inset as the rows, and the editor indents itself to the depth it is being
+ * created at (see `NameInput`, where `paddingLeft` is the one computed value).
+ */
+.eu-sidebar-tree__editor {
+  display: flex;
+  flex-direction: column;
+  margin-left: 2px;
+  padding-right: var(--eu-space-2);
+}
+
+.eu-sidebar-tree__editor-row {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-1);
+  /* 22px, matching the rows: the inline editor is a row that happens to be
+     editable, and a different height would make the tree twitch as it opens. */
+  height: 22px;
+}
+
+/* The glyph leading the editor is one of three things — a new file, a new
+   folder, or the type icon of the entry being renamed — and all three are
+   orientation rather than content, so all three take the muted token. The file
+   icons `renderTabIcon` returns carry their type's own colour inline, so this
+   only reaches the two folder glyphs. */
+.eu-sidebar-tree__editor-row > svg {
+  flex-shrink: 0;
+  color: var(--eu-fg-muted);
+}
+
+.eu-sidebar-tree__editor-error {
+  padding-left: var(--eu-space-half);
+  color: var(--eu-error);
+  font-size: var(--eu-text-xs);
+}
+
+.eu-sidebar-tree__empty {
+  padding-left: var(--eu-space-2);
+}
+
+/* ==========================================================================
+   3 · Outline
+   ========================================================================== */
+
+.eu-sidebar-outline {
+  flex: 1 0 auto;
+  padding: var(--eu-space-1) var(--eu-space-1) var(--eu-space-2);
+}
+
+/*
+ * One heading.
+ *
+ * The geometry the tests pin — a 20px row and a 10px indent step — stays
+ * inline in the component, because that is what `tests/ui/outline-view.test.ts`
+ * reads. Everything else is here, and the row deliberately borrows the tree
+ * row's shape: the Outline is the same kind of list as the Explorer, and an
+ * author who has just learned where the selected file is should not have to
+ * learn a second set of rows one panel over.
+ */
+.eu-sidebar-outline__row {
+  --eu-row-inset: 2px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-half);
+  margin-left: var(--eu-row-inset);
+  padding-right: var(--eu-space-2);
+  cursor: pointer;
+  /* The title's font-size lives on the row, not on the title: the title's own
+     `style` attribute is asserted, so a stylesheet rule on it is one more
+     thing that could be lost without a test noticing. */
+  font-size: var(--eu-text-sm);
+  transition: background-color var(--eu-dur-fast) var(--eu-ease-out),
+    color var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-sidebar-outline__row:hover {
+  background: var(--eu-bg-hover);
+}
+
+.eu-sidebar-outline__row:focus-visible {
+  outline: 2px solid var(--eu-border-focus);
+  outline-offset: -2px;
+}
+
+/*
+ * The type hierarchy, drawn with depth instead of with size.
+ *
+ * Every heading is the same size — an Outline is a *list*, and headings set at
+ * four different sizes stop being scannable as a list. What changes with depth
+ * is weight and colour: the outermost command is what a reader navigates by,
+ * and its children are the detail under it. `--eu-leading-tight` keeps the
+ * 20px row tight around the text.
+ */
+.eu-sidebar-outline__row[data-outline-level='0'] {
+  color: var(--eu-fg-primary);
+  font-weight: var(--eu-weight-semibold);
+  line-height: var(--eu-leading-tight);
+}
+
+.eu-sidebar-outline__row[data-outline-level='1'] {
+  color: var(--eu-fg-primary);
+  font-weight: var(--eu-weight-medium);
+  line-height: var(--eu-leading-tight);
+}
+
+.eu-sidebar-outline__row[data-outline-level='2'],
+.eu-sidebar-outline__row[data-outline-level='3'] {
+  color: var(--eu-fg-secondary);
+  font-weight: var(--eu-weight-regular);
+  line-height: var(--eu-leading-tight);
+}
+
+.eu-sidebar-outline__row[data-outline-level='4'],
+.eu-sidebar-outline__row[data-outline-level='5'] {
+  color: var(--eu-fg-muted);
+  font-weight: var(--eu-weight-regular);
+  line-height: var(--eu-leading-tight);
+}
+
+/*
+ * The chevron, as one glyph that rotates.
+ *
+ * The component renders `ChevronDown` when the section is open and
+ * `ChevronRight` when it is closed, so the resting state is rotated -90° and
+ * the open state is not rotated at all: the glyph the expanded row shows is
+ * still the one the component chose, and the turn is the only thing the
+ * stylesheet adds. `transform-origin: center` is explicit because a 12px box
+ * with a 20px line-height around it defaults to a centre that is half a line
+ * off, which turns a rotation into a wobble.
+ */
+.eu-sidebar-outline__chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 18px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--eu-radius-xs);
+  background: transparent;
+  color: var(--eu-fg-muted);
+  cursor: pointer;
+  transform-origin: center;
+  transform: rotate(-90deg);
+  transition: transform var(--eu-dur-base) var(--eu-ease-spring),
+    color var(--eu-dur-fast) var(--eu-ease-out),
+    background-color var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-sidebar-outline__chevron[aria-expanded='true'] {
+  transform: rotate(0deg);
+}
+
+.eu-sidebar-outline__chevron:hover {
+  color: var(--eu-fg-primary);
+  background: var(--eu-bg-active);
+}
+
+/* The slot a leaf heading leaves where a chevron would be. */
+.eu-sidebar-outline__spacer {
+  width: 14px;
+  flex-shrink: 0;
+}
+
+/* ==========================================================================
+   4 · Search
+   ========================================================================== */
+
+/*
+ * A result group's band. `.eu-section` is the design system's sticky band and
+ * is reused rather than restated, so a file heading here and a file heading in
+ * the Problems panel below cannot drift apart — only the two things this list
+ * needs and `Search`/`Problems` share are added.
+ */
+.eu-sidebar-hit-group,
+.eu-sidebar-problem-group,
+.eu-sidebar-symbol-group {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-1);
+  min-height: 28px;
+  padding: var(--eu-space-1) var(--eu-space-3);
+  /* `.eu-section`'s opaque band; restated because these bands sit in a list of
+     rows and must stay above them while the list scrolls. */
+  background: var(--eu-bg-sidebar);
+  border-bottom: 1px solid var(--eu-hairline);
+}
+
+.eu-sidebar-hit-group__icon,
+.eu-sidebar-problem-group__icon,
+.eu-sidebar-symbol-group__icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--eu-fg-muted);
+}
+
+.eu-sidebar-hit-group__name,
+.eu-sidebar-problem-group__name {
+  flex-shrink: 0;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--eu-fg-secondary);
+  font-weight: var(--eu-weight-medium);
+  /* The band is uppercase, and a file name that has been upper-cased is not the
+     file's name any more — `main.TEX` would be a lie about the file on disk. */
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+/* The path, relative to the project root: the disambiguator, second in
+   importance to the name, so it comes after it and yields first. */
+.eu-sidebar-hit-group__dir {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-2xs);
+  font-weight: var(--eu-weight-regular);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.eu-sidebar-hit-group__count,
+.eu-sidebar-problem-group__count,
+.eu-sidebar-symbol-group__count {
+  flex-shrink: 0;
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-2xs);
+  font-variant-numeric: tabular-nums;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+/*
+ * One matching line: a line number in a fixed gutter, then the text.
+ *
+ * The gutter is 32px and right-aligned so the numbers form a column, and the
+ * snippet is monospaced and `pre` — a search hit is *source code*, and a
+ * proportional face reflows the very thing being matched, so the highlight
+ * lands in a different place on screen than it did in the file.
+ */
+.eu-sidebar-hit {
+  display: flex;
+  align-items: baseline;
+  gap: var(--eu-space-2);
+  min-height: 20px;
+  margin: 0 var(--eu-space-1);
+  padding: var(--eu-space-half) var(--eu-space-2);
+  border-radius: var(--eu-radius-sm);
+  cursor: pointer;
+  overflow: hidden;
+  transition: background-color var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-sidebar-hit:hover {
+  background: var(--eu-bg-hover);
+}
+
+.eu-sidebar-hit:focus-visible {
+  outline: 2px solid var(--eu-border-focus);
+  outline-offset: -2px;
+}
+
+.eu-sidebar-hit__line {
+  flex-shrink: 0;
+  min-width: 32px;
+  text-align: right;
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-2xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.eu-sidebar-hit__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre;
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-xs);
+  line-height: var(--eu-leading-snug);
+  color: var(--eu-fg-secondary);
+}
+
+.eu-sidebar-hit:hover .eu-sidebar-hit__text {
+  color: var(--eu-fg-primary);
+}
+
+/*
+ * The match itself. It was `--eu-accent-muted` with the ordinary text colour,
+ * which on a dark theme is a *darker* patch than the line around it — the mark
+ * read as a gap rather than as a hit. `--eu-accent` with `--eu-accent-fg` is
+ * the same pair every primary control in the application uses, and it is the
+ * only element in the list that is allowed to be loud.
+ */
+.eu-sidebar-hit__text mark {
+  padding: 0 1px;
+  border-radius: var(--eu-radius-xs);
+  background: var(--eu-accent);
+  color: var(--eu-accent-fg);
+}
+
+/* ==========================================================================
+   5 · Symbols
+   ========================================================================== */
+
+.eu-sidebar-symbol-group__title {
+  color: var(--eu-fg-secondary);
+}
+
+.eu-sidebar-symbol-row {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  min-height: 22px;
+  margin: 0 var(--eu-space-1);
+  padding: var(--eu-space-half) var(--eu-space-2);
+  border-radius: var(--eu-radius-sm);
+  cursor: pointer;
+  overflow: hidden;
+  font-size: var(--eu-text-sm);
+  color: var(--eu-fg-primary);
+  transition: background-color var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-sidebar-symbol-row:hover {
+  background: var(--eu-bg-hover);
+}
+
+.eu-sidebar-symbol-row:focus-visible {
+  outline: 2px solid var(--eu-border-focus);
+  outline-offset: -2px;
+}
+
+/* A row with nowhere to go: an environment name is a name the project index
+   knows, with no single source position to open. It says that by not lighting
+   up under the pointer at all. */
+.eu-sidebar-symbol-row--static {
+  cursor: default;
+}
+
+.eu-sidebar-symbol-row--static:hover {
+  background: transparent;
+}
+
+.eu-sidebar-symbol-row__name {
+  flex-shrink: 0;
+  color: var(--eu-fg-primary);
+}
+
+.eu-sidebar-symbol-row__name--macro {
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-xs);
+  color: var(--eu-syntax-command);
+}
+
+.eu-sidebar-symbol-row__detail {
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-2xs);
+}
+
+.eu-sidebar-symbol-row__spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+.eu-sidebar-symbol-row__line {
+  flex-shrink: 0;
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-2xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A `\label` or an environment name, drawn as a token rather than as prose. */
+.eu-sidebar-label-chip {
+  flex-shrink: 0;
+  padding: 0 var(--eu-space-1);
+  border: 1px solid var(--eu-border);
+  border-radius: var(--eu-radius-xs);
+  background: var(--eu-bg-input);
+  color: var(--eu-syntax-label);
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-2xs);
+  line-height: var(--eu-leading-normal);
+}
+
+/* ==========================================================================
+   6 · Problems
+   ========================================================================== */
+
+.eu-sidebar-problem-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--eu-space-2);
+  margin: var(--eu-space-half) var(--eu-space-1);
+  padding: var(--eu-space-1) var(--eu-space-2);
+  border-radius: var(--eu-radius-sm);
+  cursor: pointer;
+  font-size: var(--eu-text-sm);
+  line-height: var(--eu-leading-snug);
+  transition: background-color var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-sidebar-problem-row:hover {
+  background: var(--eu-bg-hover);
+}
+
+.eu-sidebar-problem-row:focus-visible {
+  outline: 2px solid var(--eu-border-focus);
+  outline-offset: -2px;
+}
+
+/* The severity glyph is inlined by `severityIcon` at 13px with `flexShrink: 0`
+   already set; the nudge is optical, because a 13px circle beside 13px text
+   sits a hair high. */
+.eu-sidebar-problem-row > svg {
+  margin-top: 1px;
+}
+
+.eu-sidebar-problem-row__text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.eu-sidebar-problem-row__message {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--eu-fg-primary);
+}
+
+/* `file:line:col · source` — the provenance. It is under the message rather
+   than beside it so the message gets the full width of the panel to be read
+   in, and in tabular figures because it is a position. */
+.eu-sidebar-problem-row__where {
+  display: block;
+  margin-top: 1px;
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-2xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   7 · Snippet history
+   ========================================================================== */
+
+.eu-sidebar-history__summary {
+  padding: var(--eu-space-1) var(--eu-space-3);
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-2xs);
+  line-height: var(--eu-leading-snug);
+}
+
+.eu-sidebar-history__language {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A parse failure in the snippet file is a *warning about the library*, not a
+   crash: it is coloured, and it is not allowed to push the rows around. */
+.eu-sidebar-history__problem {
+  color: var(--eu-warning);
+}
+
+.eu-sidebar-history__row {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-1);
+  min-height: 22px;
+  margin: var(--eu-space-half) var(--eu-space-1);
+  padding: var(--eu-space-half) var(--eu-space-2);
+  border-radius: var(--eu-radius-sm);
+  cursor: pointer;
+  overflow: hidden;
+  font-size: var(--eu-text-sm);
+  transition: background-color var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-sidebar-history__row:hover {
+  background: var(--eu-bg-hover);
+}
+
+.eu-sidebar-history__row:focus-visible {
+  outline: 2px solid var(--eu-border-focus);
+  outline-offset: -2px;
+}
+
+/* The trigger glyph. It is the row's leading mark, not content: it says "this is
+   a snippet expansion" and then gets out of the way of the trigger itself. */
+.eu-sidebar-history__glyph {
+  flex-shrink: 0;
+  color: var(--eu-fg-muted);
+}
+
+.eu-sidebar-history__row:hover .eu-sidebar-history__glyph {
+  color: var(--eu-accent);
+}
+
+.eu-sidebar-history__id {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-xs);
+  color: var(--eu-syntax-command);
+}
+
+.eu-sidebar-history__preview {
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-2xs);
+}
+
+.eu-sidebar-history__spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+/* `4m`, `just now` — a quantity, and one that changes while you look at it, so
+   it must not change width with it. */
+.eu-sidebar-history__time {
+  flex-shrink: 0;
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-2xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.eu-sidebar-history__trigger {
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-sm);
+  color: var(--eu-syntax-command);
+}
+
+.eu-sidebar-history__id-sub {
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-2xs);
+  color: var(--eu-fg-muted);
+}
+
+.eu-sidebar-history__description {
+  margin-top: var(--eu-space-half);
+  color: var(--eu-fg-secondary);
+  font-size: var(--eu-text-xs);
+}
+
+.eu-sidebar-history__meta {
+  margin-top: var(--eu-space-half);
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-2xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.eu-sidebar-history__block-title {
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-2xs);
+  font-weight: var(--eu-weight-semibold);
+  letter-spacing: var(--eu-tracking-label);
+  text-transform: uppercase;
+}
+
+/* ==========================================================================
+   8 · Menu view
+   ========================================================================== */
+
+.eu-sidebar-menu__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eu-space-3);
+  padding: var(--eu-space-3) var(--eu-space-3) var(--eu-space-5);
+}
+
+/* The project the commands below will act on, as a card. `.eu-card` carries
+   the surface; the container only states its own rhythm. */
+.eu-sidebar-menu__project {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eu-space-3);
+  padding: var(--eu-space-3);
+}
+
+.eu-sidebar-menu__section-title {
+  color: var(--eu-fg-muted);
+}
+
+/*
+ * The active project, as one pressable surface.
+ *
+ * It reads as a *button that looks like a card*, which is the same trick the
+ * title bar's command centre uses: the thing the eye picks out as "this is
+ * what I am working on" is also the thing that switches it.
+ */
+.eu-sidebar-menu__switch {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-3);
+  width: 100%;
+  padding: var(--eu-space-2) var(--eu-space-3);
+  border: 1px solid var(--eu-border);
+  border-radius: var(--eu-radius-md);
+  background: var(--eu-bg-toolbar);
+  color: var(--eu-fg-primary);
+  cursor: pointer;
+  text-align: left;
+  box-shadow: var(--eu-inset-field);
+  transition: var(--eu-transition-control);
+}
+
+.eu-sidebar-menu__switch:hover {
+  border-color: var(--eu-accent);
+  background: var(--eu-accent-muted);
+}
+
+.eu-sidebar-menu__switch:active {
+  background: var(--eu-bg-active);
+}
+
+.eu-sidebar-menu__switch-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: var(--eu-radius-md);
+  background: var(--eu-accent-muted);
+  color: var(--eu-accent);
+}
+
+.eu-sidebar-menu__switch-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.eu-sidebar-menu__switch-label {
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-2xs);
+  font-weight: var(--eu-weight-semibold);
+  letter-spacing: var(--eu-tracking-label);
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.eu-sidebar-menu__switch-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--eu-fg-primary);
+  font-size: var(--eu-text-sm);
+  font-weight: var(--eu-weight-semibold);
+}
+
+.eu-sidebar-menu__switch-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--eu-fg-muted);
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-2xs);
+}
+
+/*
+ * The chevron on the right of the switch — the control's "this opens something
+ * else" mark. It is the third child of a flex row whose middle child grows, so
+ * it only has to refuse to shrink.
+ */
+.eu-sidebar-menu__switch-glyph {
+  flex-shrink: 0;
+  color: var(--eu-fg-muted);
+  transition: color var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-sidebar-menu__switch:hover .eu-sidebar-menu__switch-glyph {
+  color: var(--eu-fg-primary);
+}
+
+.eu-sidebar-menu__quick {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+}
+
+/* Two equal-weight secondary actions. `.eu-btn-secondary` supplies the border
+   and the accent hover; the flex split is what makes them read as a pair. */
+.eu-sidebar-menu__quick-btn {
+  flex: 1;
+  padding: var(--eu-space-1) var(--eu-space-2);
+  font-size: var(--eu-text-xs);
+}
+
+/*
+ * The command filter, as a field.
+ *
+ * `.eu-input` is the field itself, so the wrapper only has to place the glyph
+ * and the shortcut keycap around it — and the input inside it is stripped of
+ * its own chrome, because a bordered field inside a bordered wrapper is two
+ * boxes for one control.
+ */
+.eu-sidebar-menu__command-search {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  padding: 0 var(--eu-space-1) 0 var(--eu-space-2);
+}
+
+.eu-sidebar-menu__command-search > svg {
+  flex-shrink: 0;
+  color: var(--eu-fg-muted);
+}
+
+.eu-sidebar-menu__command-input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--eu-space-1) 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* The keycap that opens the same search from anywhere: a real `.eu-kbd`, but
+   pressable, because the palette is one click away as well as one chord away. */
+.eu-sidebar-menu__palette-key {
+  flex-shrink: 0;
+  height: 18px;
+  padding: 0 var(--eu-space-1);
+  border-radius: var(--eu-radius-xs);
+  border: 1px solid var(--eu-border-strong);
+  border-bottom-width: 2px;
+  background: var(--eu-bg-card);
+  color: var(--eu-fg-muted);
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-2xs);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: var(--eu-transition-control);
+}
+
+.eu-sidebar-menu__palette-key:hover {
+  color: var(--eu-fg-primary);
+  border-color: var(--eu-accent);
+  background: var(--eu-accent-muted);
+}
+
+.eu-sidebar-menu__clear {
+  width: 18px;
+  height: 18px;
+}
+
+.eu-sidebar-menu__sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eu-space-2);
+}
+
+/*
+ * A category. One card per menu, closed by default at the top level and opened
+ * by its own header — the whole menu is 200-odd commands and showing them all
+ * at once is a wall, not a menu.
+ */
+.eu-sidebar-menu__section {
+  border: 1px solid var(--eu-border);
+  border-radius: var(--eu-radius-md);
+  background: var(--eu-bg-sidebar);
+  overflow: hidden;
+  transition: border-color var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-sidebar-menu__section:hover {
+  border-color: var(--eu-border-strong);
+}
+
+.eu-sidebar-menu__header {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  width: 100%;
+  padding: var(--eu-space-1) var(--eu-space-2);
+  border: none;
+  background: var(--eu-bg-card);
+  color: var(--eu-fg-primary);
+  cursor: pointer;
+  text-align: left;
+  font-size: var(--eu-text-sm);
+  font-weight: var(--eu-weight-semibold);
+  transition: var(--eu-transition-control);
+}
+
+.eu-sidebar-menu__header:hover {
+  background: var(--eu-bg-hover);
+}
+
+.eu-sidebar-menu__header:focus-visible {
+  outline: 2px solid var(--eu-border-focus);
+  outline-offset: -2px;
+}
+
+/* The header's own bottom rule belongs to the *open* state: with the panel
+   collapsed there is nothing under it for the rule to separate it from. */
+.eu-sidebar-menu__section[data-eu-open='true'] .eu-sidebar-menu__header {
+  border-bottom: 1px solid var(--eu-border);
+}
+
+.eu-sidebar-menu__chevron {
+  flex-shrink: 0;
+  color: var(--eu-fg-muted);
+}
+
+.eu-sidebar-menu__section-icon {
+  flex-shrink: 0;
+  color: var(--eu-accent);
+}
+
+.eu-sidebar-menu__section-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The command count, as a badge: a filtered header reads `3/42`, which is a
+   different claim from `42` and has to be legible as one. */
+.eu-sidebar-menu__count {
+  flex-shrink: 0;
+}
+
+.eu-sidebar-menu__list {
+  display: flex;
+  flex-direction: column;
+  padding: var(--eu-space-half) 0;
+}
+
+/*
+ * One command.
+ *
+ * Hover is the only thing that changes: the row is a button that *runs* the
+ * command (the whole row is the target, because the row is what the eye picks
+ * out), and a row that shifted on hover in a list this long would make the
+ * list move under the pointer.
+ */
+.eu-sidebar-menu__command {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  width: 100%;
+  padding: var(--eu-space-1) var(--eu-space-3);
+  border: none;
+  background: transparent;
+  color: var(--eu-fg-primary);
+  cursor: pointer;
+  text-align: left;
+  font-size: var(--eu-text-sm);
+  transition: background-color var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-sidebar-menu__command:hover {
+  background: var(--eu-bg-hover);
+}
+
+.eu-sidebar-menu__command:active {
+  background: var(--eu-bg-active);
+}
+
+.eu-sidebar-menu__command:focus-visible {
+  outline: 2px solid var(--eu-border-focus);
+  outline-offset: -2px;
+}
+
+.eu-sidebar-menu__command-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eu-sidebar-menu__command-shortcut {
+  flex-shrink: 0;
+  color: var(--eu-fg-muted);
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-2xs);
+  white-space: nowrap;
+}
+
+/* "No commands available" inside an open category. Not `.eu-empty`: it is one
+   line in a list, not a whole panel with nothing in it. */
+.eu-sidebar-menu__none {
+  padding: var(--eu-space-1) var(--eu-space-3);
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-xs);
+  font-style: italic;
+}
+
+/* The "the sidebar is hidden" view: an empty state with the ways back. */
+.eu-sidebar-none-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--eu-space-1);
+  padding: 0 var(--eu-space-3);
+}
+
+.eu-sidebar-none-actions .eu-btn {
+  padding: var(--eu-space-1) var(--eu-space-2);
+  border: 1px solid var(--eu-border-strong);
+  border-radius: var(--eu-radius-sm);
+  color: var(--eu-fg-primary);
+  font-size: var(--eu-text-xs);
+}
+
+/* ==========================================================================
+   9 · The Explorer's context menu
+   ========================================================================== */
+
+/*
+ * Drawn here rather than reusing `.eu-menu` because it is positioned by the
+ * pointer (fixed, at `clientX`/`clientY`) and neither the title bar's menu nor
+ * the tab strip's is; it takes `.eu-popover` for the surface and adds the one
+ * thing a context menu needs that a dropdown does not — a header naming what
+ * was right-clicked, since the row it belongs to is under the pointer and
+ * partially covered.
+ */
+.eu-sidebar-context-menu {
+  min-width: 170px;
+  padding: var(--eu-space-1);
+  animation: eu-menu-in var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-sidebar-context-menu__title {
+  padding: var(--eu-space-1) var(--eu-space-2);
+  border-bottom: 1px solid var(--eu-hairline);
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-2xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eu-sidebar-context-menu__item {
+  display: block;
+  width: 100%;
+  padding: var(--eu-space-1) var(--eu-space-2);
+  border: none;
+  border-radius: var(--eu-radius-sm);
+  background: transparent;
+  color: var(--eu-fg-primary);
+  text-align: left;
+  font-size: var(--eu-text-sm);
+  cursor: pointer;
+  transition: var(--eu-transition-control);
+}
+
+.eu-sidebar-context-menu__item:hover {
+  background: var(--eu-accent-muted);
+  color: var(--eu-fg-primary);
+}
+
+.eu-sidebar-context-menu__item:focus-visible {
+  outline: 2px solid var(--eu-border-focus);
+  outline-offset: -2px;
+}
+
+/* Delete, and its confirmation pass. The accent is the destructive colour in
+   every theme, and the second pass is the same colour as a surface so the
+   changed label cannot be missed. */
+.eu-sidebar-context-menu__item--danger {
+  color: var(--eu-error);
+}
+
+.eu-sidebar-context-menu__item--danger:hover {
+  background: var(--eu-error-bg);
+  color: var(--eu-error);
+}
+
+/* ==========================================================================
+   10 · Panels that share the sidebar's look but not its markup
+   ========================================================================== */
+
+/*
+ * The two floating dialogs (a heading's labels, a snippet's body).
+ *
+ * They are not sidebar rows — they are viewport-positioned tooltips — but they
+ * open *from* the sidebar and are read as part of it, so they take the design
+ * system's popover surface. The component still states `position`, `left`,
+ * `top`, `width` and `maxHeight` inline: those are the computed anchor, and a
+ * class cannot express "under this row, or above it near the foot of the
+ * window".
+ */
+.eu-sidebar-dialog {
+  overflow-y: auto;
+  padding: var(--eu-space-2) var(--eu-space-3);
+  /* The dialogs are read-only: every one of them is dismissed by moving the
+     pointer or the focus away, and a tooltip that swallowed the pointer would
+     close itself by opening. */
+  pointer-events: none;
+}
+
+.eu-sidebar-dialog__title {
+  color: var(--eu-fg-primary);
+  font-size: var(--eu-text-sm);
+  line-height: var(--eu-leading-snug);
+}
+
+.eu-sidebar-dialog__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  margin-top: var(--eu-space-1);
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-2xs);
+}
+
+/*
+ * The same line, but its first item is a 12px `code` rather than 10.5px body
+ * text — the two are read as one phrase ("`for` · description · time"), and
+ * centring them against each other leaves the monospaced run floating a pixel
+ * high. Baseline alignment is what makes a mixed-size line look set rather than
+ * assembled.
+ */
+.eu-sidebar-dialog__meta--baseline {
+  align-items: baseline;
+}
+
+.eu-sidebar-dialog__command {
+  font-family: var(--eu-mono-font);
+  color: var(--eu-syntax-command);
+}
+
+.eu-sidebar-dialog__labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--eu-space-1);
+  margin-top: var(--eu-space-2);
+}
+
+.eu-sidebar-dialog__label {
+  padding: 1px var(--eu-space-1);
+  border: 1px solid var(--eu-border);
+  border-radius: var(--eu-radius-xs);
+  background: var(--eu-bg-input);
+  color: var(--eu-syntax-label);
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-2xs);
+}
+
+.eu-sidebar-dialog__hint {
+  margin-top: var(--eu-space-2);
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-2xs);
+}
+
+.eu-sidebar-dialog__block {
+  margin-top: var(--eu-space-2);
+}
+
+.eu-sidebar-dialog__pre {
+  margin: var(--eu-space-half) 0 0;
+  padding: var(--eu-space-1) var(--eu-space-2);
+  max-height: 120px;
+  overflow: auto;
+  border: 1px solid var(--eu-border);
+  border-radius: var(--eu-radius-sm);
+  background: var(--eu-bg-input);
+  color: var(--eu-fg-primary);
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-2xs);
+  line-height: var(--eu-leading-snug);
+  white-space: pre-wrap;
+  /* A snippet body is arbitrary text, and an inserted expansion can contain a
+     single long line — without this the dialog would grow a horizontal
+     scrollbar inside a popover that is itself 300px wide. */
+  word-break: break-word;
+}
+
+/* ==========================================================================
+   11 · Preferences
+   ========================================================================== */
+
+/*
+ * Reduced motion is already handled globally in `eukolia-design.css` (all
+ * durations and iteration counts collapse to nothing under
+ * `prefers-reduced-motion: reduce`), so nothing here re-states it — but the
+ * Outline chevron is a *rotation*, and a rotation is the one transform a user
+ * who asked for less motion notices most. It is left alone deliberately: the
+ * global rule removes the transition, so the chevron still ends up pointing
+ * the right way, instantly, which is the correct reduced-motion behaviour.
+ */
+
+/*
+ * A sidebar is dragged between roughly 200px and 700px, and at the narrow end
+ * a header with a title and four 22px buttons has about 40px for the title.
+ * The two things that yield are the *disambiguators* — the project-relative
+ * path beside a result's file name, and the words on the two project buttons —
+ * because both are restatements: the name is already there, and the icons are
+ * the buttons' titles.
+ */
+@media (max-width: 260px) {
+  .eu-sidebar-hit-group__dir {
+    display: none;
+  }
+
+  .eu-sidebar-menu__quick-btn span {
+    display: none;
+  }
+}
+
+/*
+ * Two preferences are deliberately *not* restated here.
+ *
+ * `prefers-reduced-motion` is handled globally by `eukolia-design.css`, which
+ * collapses every animation and transition in the document — including the
+ * Outline chevron's rotation, which then simply arrives at its new angle. That
+ * is the correct reduced-motion behaviour and re-stating it locally would only
+ * give two places to keep in step.
+ *
+ * `prefers-contrast: more` is handled where it belongs: the design system
+ * promotes `--eu-hairline` to the real border colour and lifts the muted text
+ * tokens, and the tree's guides are drawn in `--eu-hairline`, so they step up
+ * with everything else without a rule of their own. The `forced-colors` case
+ * is the one real limitation — a box-shadow is dropped entirely in a forced
+ * colour scheme, so the guides disappear there. That is accepted rather than
+ * fixed: the *indent* is what says which folder a file is in, the indent is
+ * inline geometry that no colour scheme can remove, and a `border` stand-in
+ * would have to be added at six offsets to draw lines the scheme is already
+ * flattening.
+ */

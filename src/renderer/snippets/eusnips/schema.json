@@ -1,0 +1,620 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eukolia.dev/schemas/eusnips.schema.json",
+  "title": "EUSnips Snippet File",
+  "description": "Schema for Eukolia snippet files. The single source of truth; the repository-root schema.json re-exports this file so there is exactly one copy. Validated at runtime by src/renderer/snippets/eusnips/validate.ts and projected onto the snippet engine by src/renderer/snippets/eusnips/hsnips.ts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "snippets"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "namespace": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+$"
+    },
+    "language": {
+      "description": "Editor language this file's snippets apply to. Defaults to latex. 'all' makes them global. Namespace and language are aliases of the same thing; when both are present they must agree.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.+-]+$",
+      "default": "latex"
+    },
+    "includes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "defaults": {
+      "$ref": "#/$defs/defaults"
+    },
+    "globals": {
+      "$ref": "#/$defs/globals"
+    },
+    "metadata": {
+      "description": "Free-form host bookkeeping. Eukolia records one-shot migration receipts under the `imports` key so an import is never repeated and no imported snippet is ever duplicated.",
+      "type": "object",
+      "additionalProperties": true
+    },
+    "snippets": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/snippet"
+      }
+    }
+  },
+  "$defs": {
+    "snippet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trigger",
+        "body"
+      ],
+      "properties": {
+        "id": {
+          "description": "Stable identifier. Generated when absent; must be unique within the file.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        },
+        "trigger": {
+          "$ref": "#/$defs/trigger"
+        },
+        "description": {
+          "type": "string"
+        },
+        "priority": {
+          "description": "Higher wins when several snippets match. Overrides `defaults.priority`. Priority is Eukolia's own ordering: it is applied when the file is loaded rather than written into the generated HyperSnips source, because the parser carries a `priority` directive only until the next snippet header.",
+          "type": "integer",
+          "default": 100
+        },
+        "expand": {
+          "$ref": "#/$defs/expandMode"
+        },
+        "boundary": {
+          "$ref": "#/$defs/boundary"
+        },
+        "hidden": {
+          "description": "Match, but do not appear in the completion list.",
+          "type": "boolean",
+          "default": false
+        },
+        "multiline": {
+          "$ref": "#/$defs/multiline"
+        },
+        "context": {
+          "$ref": "#/$defs/contextExpression"
+        },
+        "body": {
+          "$ref": "#/$defs/body"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "script": {
+          "$ref": "#/$defs/script"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "defaults": {
+      "type": "object",
+      "description": "Default values inherited by snippets in this file. A snippet's own property always wins.",
+      "additionalProperties": false,
+      "properties": {
+        "priority": {
+          "type": "integer",
+          "default": 100
+        },
+        "expand": {
+          "$ref": "#/$defs/expandMode"
+        },
+        "boundary": {
+          "$ref": "#/$defs/boundary"
+        },
+        "hidden": {
+          "type": "boolean",
+          "default": false
+        },
+        "multiline": {
+          "$ref": "#/$defs/multiline"
+        },
+        "context": {
+          "$ref": "#/$defs/contextExpression"
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "trigger": {
+      "description": "What has to be typed for the snippet to be offered: a regular expression, matched against the text before the cursor. One kind of trigger rather than two, because the text a person types *is* a pattern — `ff` is a regular expression that matches the characters `ff` — and the only difference between the two was how much of the engine's matching they asked for. That is a separate question, and `boundary` is where it is asked: a pattern may have to be the whole token before the cursor, the whole word, or a match at the start of the line. Everything is escaped on the way into the file, so a `.` in a trigger written by the editor arrives as `\\.` and matches a full stop rather than any character.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pattern"
+      ],
+      "properties": {
+        "pattern": {
+          "description": "The regular expression source. Matched against the line before the cursor, anchored at the caret, so it is the *end* of the pattern that reaches the cursor: `a+` matches text ending in one or more `a`, and a pattern that already ends in `$` is left as it is. Write the grouping to capture as `(…)`, which JavaScript code blocks in the body can access via `m[1]`, `m[2]` … (as distinct from `$1`, `$2`, which are tab stops).",
+          "type": "string",
+          "minLength": 1
+        },
+        "flags": {
+          "description": "Regular-expression flags, each of which may appear once. The engine compiles the pattern with `m` because that is what its multi-line matching needs; these are the flags added to it, and `i` is how a case-insensitive match is asked for.",
+          "type": "string",
+          "pattern": "^(?!.*(.).*\\1)[dgimsuvy]*$"
+        }
+      }
+    },
+    "expandMode": {
+      "description": "manual expands from the completion list, auto expands as soon as the trigger matches.",
+      "type": "string",
+      "enum": [
+        "manual",
+        "auto"
+      ],
+      "default": "manual"
+    },
+    "boundary": {
+      "description": "How much of the text before the cursor the match has to be. anywhere (the default): it matched a suffix of the line and may end inside a word. whitespace: the pattern matched the whole token before the cursor — everything since the preceding whitespace. word: it matched the whole word at the cursor. line-start: as whitespace, and only whitespace may precede it on the line. A multi-line pattern is judged on the whole context it matched, since it begins on an earlier line.",
+      "type": "string",
+      "enum": [
+        "whitespace",
+        "word",
+        "anywhere",
+        "line-start"
+      ],
+      "default": "anywhere"
+    },
+    "multiline": {
+      "description": "Multiline context: true reads the configured number of previous lines, an integer that many lines. The engine reads one configured count either way, so an integer is preserved but the count itself is not honoured, and `normalizeSnippetFile` reports it.",
+      "oneOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "integer",
+          "minimum": 1
+        }
+      ],
+      "default": false
+    },
+    "contextExpression": {
+      "description": "Context in which a snippet is eligible to expand.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/simpleContext"
+        },
+        {
+          "$ref": "#/$defs/contextObject"
+        },
+        {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/contextExpression"
+          }
+        }
+      ]
+    },
+    "simpleContext": {
+      "type": "string",
+      "enum": [
+        "any",
+        "math",
+        "text",
+        "preamble",
+        "comment"
+      ]
+    },
+    "contextObject": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/environmentContext"
+        },
+        {
+          "$ref": "#/$defs/commandContext"
+        },
+        {
+          "$ref": "#/$defs/documentClassContext"
+        },
+        {
+          "$ref": "#/$defs/packageContext"
+        },
+        {
+          "$ref": "#/$defs/notContext"
+        },
+        {
+          "$ref": "#/$defs/allContext"
+        },
+        {
+          "$ref": "#/$defs/anyContext"
+        }
+      ]
+    },
+    "environmentContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "name"
+      ],
+      "properties": {
+        "type": {
+          "const": "environment"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "commandContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "name"
+      ],
+      "properties": {
+        "type": {
+          "const": "command"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "documentClassContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "name"
+      ],
+      "properties": {
+        "type": {
+          "const": "document-class"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "packageContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "name"
+      ],
+      "properties": {
+        "type": {
+          "const": "package"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "notContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "not"
+      ],
+      "properties": {
+        "not": {
+          "$ref": "#/$defs/contextExpression"
+        }
+      }
+    },
+    "allContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "all"
+      ],
+      "properties": {
+        "all": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/contextExpression"
+          }
+        }
+      }
+    },
+    "anyContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "any"
+      ],
+      "properties": {
+        "any": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/contextExpression"
+          }
+        }
+      }
+    },
+    "body": {
+      "description": "A body may be a normal snippet string or a structured list of body nodes.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/bodyNode"
+          }
+        }
+      ]
+    },
+    "bodyNode": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/textNode"
+        },
+        {
+          "$ref": "#/$defs/tabstopNode"
+        },
+        {
+          "$ref": "#/$defs/selectionNode"
+        },
+        {
+          "$ref": "#/$defs/expressionNode"
+        },
+        {
+          "$ref": "#/$defs/javascriptNode"
+        }
+      ]
+    },
+    "textNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "value"
+      ],
+      "properties": {
+        "type": {
+          "const": "text"
+        },
+        "value": {
+          "type": "string"
+        }
+      }
+    },
+    "tabstopNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "index"
+      ],
+      "properties": {
+        "type": {
+          "const": "tabstop"
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "default": {
+          "description": "Initial text of the tab stop, written `${N:default}`. A list of nodes nests: a tab stop inside a default is ordinary snippet syntax, and it is rendered into the same body text. A default holding a brace is the one thing the string form cannot say — the reader stops at the first `}` — so such a default is reported by the editor rather than rendered differently from how it will expand.",
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/bodyNode"
+              }
+            }
+          ]
+        },
+        "choices": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "transform": {
+          "$ref": "#/$defs/substitution"
+        }
+      },
+      "allOf": [
+        {
+          "not": {
+            "required": [
+              "default",
+              "choices"
+            ]
+          }
+        }
+      ]
+    },
+    "selectionNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "selection"
+        },
+        "default": {
+          "description": "Text used when there is no live selection, written `${VISUAL:default}`.",
+          "type": "string"
+        }
+      }
+    },
+    "expressionNode": {
+      "description": "A JavaScript expression evaluated when the snippet expands. `transform` makes it a substitution over the expression's own result, written `${index:index/…/…/}``code``. The ported reader emits no text for the literal a substitution is written against, so no such literal is kept; the substitution itself is preserved in the body and reported, because the engine does not evaluate substitutions yet. Without one the node is a bare code block.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "expression"
+      ],
+      "properties": {
+        "type": {
+          "const": "expression"
+        },
+        "expression": {
+          "$ref": "#/$defs/expression"
+        },
+        "index": {
+          "description": "Tab stop the substitution is written against. Defaults to 1, and the reader writes the number it read back into this property, so the text form round-trips.",
+          "type": "integer",
+          "minimum": 0,
+          "default": 1
+        },
+        "transform": {
+          "$ref": "#/$defs/substitution"
+        }
+      }
+    },
+    "javascriptNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "code"
+      ],
+      "properties": {
+        "type": {
+          "const": "javascript"
+        },
+        "code": {
+          "type": "string"
+        }
+      }
+    },
+    "expression": {
+      "description": "A JavaScript expression evaluated by the snippet runtime.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "language",
+        "code"
+      ],
+      "properties": {
+        "language": {
+          "const": "javascript-expression"
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "substitution": {
+      "description": "The ported engine's placeholder substitution, written as it appears in the body: `/find/replace/flags`, with the leading slash and with `replace` and `flags` optional. `find` is a regex and may contain an escaped or bracket-class slash (`/a\\/b/`, `/[a/b]/`) — the reader is segment-aware, not delimiter-split — and the document parser substitutes a value into the whole token with `String#replace`, so a replacement may contain `$0`-style capture references.",
+      "type": "string"
+    },
+    "script": {
+      "description": "A JavaScript routine attached to the whole snippet. Preserved and reported, not run: the engine executes the code blocks in a body, and a snippet has no second execution point yet.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "language",
+        "code"
+      ],
+      "properties": {
+        "language": {
+          "const": "javascript"
+        },
+        "code": {
+          "type": "string"
+        },
+        "run": {
+          "type": "string",
+          "enum": [
+            "expand",
+            "tabstop-change",
+            "both"
+          ],
+          "default": "expand"
+        }
+      }
+    },
+    "globals": {
+      "description": "File-level code and variables shared by the snippets in this file. `javascript` is written back out as a `global … endglobal` block ahead of the file's snippets, so the functions it declares are in scope for every code block in the file — which is how an imported library's shared helpers keep working. It is compiled in the same restricted scope as a body's code blocks. `variables` is preserved exactly as written but the engine does not substitute it into bodies yet, and `normalizeSnippetFile` reports it.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "javascript": {
+          "description": "A `global … endglobal` block's code, as one string or as its lines.",
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        },
+        "variables": {
+          "description": "Named values a snippet body could read. Preserved, not substituted.",
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+% Eukolia smoke-test fixture: a document that must fail to build.
+%
+% Used to verify that real compiler output reaches the Problems panel with a
+% usable file and line, and that selecting a problem navigates to the source.
+\documentclass[11pt]{article}
+
+\begin{document}
+
+\section{Broken}\label{sec:broken}
+
+This line references an undefined command \thisCommandDoesNotExist and the
+compiler must report it with a line number.
+
+This line cites an undefined reference: see Section~\ref{sec:does-not-exist}.
+
+\end{document}

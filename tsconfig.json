@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": false,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "types": ["vite/client", "node"],
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    "paths": {
+      "vscode": ["src/renderer/vendor/vscode-shim/index.ts"],
+      "@vendor/*": ["src/renderer/vendor/*"],
+      "@/*": ["src/renderer/*"],
+      "@core/*": ["src/renderer/core/*"],
+      "@document/*": ["src/renderer/document/*"],
+      "@parser/*": ["src/renderer/parser/*"],
+      "@editor/*": ["src/renderer/editor/*"],
+      "@visual/*": ["src/renderer/visual/*"],
+      "@snippets/*": ["src/renderer/snippets/*"],
+      "@aligner/*": ["src/renderer/aligner/*"],
+      "@compiler/*": ["src/renderer/compiler/*"],
+      "@pdf/*": ["src/renderer/pdf/*"],
+      "@ui/*": ["src/renderer/ui/*"]
+    }
+  },
+  "include": ["src", "vite.config.ts"]
+}

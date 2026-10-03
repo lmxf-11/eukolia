@@ -1,0 +1,741 @@
+/**
+ * Eukolia — the project library.
+ *
+ * This is the one surface in the application that is about the user's *files*
+ * rather than about their document: the first-run gate that asks where a library
+ * should live, the home screen the editor shows when no project is open, the
+ * dialog that lists and creates projects, and the sidebar button that opens it.
+ *
+ * It has its own stylesheet rather than a section in `eukolia-shell.css` because
+ * it is the only surface that is also a *landing page* — it is seen full-window,
+ * with nothing else on screen, before any document exists — and a landing page
+ * has a different job from a panel: it has to look like somewhere worth putting
+ * your work, at any window size the user has dragged the frame to.
+ *
+ * The class names are the ones that were here before; they are the contract this
+ * screen's markup and its tests are written against, so a rule below reads as a
+ * modernisation of `.library-recent button` rather than as a replacement for it.
+ * The design system's primitives are applied *alongside* them in the component
+ * (`.eu-btn`, `.eu-btn-primary`, `.eu-card`, `.eu-eyebrow`, `.eu-empty`), and
+ * the rules here are what is left: this screen's own layout, and the handful of
+ * places where it needs more than a primitive gives it.
+ *
+ * Every value is a `--eu-*` token, so all eight themes are covered.
+ */
+
+/* ==========================================================================
+   The window frame and the first-run gate
+   ========================================================================== */
+
+/*
+ * The gate is a whole window rather than a panel, so it owns its own scrolling
+ * — and `100vh` rather than `100%` because it *is* the viewport at that point.
+ */
+.library-setup {
+  height: 100vh;
+  overflow: auto;
+  background: var(--eu-bg-app);
+  color: var(--eu-fg-primary);
+}
+
+/*
+ * The strip at the top of the gate. It is a title bar without the controls: the
+ * window is frameless, so the drag region is what makes it movable, and the name
+ * is there because a window with an empty top edge reads as a broken one.
+ */
+.library-window-bar {
+  display: flex;
+  align-items: center;
+  height: 42px;
+  padding: 0 var(--eu-space-5);
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--eu-hairline);
+  background: var(--eu-bg-toolbar);
+  font-size: var(--eu-text-xs);
+  font-weight: var(--eu-weight-medium);
+  letter-spacing: var(--eu-tracking-label);
+  text-transform: uppercase;
+  color: var(--eu-fg-muted);
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+/* ==========================================================================
+   The hero
+   ==========================================================================
+   The welcome screen and the home screen are the same hero with different
+   strings, so they share every rule here. `.library-home` adds two things of its
+   own, further down: it lives inside the workspace rather than in a window, and
+   it can be short.
+   -------------------------------------------------------------------------- */
+
+.library-welcome,
+.library-home {
+  box-sizing: border-box;
+  /*
+   * A measure, not a column.
+   *
+   * The welcome copy has to sit still as the window is resized around it, which
+   * means the *text* is bounded and the box it sits in is not — so the block
+   * keeps `width: auto` and is centred with `margin-inline`. `margin: auto` on a
+   * block-level box with no `width` does nothing horizontally (the box is already
+   * as wide as its container), which is what left this screen pinned to the
+   * left-hand edge of a 1800px window with two thirds of it empty.
+   *
+   * The measure is 680px because that is where the lead paragraph and the three
+   * benefit cards both stop needing to be wider, and `margin-block: auto` keeps
+   * the deliberate vertical centring the gate had.
+   */
+  max-width: 680px;
+  margin-inline: auto;
+  margin-block: auto;
+  padding: var(--eu-space-8) var(--eu-space-6);
+  color: var(--eu-fg-primary);
+}
+
+.library-home {
+  width: 100%;
+  overflow: auto;
+  align-self: center;
+  max-height: 100%;
+}
+
+/*
+ * The headline. It is the largest type in the application — deliberately: this
+ * is the only screen with no document on it, and the size is what makes an empty
+ * editor read as an invitation rather than as a failure. The negative tracking is
+ * the standard optical correction for large text, where the default letterfit
+ * opens up as the size grows.
+ */
+.library-welcome h1,
+.library-home h1 {
+  font-size: var(--eu-text-2xl);
+  font-weight: var(--eu-weight-semibold);
+  letter-spacing: -0.02em;
+  line-height: var(--eu-leading-tight);
+  margin: var(--eu-space-3) 0;
+  color: var(--eu-fg-primary);
+}
+
+/*
+ * The mark. It is a tile of the accent's tint rather than a glyph on the
+ * background, which is what gives the hero a centre of gravity — and the
+ * gradient is the same one the shell's `.eu-logo` and the About dialog use, so
+ * the product has one mark rather than three.
+ */
+.library-emblem {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--eu-space-4);
+  border: 1px solid var(--eu-border);
+  border-radius: var(--eu-radius-xl);
+  color: var(--eu-accent);
+  background: linear-gradient(160deg, var(--eu-accent-muted), transparent 70%);
+  box-shadow: var(--eu-sheen), var(--eu-shadow-sm);
+}
+
+/* The eyebrow over the headline. `.eu-eyebrow` supplies the face; the margin is
+   what separates it from the mark above and the headline below. */
+.library-eyebrow {
+  margin: var(--eu-space-5) 0 0;
+}
+
+.library-lead {
+  font-size: var(--eu-text-lg);
+  line-height: var(--eu-leading-relaxed);
+  color: var(--eu-fg-secondary);
+  max-width: 470px;
+  margin: 0;
+}
+
+/* ---- the three reasons to choose a folder ---- */
+
+/*
+ * A grid rather than a stack, and it collapses to one column on its own: at the
+ * width the gate opens at, three rows of icon-and-two-lines is a lot of
+ * horizontal emptiness to scroll past.
+ */
+.library-benefits {
+  display: grid;
+  gap: var(--eu-space-3);
+  padding: var(--eu-space-6) 0;
+}
+
+.library-benefits > div {
+  display: flex;
+  gap: var(--eu-space-4);
+  align-items: flex-start;
+  padding: var(--eu-space-3);
+  border: 1px solid var(--eu-hairline);
+  border-radius: var(--eu-radius-lg);
+  background: var(--eu-bg-card);
+  color: var(--eu-fg-secondary);
+  box-shadow: var(--eu-sheen);
+}
+
+.library-benefits svg {
+  flex-shrink: 0;
+  margin-top: var(--eu-space-half);
+  color: var(--eu-accent);
+}
+
+.library-benefits strong,
+.library-benefits small {
+  display: block;
+}
+
+.library-benefits strong {
+  color: var(--eu-fg-primary);
+  font-size: var(--eu-text-md);
+  font-weight: var(--eu-weight-semibold);
+  margin-bottom: var(--eu-space-1);
+}
+
+.library-benefits small {
+  font-size: var(--eu-text-sm);
+  line-height: var(--eu-leading-snug);
+}
+
+/* ---- the small print ---- */
+
+.library-note {
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-sm);
+  line-height: var(--eu-leading-relaxed);
+  margin: var(--eu-space-3) 0 0;
+}
+
+/* A path in prose. Monospaced and wrapped anywhere, because a Windows path has
+   no spaces to break at and one long line would widen the whole hero. */
+.library-path {
+  color: var(--eu-fg-muted);
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-xs);
+  overflow-wrap: anywhere;
+}
+
+/* ==========================================================================
+   Buttons
+   ==========================================================================
+   The buttons themselves are the design system's (`.eu-btn`, `-primary`,
+   `-secondary`, `-quiet`), applied in the component. What is left here is the
+   one thing this screen needs on top: the calls to action are *large*. A hero
+   with nothing else on it can afford a 34px button, and the size is what makes
+   "New project" read as the thing to do rather than as one option among four.
+   -------------------------------------------------------------------------- */
+
+.library-welcome .eu-btn,
+.library-home .eu-btn,
+.library-dialog .eu-btn {
+  min-height: 32px;
+  /* `.eu-btn`'s 4px gap is the right rhythm inside a toolbar and too tight
+     between a glyph and a hero's label. Stated once here rather than per button
+     so the calls to action on this screen cannot drift apart. */
+  gap: var(--eu-space-2);
+  flex-shrink: 0;
+}
+
+/* The primary pair carry a little more weight than a toolbar button: they are
+   the only two controls on a screen with nothing else on it. */
+.library-welcome > .eu-btn-primary,
+.library-home .library-actions .eu-btn-primary {
+  min-height: 36px;
+  padding: var(--eu-space-2) var(--eu-space-5);
+}
+
+/* A disabled primary is the busy state — "Preparing library…" — so the pointer
+   says wait rather than no. */
+.library-dialog .eu-btn:disabled,
+.library-welcome .eu-btn:disabled {
+  cursor: wait;
+}
+
+/*
+ * `library-primary`, `library-secondary` and `library-quiet` are the *roles* of
+ * the buttons on this screen, kept as class names because this screen's markup
+ * has always named them and because `library-primary` is what marks the filled
+ * button in the tests and in the markup. Their appearance is the design
+ * system's — `.eu-btn-primary`, `.eu-btn-secondary` and `.eu-btn-quiet` are
+ * applied beside them — so there is deliberately no rule of their own here:
+ * restating a primitive is how the two drift apart.
+ */
+
+/* ==========================================================================
+   The home screen's own layout
+   ========================================================================== */
+
+.library-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-3);
+  margin: var(--eu-space-6) 0 0;
+  flex-wrap: wrap;
+}
+
+/*
+ * The two "or do this instead" routes. They are quiet buttons on one line under
+ * the primary pair, which is the hierarchy the screen wants: one thing to do,
+ * two ways to do something else, and nothing competing with either.
+ */
+.library-secondary-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-4);
+  margin-top: var(--eu-space-3);
+  flex-wrap: wrap;
+}
+
+/* ---- recent projects ---- */
+
+.library-recent {
+  margin-top: var(--eu-space-8);
+}
+
+/*
+ * The cards. `auto-fill` with a `minmax` floor is what makes the grid
+ * responsive without a single breakpoint: at 680px the hero fits three cards
+ * across, at 320px it fits one, and the only thing that changes is how many
+ * times `230px` goes into the row. `min(230px, 100%)` is the guard for a window
+ * narrower than one card — without it the floor would overflow the hero instead
+ * of shrinking.
+ */
+.library-recent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr));
+  gap: var(--eu-space-3);
+  margin-top: var(--eu-space-3);
+}
+
+/*
+ * One recent project: an icon, its name over its path, and the arrow that says
+ * the card goes somewhere. It is a `.eu-card-interactive` (lift on hover, border
+ * and shadow), so what is here is the arrangement inside it and the fact that it
+ * is a *button* — which is why the text has to be reset to the left.
+ */
+.library-recent-card {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-3);
+  padding: var(--eu-space-3);
+  font: inherit;
+  font-size: var(--eu-text-sm);
+  text-align: left;
+  color: var(--eu-fg-secondary);
+}
+
+.library-recent-card > svg:first-child {
+  flex-shrink: 0;
+  color: var(--eu-accent);
+}
+
+/* The trailing arrow is the affordance, not the information: it stays dim until
+   the card is under the pointer, which is when it becomes an instruction. */
+.library-recent-card > svg:last-child {
+  flex-shrink: 0;
+  color: var(--eu-fg-muted);
+  transition: var(--eu-transition-control);
+}
+
+.library-recent-card:hover > svg:last-child {
+  color: var(--eu-accent);
+  transform: translateX(2px);
+}
+
+.library-recent-card span {
+  flex: 1;
+  min-width: 0;
+}
+
+.library-recent-card strong,
+.library-recent-card small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.library-recent-card strong {
+  font-size: var(--eu-text-md);
+  font-weight: var(--eu-weight-medium);
+  color: var(--eu-fg-primary);
+}
+
+.library-recent-card small {
+  font-size: var(--eu-text-2xs);
+  color: var(--eu-fg-muted);
+  margin-top: var(--eu-space-1);
+}
+
+/* ==========================================================================
+   The sidebar button
+   ==========================================================================
+   The route into the library from inside the editor: a card in the sidebar's
+   footer, not a menu item — it names the library the user is in, which is state
+   rather than an action.
+   -------------------------------------------------------------------------- */
+
+.library-switch {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  width: calc(100% - var(--eu-space-5));
+  margin: var(--eu-space-2);
+  padding: var(--eu-space-2);
+  border: 1px solid var(--eu-border);
+  border-radius: var(--eu-radius-lg);
+  background: var(--eu-bg-card);
+  color: var(--eu-fg-secondary);
+  text-align: left;
+  cursor: pointer;
+  transition: var(--eu-transition-control);
+}
+
+.library-switch > svg:first-child {
+  flex-shrink: 0;
+  color: var(--eu-accent);
+}
+
+.library-switch span {
+  flex: 1;
+  min-width: 0;
+}
+
+.library-switch small {
+  display: block;
+  font-size: var(--eu-text-2xs);
+  font-weight: var(--eu-weight-semibold);
+  letter-spacing: var(--eu-tracking-label);
+  color: var(--eu-fg-muted);
+}
+
+.library-switch strong {
+  display: block;
+  margin-top: var(--eu-space-1);
+  font-size: var(--eu-text-sm);
+  font-weight: var(--eu-weight-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--eu-fg-primary);
+}
+
+.library-switch:hover {
+  border-color: var(--eu-border-strong);
+  background: var(--eu-bg-hover);
+}
+
+/* ==========================================================================
+   The dialog
+   ==========================================================================
+   The project library as a modal over the editor. It is the same set of lists
+   and forms as the first-run gate, at 680px inside a dialog, so it is denser:
+   the type steps down and the spacing follows it.
+   -------------------------------------------------------------------------- */
+
+.library-dialog {
+  font-size: var(--eu-text-md);
+}
+
+/*
+ * The toolbar above the dialog's body: the library's own path, and the two
+ * routes out of it (shared files, refresh). The path takes the room it can and
+ * the buttons keep their own width, so a deep path shortens rather than pushing
+ * the controls off the edge.
+ */
+.library-dialog-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  padding-bottom: var(--eu-space-3);
+  border-bottom: 1px solid var(--eu-hairline);
+  margin-bottom: var(--eu-space-4);
+}
+
+.library-dialog-toolbar p {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.library-dialog-toolbar .eu-btn {
+  white-space: nowrap;
+}
+
+/* ---- the create form ---- */
+
+.library-dialog fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.library-dialog fieldset > label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eu-space-2);
+  margin-top: var(--eu-space-4);
+  font-size: var(--eu-text-sm);
+  font-weight: var(--eu-weight-medium);
+  color: var(--eu-fg-secondary);
+}
+
+/* The fields are `.eu-input` from the design system; the only local rules are
+   the ones a dialog needs that a toolbar field does not — the full width, and a
+   `select` that is the same height as the `input` beside it. */
+.library-dialog input:not([type='checkbox']),
+.library-dialog select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.library-dialog select {
+  padding-top: var(--eu-space-1);
+  padding-bottom: var(--eu-space-1);
+}
+
+.library-dialog .library-actions input {
+  flex: 1;
+  min-width: 150px;
+}
+
+/*
+ * One focus ring for the whole screen, from the accent rather than the browser's
+ * default: this is the surface a new user meets first, and a mismatched blue
+ * rectangle around the first control they reach is the most visible way for an
+ * application to look unfinished.
+ */
+.library-dialog :focus-visible,
+.library-home :focus-visible,
+.library-welcome :focus-visible,
+.library-switch:focus-visible {
+  outline: 2px solid var(--eu-accent);
+  outline-offset: 2px;
+  border-radius: var(--eu-radius-sm);
+}
+
+/* ---- "include in this project" ---- */
+
+.library-inputs {
+  margin-top: var(--eu-space-5);
+  padding-top: var(--eu-space-3);
+  border-top: 1px solid var(--eu-border);
+}
+
+/*
+ * A checkbox row. It is a target as wide as the form rather than a 13px square,
+ * because the label is what the user is reading and clicking it should work.
+ */
+.library-check {
+  display: flex;
+  gap: var(--eu-space-3);
+  align-items: center;
+  padding: var(--eu-space-2);
+  margin: 0 calc(var(--eu-space-2) * -1);
+  border-radius: var(--eu-radius-md);
+  cursor: pointer;
+  transition: var(--eu-transition-control);
+}
+
+.library-check:hover {
+  background: var(--eu-bg-hover);
+}
+
+.library-check small {
+  display: block;
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-2xs);
+  color: var(--eu-fg-muted);
+  margin-top: var(--eu-space-1);
+}
+
+.library-check input {
+  flex-shrink: 0;
+  accent-color: var(--eu-accent);
+}
+
+/* ---- the "what will be created" preview ---- */
+
+/*
+ * The preview is the one place on this screen that shows a *result* before it
+ * exists, so it is drawn as a miniature of the file tree it will produce: a
+ * monospaced list, indented one level, under a small all-caps header. It is a
+ * card, so it reads as an object rather than as a paragraph that happens to be
+ * in a box.
+ */
+.library-preview {
+  display: grid;
+  gap: var(--eu-space-1);
+  margin-top: var(--eu-space-4);
+  padding: var(--eu-space-3) var(--eu-space-4);
+  font-size: var(--eu-text-sm);
+  background: var(--eu-bg-input);
+  box-shadow: var(--eu-inset-field);
+}
+
+.library-preview small {
+  margin-bottom: var(--eu-space-1);
+}
+
+.library-preview strong {
+  font-weight: var(--eu-weight-medium);
+  color: var(--eu-fg-primary);
+}
+
+.library-preview span {
+  padding-left: var(--eu-space-4);
+  color: var(--eu-fg-secondary);
+}
+
+.library-form-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--eu-space-3);
+  margin-top: var(--eu-space-5);
+}
+
+/* ---- errors ---- */
+
+.library-error {
+  padding: var(--eu-space-3);
+  border: 1px solid var(--eu-error);
+  border-radius: var(--eu-radius-md);
+  background: var(--eu-error-bg);
+  color: var(--eu-error);
+  font-size: var(--eu-text-sm);
+  line-height: var(--eu-leading-snug);
+  overflow-wrap: anywhere;
+}
+
+.library-error p {
+  margin: var(--eu-space-2) 0 0;
+  color: var(--eu-fg-secondary);
+}
+
+/* ---- the project list ---- */
+
+/*
+ * The dialog's list of projects. It scrolls on its own rather than growing the
+ * dialog, so the toolbar above and the "open a folder" route below stay put
+ * however many projects the library holds.
+ */
+.library-projects {
+  display: grid;
+  gap: var(--eu-space-2);
+  max-height: 340px;
+  overflow: auto;
+  padding: var(--eu-space-1) 0 var(--eu-space-4);
+}
+
+.library-project {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-3);
+  padding: var(--eu-space-2) var(--eu-space-3);
+  font: inherit;
+  font-size: var(--eu-text-md);
+  text-align: left;
+  color: var(--eu-fg-primary);
+}
+
+.library-project > svg:first-child {
+  flex-shrink: 0;
+  color: var(--eu-accent);
+}
+
+.library-project span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.library-project > svg:last-child {
+  flex-shrink: 0;
+  color: var(--eu-fg-muted);
+  transition: var(--eu-transition-control);
+}
+
+.library-project:hover > svg:last-child {
+  color: var(--eu-accent);
+  transform: translateX(2px);
+}
+
+/* An empty list is `.eu-empty`'s (a centred, quiet block); the padding is this
+   list's, which is denser than a panel's. */
+.library-empty {
+  padding: var(--eu-space-5) var(--eu-space-4);
+}
+
+/* ==========================================================================
+   Narrow windows and short ones
+   ==========================================================================
+   The application window can be dragged down to a few hundred pixels on either
+   axis, and this screen is the one that is seen at whatever size the user
+   happens to have. These are the two degradations that matter: the hero's
+   padding gives way before its content does, and the mark and the headline step
+   down a size so a 600×400 window still shows the buttons.
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 720px) {
+  .library-welcome,
+  .library-home {
+    padding: var(--eu-space-6) var(--eu-space-4);
+  }
+
+  /* At two columns the cards are too narrow to read a path in, so the grid is
+     allowed to fall to one — which `auto-fill` does on its own once the hero is
+     narrower than two 230px floors. This only removes the extra breathing room
+     the desktop layout had. */
+  .library-recent {
+    margin-top: var(--eu-space-6);
+  }
+}
+
+@media (max-width: 650px) {
+  .library-welcome h1,
+  .library-home h1 {
+    font-size: var(--eu-text-xl);
+  }
+
+  .library-dialog-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .library-dialog-toolbar p {
+    flex-basis: 100%;
+  }
+
+  /* The primary actions fill the width and stack, which is what a thumb expects
+     and what stops two 34px buttons from wrapping into a ragged pair. */
+  .library-actions {
+    align-items: stretch;
+  }
+
+  .library-actions .eu-btn {
+    flex: 1;
+  }
+}
+
+/* Short windows: the first-run gate's three benefits are the first thing that
+   should stop taking vertical space, because the button under them is the only
+   thing on the screen that has to be reachable. */
+@media (max-height: 560px) {
+  .library-benefits {
+    grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+    gap: var(--eu-space-2);
+    padding: var(--eu-space-4) 0;
+  }
+
+  .library-welcome,
+  .library-home {
+    padding-top: var(--eu-space-5);
+    padding-bottom: var(--eu-space-5);
+  }
+}

@@ -1,0 +1,2250 @@
+/**
+ * Eukolia — the preference surfaces.
+ *
+ * Two windows in this application are *about* the application rather than about
+ * the document in front of you: the Settings pane (`SettingsView`) and the snippet
+ * library (`SnippetManager`). Both are dense — a schema-driven form of sixty rows
+ * and a three-hundred-entry library — and both used to state every margin, colour
+ * and border inline, which is how two surfaces that are answering the same kind of
+ * question ended up looking like two different programs.
+ *
+ * What lives here is the *look* of those two surfaces: the rail-and-body split,
+ * the pane chrome, the row rhythm, the code fields and the validation states.
+ * Their behaviour — what is rendered, what a click does, where a value is written
+ * — is untouched. The stylesheet is additive in the same sense
+ * `eukolia-design.css` describes: a class adds a surface, a radius and a
+ * transition, and a component that keeps an inline value keeps the pixel it had.
+ *
+ * Loading order and specificity
+ * ---------------------------------------------------------------------------
+ * Imported by `components/SettingsView.tsx` and `components/SnippetManager.tsx`,
+ * so it arrives with the lazily-loaded surface rather than with the shell. Both
+ * files are dynamic imports, which is why *both* import it: a shared chunk's CSS
+ * is attached to the chunk that imports it, and the standalone snippet window
+ * never loads `SettingsView` at all.
+ *
+ * Where a rule has to override a primitive from the design system — a compact
+ * select inside `.eu-input`, a bordered reset inside `.eu-icon-btn` — it does so
+ * with a *compound* selector rather than with `!important`, so the override is
+ * visible in one place and does not depend on which sheet the bundler emits
+ * first. There is deliberately no `!important` anywhere in this file.
+ *
+ * Every value is a `--eu-*` custom property written by `core/themes.ts`, except
+ * the two local width variables each surface declares for itself, so all eight
+ * themes get this file for free.
+ */
+
+/* ==========================================================================
+   1 · Shared: the measure, the code surface, the states
+   ========================================================================== */
+
+/*
+ * Neither surface is a document, so neither should be a full-width line of 13px
+ * text: at 1600px the eye loses its place, and a settings row whose control sits
+ * a thousand pixels from its label is two columns that have stopped being one
+ * row.
+ *
+ * What the cap must *not* do is pin the content to the window's left edge, which
+ * is what a bare `max-width` on a block-level box does — for the same reason the
+ * project-library hero was pinned (see `components/project-library.css`). So the
+ * column is centred with `margin-inline: auto`, and the measure grows with the
+ * window between a floor and a ceiling: a 1040px window gets a comfortable
+ * column rather than 980px of content in 1040px of window with 300px of dead
+ * space beside it, and a 2560px window stops growing before the text does.
+ */
+.eu-settings__scroll {
+  flex: 1;
+  width: 100%;
+  max-width: clamp(640px, 82vw, 1180px);
+  margin-inline: auto;
+}
+
+/*
+ * The editor pane's scroller carries the form's padding: the scroll container is
+ * the element that owns the width here, so a wrapper would exist only to hold a
+ * margin. The padding is on the box that scrolls rather than outside it, which is
+ * what keeps the scrollbar on the window's edge instead of floating inside the
+ * form.
+ */
+.eu-snippets__editor-scroll {
+  flex: 1;
+  width: 100%;
+  max-width: clamp(640px, 82vw, 1180px);
+  margin-inline: auto;
+  padding: var(--eu-space-4) var(--eu-space-5) var(--eu-space-6);
+}
+
+/* The column the two panes sit in when the window is a window of its own. */
+.eu-snippets__stage {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/*
+ * A code surface: what a monospaced block looks like wherever one appears — the
+ * stored entry, the parsed body, the result of a test run. The editor's own
+ * background rather than a card's, because this is text the application is
+ * *showing* rather than a panel it is offering, and the raised `--eu-shadow-xs`
+ * is left off: a box of source code that floats is a box of source code that
+ * competes with the form around it.
+ */
+.eu-snippets__code,
+.eu-snippets__preview {
+  margin: var(--eu-space-2) 0 0;
+  padding: var(--eu-space-2) var(--eu-space-3);
+  border: 1px solid var(--eu-border);
+  border-radius: var(--eu-radius-md);
+  background: var(--eu-editor-bg);
+  color: var(--eu-fg-primary);
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-xs);
+  line-height: var(--eu-leading-relaxed);
+  white-space: pre-wrap;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.eu-snippets__code {
+  max-height: 240px;
+}
+
+.eu-snippets__preview {
+  max-height: 200px;
+}
+
+/*
+ * The inline error. It arrives rather than appearing: a message that is simply
+ * *there* one frame after a keystroke reads as though it had always been there
+ * and the reader had missed it.
+ */
+.eu-settings__error,
+.eu-snippets__issue {
+  display: block;
+  margin-top: var(--eu-space-1);
+  font-size: var(--eu-text-xs);
+  line-height: var(--eu-leading-snug);
+  animation: eu-fade-in var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-settings__error,
+.eu-snippets__issue--error {
+  color: var(--eu-error);
+}
+
+.eu-snippets__issue--warning {
+  color: var(--eu-warning);
+}
+
+/* A field that is failing validation is marked in the field itself as well as in
+   the sentence under it — the sentence can be scrolled out of view, and the
+   border cannot. `.eu-input[aria-invalid='true']` is the design system's own
+   treatment; this only states the intent next to the surfaces that use it. */
+
+/*
+ * The boolean controls.
+ *
+ * Every tick box in these two surfaces stays the platform's own. A hand-built
+ * switch would be a second implementation of something the platform already does
+ * properly — the keyboard, the focus ring, the high-contrast treatment — and this
+ * application draws a boolean as a tick box everywhere else, so a switch here
+ * would be the odd one out. What is added is the two things the native control
+ * does not decide for itself: it takes the *application's* accent rather than the
+ * operating system's, and it presses in by a hair so a click is felt as well as
+ * seen.
+ *
+ * The rule is stated on the two surfaces rather than on every checkbox, because a
+ * checkbox in a document (LaTeX `\checkmark` is not a checkbox, but a plugin's
+ * might be) is not this application's to restyle.
+ */
+.eu-settings input[type='checkbox'],
+.eu-snippets input[type='checkbox'] {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: var(--eu-accent);
+  cursor: pointer;
+  transition: transform var(--eu-dur-instant) var(--eu-ease-out);
+}
+
+.eu-settings input[type='checkbox']:active,
+.eu-snippets input[type='checkbox']:active {
+  transform: scale(0.9);
+}
+
+/*
+ * A disabled icon button.
+ *
+ * `.eu-btn` states the disabled treatment and `.eu-icon-btn` is deliberately not
+ * built on it — a bare glyph has no surface to dim and no padding to lose — so the
+ * controls that *are* disabled in these two surfaces (a setting already at its
+ * default, an entry already first in the file) state it here: faded, and with the
+ * pointer taken away, because a control that still lights up under the cursor is
+ * one the reader will click.
+ */
+.eu-settings .eu-icon-btn:disabled,
+.eu-snippets .eu-icon-btn:disabled {
+  opacity: 0.38;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   2 · Settings — the pane
+   ========================================================================== */
+
+/*
+ * The pane is a rail and a body, and the split is the whole layout: navigation on
+ * the left at a fixed measure, the settings themselves on the right taking
+ * whatever is left. Both columns are scroll containers of their own, so a long
+ * category list and a long settings page move independently — which is the
+ * defining behaviour of every desktop preferences window.
+ */
+.eu-settings {
+  --eu-settings-rail-width: clamp(196px, 17vw, 240px);
+
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  background: var(--eu-bg-app);
+  color: var(--eu-fg-primary);
+}
+
+.eu-settings__rail {
+  display: flex;
+  flex-direction: column;
+  width: var(--eu-settings-rail-width);
+  flex-shrink: 0;
+  min-height: 0;
+  background: var(--eu-bg-sidebar);
+  border-right: 1px solid var(--eu-border);
+}
+
+/*
+ * The rail's title and the body's toolbar are the same height on purpose: the
+ * hairline under each is one continuous line across the top of the pane, and a
+ * two-pixel difference between them is the kind of thing that reads as a mistake
+ * without the reader being able to say what is wrong.
+ */
+.eu-settings__rail-title,
+.eu-settings__toolbar {
+  height: 38px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--eu-border);
+}
+
+.eu-settings__rail-title {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--eu-space-4);
+  font-size: var(--eu-text-2xs);
+  font-weight: var(--eu-weight-semibold);
+  letter-spacing: var(--eu-tracking-label);
+  text-transform: uppercase;
+  color: var(--eu-fg-muted);
+  user-select: none;
+}
+
+.eu-settings__rail-scroll {
+  flex: 1;
+  padding: var(--eu-space-2) var(--eu-space-2) var(--eu-space-4);
+}
+
+/* ---- the category rail ---------------------------------------------------- */
+
+/*
+ * A rail entry is navigation, not a link: it is a 30px row in a column of rows,
+ * it holds its position when it is chosen, and it says so twice — with the tinted
+ * surface every selected row in the application uses, and with a leading accent
+ * rule. Two marks rather than one because they answer different questions: the
+ * tint is *which row is live*, and the rule is *where you are in the column*,
+ * which is what stays legible when the reader's eye is halfway down a long list.
+ */
+.eu-settings__category {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  width: 100%;
+  min-height: 30px;
+  padding: 0 var(--eu-space-3) 0 var(--eu-space-4);
+  border: none;
+  border-radius: var(--eu-radius-md);
+  background: transparent;
+  color: var(--eu-fg-secondary);
+  font: inherit;
+  font-size: var(--eu-text-md);
+  font-weight: var(--eu-weight-medium);
+  text-align: left;
+  cursor: pointer;
+  transition: var(--eu-transition-control);
+}
+
+/*
+ * The rule grows into place. A marker that appears fully formed on a click reads
+ * as a repaint; the spring curve is what makes the same 2px feel like it moved.
+ */
+.eu-settings__category::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: var(--eu-radius-pill);
+  background: var(--eu-accent);
+  opacity: 0;
+  transform: scaleY(0.35);
+  transition: opacity var(--eu-dur-fast) var(--eu-ease-out),
+    transform var(--eu-dur-base) var(--eu-ease-spring);
+}
+
+.eu-settings__category:hover {
+  background: var(--eu-bg-hover);
+  color: var(--eu-fg-primary);
+  /* The row steps toward the reader rather than merely changing colour. Two
+     pixels is enough to be felt and not enough to move the column. */
+  transform: translateX(2px);
+}
+
+.eu-settings__category:active {
+  transform: translateX(2px) scale(0.99);
+}
+
+.eu-settings__category[aria-pressed='true'] {
+  background: var(--eu-accent-muted);
+  color: var(--eu-fg-primary);
+}
+
+/* The selected row's own transform: it is already at the reader. */
+.eu-settings__category[aria-pressed='true']:hover {
+  transform: none;
+}
+
+.eu-settings__category[aria-pressed='true']::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+.eu-settings__category-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The synthetic section — the shortcut editor — is pushed to the foot of the
+   rail: it is a different *kind* of destination, and nothing in a column of
+   categories should look as though it were one of them. */
+.eu-settings__category--section {
+  margin-top: var(--eu-space-3);
+  border-top: 1px solid var(--eu-hairline);
+  border-radius: 0 0 var(--eu-radius-md) var(--eu-radius-md);
+}
+
+.eu-settings__category--section .eu-settings__category-name {
+  flex: 1;
+  text-align: left;
+}
+
+/* How many settings a category holds, as a count rather than as a third column:
+   it is a quantity, so it is tabular and it sits in the badge the design system
+   already draws for exactly this. */
+.eu-badge.eu-settings__category-count {
+  margin-left: auto;
+  background: transparent;
+  color: var(--eu-fg-muted);
+  transition: var(--eu-transition-control);
+}
+
+.eu-settings__category:hover .eu-settings__category-count {
+  color: var(--eu-fg-secondary);
+}
+
+.eu-settings__category[aria-pressed='true'] .eu-settings__category-count {
+  background: var(--eu-accent-muted);
+  color: var(--eu-fg-primary);
+}
+
+/* ---- the body toolbar ----------------------------------------------------- */
+
+.eu-settings__toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  padding: 0 var(--eu-space-4);
+  background: var(--eu-bg-toolbar);
+}
+
+.eu-settings__spacer {
+  flex: 1;
+  min-width: var(--eu-space-2);
+}
+
+/* `.eu-input` is full width so a form field fills its row; the search box in a
+   toolbar wants the opposite, so it is capped here rather than in the markup. */
+.eu-input.eu-settings__search {
+  flex: 1;
+  max-width: 420px;
+}
+
+.eu-settings__confirm {
+  font-size: var(--eu-text-xs);
+  color: var(--eu-warning);
+}
+
+/* The destructive confirmation is the one quiet button allowed to be red, and
+   only for as long as it is asking. */
+.eu-btn.eu-settings__danger {
+  color: var(--eu-error);
+  border-color: var(--eu-error);
+}
+
+.eu-btn.eu-settings__danger:hover:not(:disabled) {
+  background: var(--eu-error-bg);
+  border-color: var(--eu-error);
+  color: var(--eu-error);
+}
+
+/* ---- the settings body ---------------------------------------------------- */
+
+/*
+ * The body column: the toolbar that is fixed to the top of it, and a scrolling
+ * content area under that. `min-width: 0` is the one property here that is not
+ * obvious — without it a long path or a long setting key sets the column's
+ * minimum width and the rail beside it is squeezed instead of the text being
+ * ellipsised.
+ */
+.eu-settings__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.eu-settings__content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--eu-space-5) var(--eu-space-6) var(--eu-space-6);
+  /*
+   * Choosing a category is a *change of page*, and a page that swaps instantly
+   * reads as one that failed to load. A short rise is enough to say the content
+   * arrived, and it is on the content rather than on the whole pane so the rail
+   * — which is navigation and must not move — stays still.
+   */
+  animation: eu-settings-page-in var(--eu-dur-base) var(--eu-ease-out);
+}
+
+@keyframes eu-settings-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/*
+ * A section heading, and the hairline that ends it. The rule is what does the
+ * work: it tells the eye where one group stops without a box, a background or an
+ * extra 24px of empty space, and it is the same device the rail uses to separate
+ * the synthetic section from the categories.
+ */
+.eu-settings__section-title {
+  margin: 0 0 var(--eu-space-4);
+  padding-bottom: var(--eu-space-2);
+  border-bottom: 1px solid var(--eu-hairline);
+  font-size: var(--eu-text-lg);
+  font-weight: var(--eu-weight-semibold);
+  line-height: var(--eu-leading-tight);
+  letter-spacing: -0.01em;
+  color: var(--eu-fg-primary);
+}
+
+/*
+ * One setting: a label block on the left, its control on the right.
+ *
+ * The first column has a floor of 220px so that a wrapped description stays a
+ * paragraph, and the second takes what it needs — a value that changes width as
+ * the control changes is a row whose label jumps sideways while it is typed in.
+ * The hover tint is not decoration: in a column of sixty rows with the control a
+ * full column away from the label, it is what keeps the two halves reading as one
+ * row under the pointer.
+ */
+.eu-settings__row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(200px, auto);
+  align-items: start;
+  gap: var(--eu-space-2) var(--eu-space-5);
+  margin: 0 calc(var(--eu-space-2) * -1);
+  padding: var(--eu-space-3) var(--eu-space-2);
+  border-bottom: 1px solid var(--eu-hairline);
+  border-radius: var(--eu-radius-md);
+  transition: background-color var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-settings__row:hover {
+  background: var(--eu-hover-tint);
+}
+
+.eu-settings__row:last-child {
+  border-bottom: none;
+}
+
+.eu-settings__row-main {
+  min-width: 0;
+}
+
+.eu-settings__label-row {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  flex-wrap: wrap;
+}
+
+.eu-settings__label {
+  font-size: var(--eu-text-md);
+  font-weight: var(--eu-weight-medium);
+  line-height: var(--eu-leading-snug);
+  color: var(--eu-fg-primary);
+}
+
+/* The two badges a row can carry: which scope won, and whether the setting needs
+   a reload. They are chips rather than text because they are *state*, and state
+   in this application is a pill. */
+.eu-chip.eu-settings__chip {
+  padding: 0 var(--eu-space-2);
+  font-size: var(--eu-text-2xs);
+  font-weight: var(--eu-weight-medium);
+  letter-spacing: var(--eu-tracking-label);
+  text-transform: uppercase;
+  cursor: default;
+}
+
+.eu-chip.eu-settings__chip--scope {
+  border-color: var(--eu-accent);
+  background: var(--eu-accent-muted);
+  color: var(--eu-fg-primary);
+}
+
+/* The one chip that is a warning rather than a label: a setting that is stored
+   but will not take effect until the editor is reloaded. */
+.eu-chip.eu-settings__chip--reload {
+  border-color: var(--eu-warning);
+  background: var(--eu-warning-bg);
+  color: var(--eu-warning);
+}
+
+/* Quieter than the scope chip on purpose: it describes what a *project file*
+   may do with the setting, not what has been done to it. Most rows do not carry
+   it, so it reads as the exception it is. */
+.eu-chip.eu-settings__chip--project {
+  border-color: var(--eu-border);
+  background: transparent;
+  color: var(--eu-fg-muted);
+}
+
+.eu-settings__key {
+  margin-top: var(--eu-space-1);
+  color: var(--eu-fg-muted);
+}
+
+.eu-settings__description {
+  margin-top: var(--eu-space-1);
+  max-width: 64ch;
+  font-size: var(--eu-text-sm);
+  line-height: var(--eu-leading-normal);
+  color: var(--eu-fg-muted);
+}
+
+.eu-settings__control {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--eu-space-2);
+  min-width: 0;
+}
+
+/* ---- the controls in a row ------------------------------------------------ */
+
+/* Compound selectors: each of these is `.eu-input` (or `.eu-btn`) with one thing
+   changed, and the two classes together are what makes the override explicit. */
+
+.eu-input.eu-settings__number {
+  width: 90px;
+}
+
+.eu-input.eu-settings__select {
+  width: auto;
+  min-width: 130px;
+}
+
+.eu-input.eu-settings__text {
+  min-width: 180px;
+}
+
+.eu-input.eu-settings__list {
+  min-height: 52px;
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-sm);
+  line-height: var(--eu-leading-snug);
+  resize: vertical;
+}
+
+.eu-input.eu-settings__hex {
+  width: 100px;
+  font-family: var(--eu-mono-font);
+}
+
+/* The colour picker is a swatch, not a field: it is a 26×22 chip of the colour
+   itself, so it keeps no padding and no inner shadow — either would show through
+   the value it is displaying. It is left at its native size because the native
+   control is what a colour input *is*. */
+.eu-settings__color {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+}
+
+.eu-settings__swatch {
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--eu-border);
+  border-radius: var(--eu-radius-sm);
+  cursor: pointer;
+  transition: var(--eu-transition-control);
+}
+
+.eu-settings__swatch:hover {
+  border-color: var(--eu-border-strong);
+}
+
+.eu-settings__path {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  width: 100%;
+}
+
+.eu-btn.eu-settings__browse {
+  padding: 3px var(--eu-space-3);
+  font-size: var(--eu-text-xs);
+  white-space: nowrap;
+}
+
+/* The one row whose control is a paragraph rather than a field: the snippet
+   library's location, which after setup is a fact rather than a setting. */
+.eu-settings__library {
+  display: grid;
+  gap: var(--eu-space-2);
+  justify-items: start;
+  font-size: var(--eu-text-sm);
+  color: var(--eu-fg-secondary);
+  line-height: var(--eu-leading-snug);
+}
+
+.eu-settings__library-path {
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-xs);
+  color: var(--eu-fg-muted);
+  overflow-wrap: anywhere;
+}
+
+.eu-icon-btn.eu-settings__reset {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--eu-border);
+}
+
+.eu-icon-btn.eu-settings__reset:not(:disabled):hover {
+  border-color: var(--eu-border-strong);
+}
+
+/* ---- the footnote --------------------------------------------------------- */
+
+.eu-settings__note {
+  margin-top: var(--eu-space-6);
+  padding-top: var(--eu-space-3);
+  border-top: 1px solid var(--eu-hairline);
+  max-width: 78ch;
+  font-size: var(--eu-text-xs);
+  line-height: var(--eu-leading-relaxed);
+  color: var(--eu-fg-muted);
+}
+
+.eu-settings__action {
+  margin-bottom: var(--eu-space-4);
+}
+
+/* An inline link inside a sentence: it has to be a button (it runs a command),
+   and it has to read as a link (it is one word inside a paragraph). */
+.eu-settings__link {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--eu-fg-link);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: color var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-settings__link:hover {
+  color: var(--eu-accent-hover);
+}
+
+/* ==========================================================================
+   3 · Settings — the keyboard-shortcut editor
+   ========================================================================== */
+
+.eu-settings__shortcuts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eu-space-3);
+  height: 100%;
+  min-height: 0;
+}
+
+.eu-settings__shortcut-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-3);
+  flex-shrink: 0;
+}
+
+.eu-input.eu-settings__filter {
+  flex: 1;
+  max-width: 320px;
+}
+
+.eu-settings__shortcut-hint {
+  min-width: 0;
+  font-size: var(--eu-text-xs);
+  line-height: var(--eu-leading-snug);
+  color: var(--eu-fg-muted);
+}
+
+/*
+ * The table of bindings. A bordered, panel-coloured box rather than the page's
+ * own surface, because a shortcut list is *data* — several hundred rows of the
+ * same shape — and a surface of its own is what says "this scrolls".
+ */
+.eu-settings__shortcut-scroll {
+  flex: 1;
+  border: 1px solid var(--eu-border);
+  border-radius: var(--eu-radius-lg);
+  background: var(--eu-bg-panel);
+}
+
+/**
+ * One shortcut.
+ *
+ * A grid rather than a flex row, because the three columns have to line up down
+ * the list and only one of them is naturally sized: the *category* is a fixed
+ * label column, the *title* takes the room that is left, and the binding sits on
+ * the right where the eye can run down it. Laid out as a flex row, a later row
+ * with no secondary binding pulled its title left and the column stopped reading
+ * as a column.
+ *
+ * Everything on the row that can wrap is allowed to: a command's title is the
+ * longest text in the editor and at 100 characters it was the row, and the
+ * keycap beside it, that made the list scroll sideways.
+ */
+.eu-settings__shortcut-row {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: var(--eu-space-2) var(--eu-space-3);
+  padding: var(--eu-space-1) var(--eu-space-3);
+  border-bottom: 1px solid var(--eu-hairline);
+  font-size: var(--eu-text-sm);
+  color: var(--eu-fg-primary);
+  transition: background-color var(--eu-dur-instant) var(--eu-ease-out);
+}
+
+.eu-settings__shortcut-row:hover {
+  background: var(--eu-hover-tint);
+}
+
+/*
+ * The rows arrive in sequence rather than all at once: ninety-five rows that
+ * appear together read as a wall, and the same rows stepping in over a tenth of
+ * a second read as a list being drawn.
+ *
+ * Scoped to the first twelve, for the reason the file tree is: an animation is a
+ * compositor object, and one per row is one per command in the application —
+ * which is a cost paid on every repaint to animate rows the reader cannot see.
+ */
+.eu-settings__shortcut-row:nth-child(-n + 12) {
+  animation: eu-row-in var(--eu-dur-fast) var(--eu-ease-out) both;
+}
+
+.eu-settings__shortcut-row:nth-child(1) { animation-delay: 0ms; }
+.eu-settings__shortcut-row:nth-child(2) { animation-delay: 8ms; }
+.eu-settings__shortcut-row:nth-child(3) { animation-delay: 16ms; }
+.eu-settings__shortcut-row:nth-child(4) { animation-delay: 24ms; }
+.eu-settings__shortcut-row:nth-child(5) { animation-delay: 32ms; }
+.eu-settings__shortcut-row:nth-child(6) { animation-delay: 40ms; }
+.eu-settings__shortcut-row:nth-child(7) { animation-delay: 48ms; }
+.eu-settings__shortcut-row:nth-child(8) { animation-delay: 56ms; }
+.eu-settings__shortcut-row:nth-child(9) { animation-delay: 64ms; }
+.eu-settings__shortcut-row:nth-child(10) { animation-delay: 72ms; }
+.eu-settings__shortcut-row:nth-child(11) { animation-delay: 80ms; }
+.eu-settings__shortcut-row:nth-child(12) { animation-delay: 88ms; }
+
+@keyframes eu-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.eu-settings__shortcut-row:last-child {
+  border-bottom: none;
+}
+
+.eu-settings__shortcut-category {
+  flex-shrink: 0;
+  font-size: var(--eu-text-2xs);
+  font-weight: var(--eu-weight-semibold);
+  letter-spacing: var(--eu-tracking-label);
+  text-transform: uppercase;
+  color: var(--eu-fg-muted);
+}
+
+.eu-settings__shortcut-title {
+  min-width: 0;
+  /* A title is prose, not code: it wraps rather than being cut, because half a
+     command's name is worse than two lines of it. */
+  overflow-wrap: anywhere;
+  line-height: var(--eu-leading-snug);
+}
+
+/* A binding is a keycap, because that is what it is: the reader has to read
+   `Ctrl+Shift+P` as *keys* rather than as more prose. The design system draws the
+   keycap; what is added here is that one of them is pressable.
+ *
+ * The face is the interface's rather than the design system's monospace: a
+ * keycap in a *list of keycaps* is a label, and seventy rows of a monospaced
+ * `Ctrl+Shift+I` read as code. The monospace stays where a keycap is quoted
+ * among prose — the palette, the status line — which is where the design system
+ * sets it. */
+.eu-kbd.eu-settings__binding {
+  font-family: var(--eu-ui-font);
+  font-size: var(--eu-text-xs);
+  color: var(--eu-fg-secondary);
+  cursor: pointer;
+}
+
+/* A second binding is not the one being edited: it sits under the primary and
+   reads as a note about the command rather than as another control. */
+.eu-settings__binding--secondary {
+  grid-column: 3 / -1;
+  justify-self: end;
+  cursor: default;
+  opacity: 0.75;
+}
+
+.eu-kbd.eu-settings__binding:hover {
+  border-color: var(--eu-border-strong);
+  background: var(--eu-bg-hover);
+  color: var(--eu-fg-primary);
+}
+
+/* An unbound command is not an error — most commands are unbound — so it is
+   stated quietly, as a dashed outline rather than as a warning. */
+.eu-kbd.eu-settings__binding--unbound {
+  border-style: dashed;
+  color: var(--eu-fg-muted);
+}
+
+/*
+ * The recording state. The field is the affordance: the reader has just clicked a
+ * keycap and the keycap has turned into a box asking for keys, so the box is
+ * lifted with the accent — border, tint and ring — which is the same accent
+ * treatment a focused field gets everywhere else in the application.
+ */
+.eu-input.eu-settings__recording {
+  width: 172px;
+  border-color: var(--eu-accent);
+  color: var(--eu-accent);
+  font-family: var(--eu-mono-font);
+  animation: eu-fade-in var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-input.eu-settings__recording:focus {
+  box-shadow: var(--eu-inset-field), 0 0 0 3px var(--eu-accent-muted);
+}
+
+/* ==========================================================================
+   4 · Snippets — the window and its three parts
+   ========================================================================== */
+
+/*
+ * The window: a full-height column that owns its own overflow, in a dialog or as
+ * a standalone window of its own. `100vh`/`100vw` only in the standalone case —
+ * there the element *is* the viewport, and the shell that would size it is not
+ * present.
+ */
+.eu-snippets {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--eu-bg-app);
+  color: var(--eu-fg-primary);
+}
+
+.eu-snippets--standalone {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/*
+ * Under the title bar: the list on the left, the editor on the right. Both panes
+ * get a surface, a hairline seam and their own padding, so which pane the pointer
+ * is over is never in question — the list is the sidebar's colour and the form is
+ * the window's, exactly as the shell's own sidebar and editor are.
+ */
+.eu-snippets__body {
+  display: flex;
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+}
+
+/*
+ * The list pane.
+ *
+ * Its width is a *share of the window with a floor under it*, and the floor is
+ * the part that matters. A percentage alone gave a 407px window a 166px pane —
+ * narrower than its own rows, so the trigger column and the preview were both
+ * cut mid-word and the pane read as broken rather than as narrow. 300px is the
+ * width at which both columns fit whole; above it the pane takes a little over a
+ * quarter of the window and stops at 420px, past which the list is wider than
+ * the text in it.
+ *
+ * `flex-shrink: 0` is deliberate: the list is the window's index, and a pane
+ * that gives up width to the form beside it is one that loses the column the
+ * reader is scanning.
+ */
+.eu-snippets__list-pane {
+  display: flex;
+  flex-direction: column;
+  width: clamp(300px, 28vw, 420px);
+  flex-shrink: 0;
+  min-height: 0;
+  background: var(--eu-bg-sidebar);
+  border-right: 1px solid var(--eu-border);
+}
+
+.eu-snippets__editor-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* ---- the strips every pane has -------------------------------------------- */
+
+/*
+ * The library's own name, where a title bar would be if the dialog had not
+ * already said it.
+ *
+ * The name is set on the interface's *navigation* scale rather than as more body
+ * copy — 13px, medium, primary — because it is the one line in the pane that says
+ * which file everything below it belongs to, and the count beside it is set in
+ * tabular figures so it does not shuffle sideways as entries are added. The two
+ * are separated by the header's own `justify-content` rather than by a spacer
+ * element, which is what the count's `margin-left: auto` used to be.
+ */
+.eu-snippets__pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--eu-space-3);
+  flex-shrink: 0;
+  min-height: 34px;
+  padding: 0 var(--eu-space-4);
+  border-bottom: 1px solid var(--eu-border);
+  background: var(--eu-bg-toolbar);
+  font-size: var(--eu-text-2xs);
+  color: var(--eu-fg-muted);
+  user-select: none;
+}
+
+.eu-snippets__pane-header-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--eu-text-md);
+  font-weight: var(--eu-weight-semibold);
+  letter-spacing: -0.005em;
+  color: var(--eu-fg-primary);
+}
+
+.eu-snippets__pane-header-count {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.eu-snippets__pane-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  flex-shrink: 0;
+  padding: var(--eu-space-2) var(--eu-space-3);
+  border-bottom: 1px solid var(--eu-border);
+  background: var(--eu-bg-toolbar);
+}
+
+.eu-snippets__path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-2xs);
+  color: var(--eu-fg-muted);
+}
+
+.eu-snippets__save-error {
+  flex-shrink: 0;
+  font-size: var(--eu-text-xs);
+  color: var(--eu-error);
+}
+
+/* ---- the search row ------------------------------------------------------- */
+
+/*
+ * Filtering is the list's primary control, so it gets the full width of the pane
+ * and the two narrowing controls beside it are kept to their own measure: a
+ * select that grows with the pane is a select that leaves the field beside it too
+ * narrow to read what has been typed into it.
+ */
+.eu-snippets__search-row {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  flex-shrink: 0;
+  padding: var(--eu-space-2) var(--eu-space-3) var(--eu-space-1);
+}
+
+/* The box the clear button is positioned against. `position: relative` here
+   rather than on the row keeps the button inside the field's own bounds. */
+.eu-snippets__search-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 120px;
+}
+
+.eu-input.eu-snippets__search {
+  padding-right: 24px;
+}
+
+.eu-icon-btn.eu-snippets__clear {
+  position: absolute;
+  right: 3px;
+  width: 18px;
+  height: 18px;
+}
+
+.eu-input.eu-snippets__select {
+  width: auto;
+  flex-shrink: 0;
+  padding-right: var(--eu-space-2);
+}
+
+.eu-input.eu-snippets__select--state {
+  width: 92px;
+}
+
+/* The filter toggle states three things with one control: whether the drawer is
+   open (`aria-pressed`), whether any filter is set at all, and how many. The
+   count is drawn from the markup; the tint is the class below. */
+.eu-btn.eu-snippets__filter-toggle {
+  height: 26px;
+  padding: 0 var(--eu-space-2);
+  gap: var(--eu-space-1);
+  border: 1px solid var(--eu-border);
+  border-radius: var(--eu-radius-sm);
+  font-size: var(--eu-text-xs);
+}
+
+.eu-btn.eu-snippets__filter-toggle--on {
+  border-color: var(--eu-accent);
+  background: var(--eu-accent-muted);
+  color: var(--eu-fg-primary);
+}
+
+.eu-snippets__filter-count {
+  font-size: var(--eu-text-2xs);
+  font-weight: var(--eu-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- the advanced filter drawer ------------------------------------------- */
+
+/*
+ * The drawer is part of the list pane rather than a popover: it is a *narrowing*
+ * of the list, so it belongs on the surface being narrowed, and a menu floating
+ * over the rows it is filtering would hide the result of each change.
+ */
+.eu-snippets__filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eu-space-2);
+  flex-shrink: 0;
+  margin: 0 var(--eu-space-3) var(--eu-space-2);
+  padding: var(--eu-space-3);
+  border: 1px solid var(--eu-border);
+  border-radius: var(--eu-radius-lg);
+  background: var(--eu-bg-panel);
+  box-shadow: var(--eu-inset-field);
+  animation: eu-menu-in var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-snippets__filters-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--eu-space-2);
+}
+
+.eu-snippets__filter-row {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+}
+
+.eu-snippets__filter-label {
+  width: 62px;
+  flex-shrink: 0;
+  font-size: var(--eu-text-xs);
+  color: var(--eu-fg-muted);
+}
+
+.eu-input.eu-snippets__filter-select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* A drawer-local link: "Clear all", "Reset filters". It is a command, not a
+   button, so it is drawn as text until the pointer is on it. */
+.eu-btn.eu-snippets__link {
+  height: auto;
+  padding: var(--eu-space-half) var(--eu-space-1);
+  border: none;
+  color: var(--eu-accent);
+  font-size: var(--eu-text-xs);
+}
+
+.eu-btn.eu-snippets__link:hover:not(:disabled) {
+  background: transparent;
+  color: var(--eu-accent-hover);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ---- the action row ------------------------------------------------------- */
+
+/*
+ * The verbs. They are drawn as *quiet* controls — no border until the pointer is
+ * on one — because the row is an index of what can be done and not a toolbar of
+ * things being done. Three bordered buttons in a 300px pane read as a form to
+ * fill in; the same three without borders read as a menu of actions, which is
+ * what they are.
+ *
+ * The height and the gap are tighter than the rest of the window on purpose: the
+ * pane's vertical room is spent on rows, and this strip sits above the list it
+ * would otherwise compete with.
+ */
+.eu-snippets__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-half);
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  padding: 0 var(--eu-space-3) var(--eu-space-2);
+}
+
+.eu-btn.eu-snippets__action {
+  height: 24px;
+  padding: 0 var(--eu-space-2);
+  gap: var(--eu-space-1);
+  border: 1px solid transparent;
+  border-radius: var(--eu-radius-sm);
+  color: var(--eu-fg-secondary);
+  font-size: var(--eu-text-xs);
+}
+
+.eu-btn.eu-snippets__action:hover:not(:disabled) {
+  border-color: var(--eu-border);
+  background: var(--eu-bg-hover);
+  color: var(--eu-fg-primary);
+}
+
+.eu-btn.eu-snippets__action:disabled {
+  color: var(--eu-fg-muted);
+}
+
+/* Delete asks twice — the first press arms it — so the armed state is the
+   error colour, which is the only state in this row that means "again". */
+.eu-btn.eu-snippets__action--danger {
+  color: var(--eu-error);
+}
+
+.eu-btn.eu-snippets__action--danger:hover:not(:disabled) {
+  border-color: var(--eu-error);
+  background: var(--eu-error-bg);
+  color: var(--eu-error);
+}
+
+/* The rule that separates "edit the entries" from "re-read the file". It is a
+   border on the last button rather than a separator element, because this row's
+   children are the controls it acts on and nothing else — an extra span would be
+   one more thing for the keyboard to walk past for a line nobody can click. */
+.eu-btn.eu-snippets__action--split {
+  margin-left: var(--eu-space-2);
+  border-left-color: var(--eu-border);
+  border-radius: 0 var(--eu-radius-sm) var(--eu-radius-sm) 0;
+}
+
+/* The two scroll-to-end controls, paired so they read as one instrument. */
+.eu-snippets__stats-arrows {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-half);
+}
+
+/* ---- the list's status strip --------------------------------------------- */
+
+/*
+ * The band between the controls and the rows: what the list is showing, and the
+ * two controls that walk it.
+ *
+ * It is a *status* strip, so it is quieter than the strips above it — a hairline
+ * rather than a border on top, the panel surface rather than the toolbar's, and
+ * 11px. Its facts are separated by a middot in the faintest colour the palette
+ * has, because the separator is punctuation and not a third piece of
+ * information; set in the text colour it competed with both numbers beside it.
+ */
+.eu-snippets__stats {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  flex-shrink: 0;
+  padding: var(--eu-space-1) var(--eu-space-3);
+  border-top: 1px solid var(--eu-hairline);
+  border-bottom: 1px solid var(--eu-border);
+  background: var(--eu-bg-panel);
+  font-size: var(--eu-text-xs);
+  color: var(--eu-fg-muted);
+  user-select: none;
+}
+
+.eu-snippets__stats > span:not([class]) {
+  color: var(--eu-fg-muted);
+  opacity: 0.5;
+}
+
+.eu-btn.eu-snippets__stats-button {
+  height: 20px;
+  padding: 0 var(--eu-space-2);
+  border: none;
+  border-radius: var(--eu-radius-sm);
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-xs);
+}
+
+.eu-btn.eu-snippets__stats-button[aria-pressed='true'] {
+  background: var(--eu-accent-muted);
+  color: var(--eu-fg-primary);
+  font-weight: var(--eu-weight-medium);
+}
+
+.eu-snippets__count {
+  font-variant-numeric: tabular-nums;
+}
+
+.eu-snippets__stats-spacer {
+  flex: 1;
+}
+
+.eu-icon-btn.eu-snippets__scroll-button {
+  width: 22px;
+  height: 20px;
+}
+
+/* The two arrows that move an entry through the file. Same box as the list's
+   scroll controls, because they are the same kind of control — a glyph in a strip
+   — and the title is what tells them apart. */
+.eu-icon-btn.eu-snippets__move-button {
+  width: 22px;
+  height: 20px;
+  font-size: var(--eu-text-sm);
+}
+
+/* ---- the list itself ------------------------------------------------------ */
+
+.eu-snippets__list {
+  flex: 1;
+  min-height: 0;
+}
+
+/*
+ * One row. The columns are fixed rather than fluid on purpose: a library is read
+ * by scanning down the trigger column, and a trigger column that is as wide as
+ * whatever is in each row is a column the eye cannot follow. The preview takes
+ * the slack, which is the only column whose width nobody is comparing.
+ */
+.eu-snippets__row {
+  position: relative;
+  display: grid;
+  /*
+   * Five columns and the grip, sized so the two columns a reader scans are
+   * whole at the pane's *floor* width rather than only at its ceiling: 80px for
+   * the trigger — a `\w`-style prefix or an `fn` fits, and a longer one
+   * ellipsises rather than pushing the preview along — and the preview taking
+   * whatever is left. Both were being cut mid-word at the old width, which is
+   * what made the pane read as broken instead of as narrow.
+   */
+  grid-template-columns: 12px 80px minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: var(--eu-space-2);
+  width: 100%;
+  min-height: 28px;
+  padding: var(--eu-space-1) var(--eu-space-3) var(--eu-space-1) var(--eu-space-2);
+  border-bottom: 1px solid var(--eu-hairline);
+  background: transparent;
+  color: var(--eu-fg-primary);
+  font-size: var(--eu-text-sm);
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  /* The list can hold six hundred rows, so nothing here may animate a property
+     that costs layout: the highlight is painted, not measured. */
+  transition: var(--eu-transition-control);
+}
+
+.eu-snippets__row:hover {
+  background: var(--eu-bg-hover);
+}
+
+.eu-snippets__row:active {
+  background: var(--eu-bg-active);
+}
+
+.eu-snippets__row[aria-pressed='true'] {
+  background: var(--eu-bg-selection-list);
+}
+
+/* The selected row is also marked on its leading edge: the tint says which row,
+   the rule says where in the list — the same pair the settings rail uses, in the
+   same place, for the same reason. It grows into place, so moving down the list
+   with the arrow keys reads as the marker travelling rather than as a repaint. */
+.eu-snippets__row[aria-pressed='true']::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--eu-accent);
+  animation: eu-marker-grow var(--eu-dur-base) var(--eu-ease-spring);
+}
+
+@keyframes eu-marker-grow {
+  from {
+    transform: scaleY(0.3);
+    opacity: 0.4;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.eu-snippets__row--disabled {
+  color: var(--eu-fg-muted);
+}
+
+.eu-snippets__row--dragging {
+  opacity: 0.35;
+}
+
+/* Where a dragged row would land. The two states are one rule apart, and the
+   inset shadow is what makes the marker part of the row rather than a border
+   that resizes it mid-drag. */
+.eu-snippets__row--drop-before {
+  box-shadow: inset 0 2px 0 0 var(--eu-accent);
+}
+
+.eu-snippets__row--drop-after {
+  box-shadow: inset 0 -2px 0 0 var(--eu-accent);
+}
+
+.eu-snippets__grip {
+  display: inline-flex;
+  align-items: center;
+  color: var(--eu-fg-muted);
+  cursor: grab;
+}
+
+.eu-snippets__row:hover .eu-snippets__grip {
+  color: var(--eu-fg-secondary);
+}
+
+.eu-snippets__row-trigger {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-xs);
+  color: var(--eu-syntax-command, var(--eu-accent));
+}
+
+.eu-snippets__row--disabled .eu-snippets__row-trigger {
+  color: var(--eu-fg-muted);
+}
+
+.eu-snippets__row-preview {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--eu-text-xs);
+  color: var(--eu-fg-secondary);
+}
+
+.eu-snippets__row[aria-pressed='true'] .eu-snippets__row-preview {
+  color: var(--eu-fg-primary);
+}
+
+/* The row's enable tick: native, because it is a boolean and this application
+   draws booleans as tick boxes everywhere else. It is only told not to stretch
+   and to stay its own size under the pointer. */
+.eu-snippets__row-check {
+  flex-shrink: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.eu-dot.eu-snippets__unsaved {
+  background: var(--eu-fg-secondary);
+}
+
+/* ---- empty states --------------------------------------------------------- */
+
+.eu-snippets__empty {
+  padding: var(--eu-space-8) var(--eu-space-4);
+}
+
+/* ==========================================================================
+   5 · Snippets — the editor pane
+   ========================================================================== */
+
+/*
+ * The snippet header: the ID, and the controls that act on the whole entry.
+ * It sits above the form and below the pane toolbar, so the reader always knows
+ * *which* snippet the fields underneath belong to — the id is the only name that
+ * is guaranteed unique in the file.
+ */
+.eu-snippets__snippet-header {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-4);
+  width: 100%;
+  min-width: 0;
+  margin-bottom: var(--eu-space-4);
+}
+
+.eu-snippets__id-group {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  flex: 1;
+  min-width: 0;
+}
+
+.eu-snippets__id-label {
+  flex-shrink: 0;
+  font-size: var(--eu-text-2xs);
+  font-weight: var(--eu-weight-bold);
+  letter-spacing: var(--eu-tracking-label);
+  text-transform: uppercase;
+  color: var(--eu-fg-muted);
+  user-select: none;
+}
+
+.eu-input.eu-snippets__id-input {
+  flex: 1;
+  min-width: 60px;
+  max-width: 380px;
+  height: 28px;
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-sm);
+  font-weight: var(--eu-weight-semibold);
+}
+
+.eu-snippets__header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  flex-shrink: 0;
+}
+
+.eu-snippets__mode {
+  display: inline-flex;
+  gap: var(--eu-space-half);
+  padding: var(--eu-space-half);
+  border: 1px solid var(--eu-border);
+  border-radius: var(--eu-radius-md);
+  background: var(--eu-bg-input);
+  box-shadow: var(--eu-inset-field);
+}
+
+.eu-snippets__mode-button {
+  padding: 3px var(--eu-space-3);
+  border: none;
+  border-radius: var(--eu-radius-sm);
+  background: transparent;
+  color: var(--eu-fg-muted);
+  font: inherit;
+  font-size: var(--eu-text-xs);
+  cursor: pointer;
+  transition: var(--eu-transition-control);
+}
+
+.eu-snippets__mode-button:hover {
+  color: var(--eu-fg-primary);
+  background: var(--eu-bg-hover);
+}
+
+/* The chosen half of the pair is *raised* rather than merely tinted: which of two
+   views is showing has to be answerable at a glance, and on a two-segment control
+   a tint alone is a difference of one value. */
+.eu-snippets__mode-button[aria-pressed='true'] {
+  background: var(--eu-bg-card);
+  color: var(--eu-fg-primary);
+  font-weight: var(--eu-weight-medium);
+  box-shadow: var(--eu-shadow-xs);
+}
+
+.eu-snippets__mode-button[aria-pressed='true']:hover {
+  background: var(--eu-bg-card);
+}
+
+/* ---- the form ------------------------------------------------------------- */
+
+/*
+ * A field is a label, a control and a line of explanation, in that order and at a
+ * consistent distance. The rhythm is the point: sixty of these in a column is a
+ * page nobody reads if each one is spaced by eye.
+ */
+.eu-snippets__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eu-space-1);
+  margin-bottom: var(--eu-space-4);
+}
+
+.eu-snippets__field-label {
+  font-size: var(--eu-text-2xs);
+  font-weight: var(--eu-weight-semibold);
+  letter-spacing: var(--eu-tracking-label);
+  text-transform: uppercase;
+  color: var(--eu-fg-muted);
+  user-select: none;
+}
+
+.eu-snippets__hint {
+  font-size: var(--eu-text-xs);
+  line-height: var(--eu-leading-normal);
+  color: var(--eu-fg-muted);
+  max-width: 84ch;
+}
+
+.eu-snippets__hint--block {
+  display: block;
+}
+
+.eu-snippets__hint--error {
+  color: var(--eu-error);
+}
+
+.eu-snippets__hint--warning {
+  color: var(--eu-warning);
+}
+
+/* A group of fields that belong together — the trigger and its flags — drawn as
+   one inset panel so the relationship is visible before the labels are read. */
+.eu-snippets__group {
+  padding: var(--eu-space-3) var(--eu-space-4) var(--eu-space-1);
+  margin-bottom: var(--eu-space-4);
+  border: 1px solid var(--eu-border);
+  border-radius: var(--eu-radius-lg);
+  background: var(--eu-bg-panel);
+}
+
+/* Two or more fields side by side, as wide as their content allows: a page of
+   full-width number inputs is a page of whitespace with numbers in it. */
+.eu-snippets__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0 var(--eu-space-5);
+  align-items: start;
+}
+
+/* A row of tick boxes. Each is a sentence with a box in front of it rather than a
+   form control with a label, which is why they wrap rather than align. */
+.eu-snippets__toggle-row {
+  display: flex;
+  gap: var(--eu-space-6);
+  flex-wrap: wrap;
+  margin: 0 0 var(--eu-space-4);
+}
+
+.eu-snippets__toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--eu-space-2);
+  max-width: 46ch;
+  font-size: var(--eu-text-sm);
+  color: var(--eu-fg-primary);
+  cursor: pointer;
+  transition: color var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+/* The hint belongs to the sentence above it, so it is dimmed until the pointer is
+   on the row — the label is what a reader is looking for, and the explanation is
+   what they read once they have found it. */
+.eu-snippets__toggle:hover .eu-snippets__hint {
+  color: var(--eu-fg-secondary);
+}
+
+.eu-snippets__toggle input {
+  margin: 2px 0 0;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.eu-snippets__insert-row {
+  display: flex;
+  gap: var(--eu-space-1);
+  flex-wrap: wrap;
+  margin-bottom: var(--eu-space-2);
+}
+
+.eu-snippets__inline {
+  display: flex;
+  gap: var(--eu-space-2);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* The script's run-point picker and its Remove button, above the code box. */
+.eu-snippets__script-head {
+  margin-bottom: var(--eu-space-2);
+}
+
+/* The line under the body that says what the body will do — tab stops, node
+   count, or that it is empty. It belongs to the box above it, not to the next
+   field, so it sits closer to the first than to the second. */
+.eu-snippets__body-summary {
+  margin-bottom: var(--eu-space-3);
+}
+
+/* A JSON error that is reported under the whole section rather than under the
+   field, because the field is inside a fold that may be closed. */
+.eu-snippets__error-note {
+  margin: calc(var(--eu-space-1) * -1) 0 var(--eu-space-3);
+}
+
+/* The glyph that labels the try-it panel, quiet so the label beside it leads. */
+.eu-snippets__test-icon {
+  color: var(--eu-fg-muted);
+}
+
+.eu-snippets__stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eu-space-2);
+  margin-top: var(--eu-space-2);
+}
+
+/*
+ * The growing text area's own padding is 3px rather than the field's 5px, and
+ * that number is load-bearing rather than a preference: `GrowingTextArea.fit()`
+ * caps the box at `maxRows * 16 + 8` px of *border box*, and 8px is the vertical
+ * padding plus the two borders it was written against. A roomier padding would
+ * make the sixth line of a body overflow its own cap and grow a scrollbar on the
+ * last line of a perfectly ordinary snippet.
+ */
+.eu-input.eu-snippets__code-input {
+  padding: 3px var(--eu-space-2);
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-sm);
+  line-height: 16px;
+  resize: vertical;
+}
+
+/* The trigger and the body are fitted by that same code, so neither of them is
+   resizable by hand: a box whose height is computed cannot also be dragged. */
+.eu-input.eu-snippets__fitting {
+  resize: none;
+  overflow: hidden;
+}
+
+/* The accent edge says "a match starts here" while the newline guide is on. It
+   is 2px rather than the field's 1px, which is why the overlay below restates it:
+   the overlay's whole job is to sit on the textarea's own pixel grid, and a
+   border one pixel wider on one side of the pair would put every marker one pixel
+   to the left of the character it is marking. */
+.eu-input.eu-snippets__edge {
+  border-left: 2px solid var(--eu-accent);
+}
+
+.eu-snippets__overlay--edged {
+  border-left-width: 2px;
+}
+
+.eu-input.eu-snippets__json {
+  min-height: 56px;
+}
+
+/* A field whose value is a word or two — regex flags, a context name. It keeps
+   the field's surface and gives up the field's width. */
+.eu-input.eu-snippets__compact {
+  max-width: 140px;
+}
+
+/* The same idea one size up: a <select> whose options are a phrase long. */
+.eu-input.eu-snippets__compact-wide {
+  max-width: 220px;
+}
+
+.eu-input.eu-snippets__script {
+  min-height: 64px;
+}
+
+/* ---- the growing text area ------------------------------------------------ */
+
+/*
+ * The trigger and the body are text areas that are as tall as their text. The
+ * textarea itself carries the geometry the fitting code measures against (the
+ * line height, the caps, the border), and the *overlay* — which draws the
+ * trailing-whitespace markers on top of the same text — has to sit on exactly the
+ * same grid, or a marker appears one pixel off the character it is marking. The
+ * two therefore share their padding and line height by construction: the textarea
+ * is `.eu-input` with `.eu-snippets__code-input`, and this box repeats those two
+ * numbers rather than inventing its own.
+ */
+.eu-snippets__grow {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.eu-snippets__overlay {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  /* Transparent, but present: the border is what puts the overlay's first
+     character on the same pixel as the textarea's. The three numbers here —
+     border, padding and line height — are the textarea's, restated. */
+  border: 1px solid transparent;
+  padding: 3px var(--eu-space-2);
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-sm);
+  line-height: 16px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.eu-snippets__overlay-line {
+  min-height: 16px;
+  line-height: 16px;
+}
+
+.eu-snippets__overlay-hidden {
+  visibility: hidden;
+}
+
+/* Trailing whitespace, drawn twice: a tint on the characters themselves and a
+   rule at the end of the run. The tint is what shows *how much*, the rule is what
+   makes a single stray space visible at all. */
+.eu-snippets__trailing-bg {
+  background: var(--eu-success-bg);
+  color: transparent;
+  user-select: none;
+}
+
+/*
+ * Inline, and it has to stay inline: `tests/ui/snippets-manager.render.test.ts`
+ * reads `style.borderRight` back off this exact element and asserts it contains
+ * `solid`. Everything else about the marker is here.
+ */
+.eu-snippets__trailing-indicator {
+  display: inline-block;
+  width: 0;
+  height: 14px;
+  vertical-align: text-bottom;
+  margin-right: -2px;
+}
+
+/* The two newline guides: the one on the frame (where a newline would start) and
+   the one at the first column inside the text. `left` is the field's padding,
+   because an absolutely positioned child is placed against the padding box. */
+.eu-snippets__newline-indicator {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px solid var(--eu-accent);
+  border-radius: var(--eu-radius-xs) 0 0 var(--eu-radius-xs);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.eu-snippets__newline-guide {
+  position: absolute;
+  left: var(--eu-space-2);
+  top: 3px;
+  bottom: 3px;
+  width: 0;
+  border-left: 1px solid var(--eu-border-strong);
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ==========================================================================
+   6 · Snippets — problems, previews and the rest of the chrome
+   ========================================================================== */
+
+/*
+ * The warning triangle and the list behind it. The marker is quiet until there is
+ * something to say; the panel is anchored under it, because that is where the
+ * reader is already looking and a popover that has to measure the window is one
+ * that gets stuck on the edge of it.
+ */
+.eu-snippets__problem {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.eu-snippets__problem-marker {
+  display: inline-flex;
+  color: var(--eu-warning);
+  cursor: help;
+  border-radius: var(--eu-radius-sm);
+  transition: color var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-snippets__problem-marker:hover {
+  color: var(--eu-error);
+}
+
+.eu-snippets__tooltip {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 40;
+  margin-top: var(--eu-space-1);
+  min-width: 240px;
+  max-width: 380px;
+  padding: var(--eu-space-2) var(--eu-space-3);
+  background: var(--eu-bg-card);
+  color: var(--eu-fg-primary);
+  border: 1px solid var(--eu-border-strong);
+  border-radius: var(--eu-radius-md);
+  box-shadow: var(--eu-shadow-pop);
+  font-size: var(--eu-text-xs);
+  font-weight: var(--eu-weight-regular);
+  line-height: var(--eu-leading-normal);
+  text-align: left;
+  white-space: normal;
+  cursor: default;
+  animation: eu-menu-in var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-snippets__tooltip-head {
+  display: block;
+  margin-bottom: var(--eu-space-1);
+  color: var(--eu-fg-muted);
+}
+
+.eu-snippets__tooltip-line {
+  display: block;
+  margin-top: var(--eu-space-1);
+}
+
+.eu-snippets__tooltip-field--error {
+  color: var(--eu-error);
+}
+
+.eu-snippets__tooltip-field--warning {
+  color: var(--eu-warning);
+}
+
+/* A fold-away inspector: the stored entry, the parsed body. It arrives open on
+   request, so its summary is a control — the label's own type, plus a pointer. */
+.eu-snippets__details {
+  margin-bottom: var(--eu-space-4);
+}
+
+.eu-snippets__summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eu-space-1);
+  font-size: var(--eu-text-2xs);
+  font-weight: var(--eu-weight-semibold);
+  letter-spacing: var(--eu-tracking-label);
+  text-transform: uppercase;
+  color: var(--eu-fg-muted);
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-snippets__summary:hover {
+  color: var(--eu-fg-secondary);
+}
+
+/* The parsed-body table: a type column and a value column, monospaced, because
+   the values are the format's own syntax. */
+.eu-snippets__node {
+  display: flex;
+  gap: var(--eu-space-2);
+  padding: 1px 0;
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-xs);
+}
+
+.eu-snippets__node-type {
+  width: 76px;
+  flex-shrink: 0;
+  color: var(--eu-fg-muted);
+}
+
+.eu-snippets__node-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * The try-it panel. It is the answer to the question the body was written to
+ * answer, so it is drawn as a panel with its own header rather than as one more
+ * field: what comes out is a *result*, and a result reads as a surface.
+ */
+.eu-snippets__test {
+  margin: 0 0 var(--eu-space-4);
+  padding: var(--eu-space-3);
+  border: 1px solid var(--eu-border);
+  border-radius: var(--eu-radius-lg);
+  background: var(--eu-bg-card);
+  box-shadow: var(--eu-sheen);
+}
+
+.eu-snippets__test-head {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  margin-bottom: var(--eu-space-2);
+}
+
+.eu-snippets__test-result {
+  margin-top: var(--eu-space-2);
+  font-size: var(--eu-text-xs);
+  line-height: var(--eu-leading-normal);
+}
+
+.eu-snippets__read-as {
+  color: var(--eu-fg-muted);
+}
+
+.eu-snippets__code-inline {
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-xs);
+  color: var(--eu-fg-primary);
+}
+
+.eu-snippets__result-error {
+  color: var(--eu-error);
+}
+
+.eu-snippets__result-warning {
+  color: var(--eu-warning);
+}
+
+/* The library section's own heading, over the same hairline the settings
+   sections use. */
+.eu-snippets__section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  margin-bottom: var(--eu-space-4);
+  padding-bottom: var(--eu-space-2);
+  border-bottom: 1px solid var(--eu-hairline);
+}
+
+.eu-snippets__section-title {
+  font-size: var(--eu-text-lg);
+  font-weight: var(--eu-weight-semibold);
+  letter-spacing: -0.01em;
+  color: var(--eu-fg-primary);
+}
+
+.eu-snippets__section-head-spacer {
+  flex: 1;
+}
+
+.eu-snippets__actions-row {
+  display: flex;
+  gap: var(--eu-space-2);
+  flex-wrap: wrap;
+  margin-top: var(--eu-space-1);
+}
+
+.eu-snippets__folder {
+  margin-top: var(--eu-space-3);
+  word-break: break-all;
+}
+
+.eu-snippets__tally {
+  margin-top: var(--eu-space-4);
+}
+
+.eu-snippets__issue-list {
+  margin: var(--eu-space-2) 0 0 var(--eu-space-4);
+  padding: 0;
+}
+
+.eu-snippets__issue-list li {
+  color: var(--eu-warning);
+}
+
+/* The file-level problems, listed under the form that can fix them: they belong
+   to the document rather than to any one field, so they are not attached to a
+   control — but they are still the reason a snippet will not behave. */
+.eu-snippets__issue-list-plain {
+  margin-top: var(--eu-space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--eu-space-1);
+}
+
+/* The closing paragraph: where the file is, when it is written, and what to
+   expect from a hand-edit. It is a footnote and it is drawn as one. */
+.eu-snippets__footnote {
+  margin-top: var(--eu-space-6);
+  padding-top: var(--eu-space-3);
+  border-top: 1px solid var(--eu-hairline);
+  max-width: 84ch;
+  font-size: var(--eu-text-xs);
+  line-height: var(--eu-leading-relaxed);
+  color: var(--eu-fg-muted);
+}
+
+.eu-snippets__legacy {
+  margin-top: var(--eu-space-2);
+  padding-top: var(--eu-space-2);
+  border-top: 1px solid var(--eu-hairline);
+}
+
+.eu-snippets__legacy-row {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  margin-top: var(--eu-space-1);
+}
+
+.eu-snippets__legacy-message {
+  margin-top: var(--eu-space-1);
+  color: var(--eu-fg-secondary);
+}
+
+/* The parse or save failure, in full: a stack of text the reader has to be able
+   to select and copy, which is why it is a `pre` on the error's own border. */
+.eu-snippets__error {
+  margin: 0 0 var(--eu-space-4);
+  padding: var(--eu-space-3);
+  border: 1px solid var(--eu-error);
+  border-radius: var(--eu-radius-md);
+  background: var(--eu-error-bg);
+  color: var(--eu-fg-primary);
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-xs);
+  line-height: var(--eu-leading-normal);
+  white-space: pre-wrap;
+}
+
+/* ---- the footer ----------------------------------------------------------- */
+
+.eu-snippets__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--eu-space-2);
+  flex-shrink: 0;
+  padding: var(--eu-space-2) var(--eu-space-5);
+  border-top: 1px solid var(--eu-border);
+  background: var(--eu-bg-toolbar);
+}
+
+.eu-snippets__status {
+  font-size: var(--eu-text-xs);
+  color: var(--eu-fg-muted);
+}
+
+.eu-snippets__status--error {
+  color: var(--eu-error);
+}
+
+.eu-snippets__status--dirty {
+  color: var(--eu-warning);
+}
+
+.eu-snippets__footer-spacer {
+  flex: 1;
+}
+
+.eu-btn.eu-snippets__footer-button {
+  height: 26px;
+  padding: 0 var(--eu-space-3);
+  border: 1px solid var(--eu-border);
+  border-radius: var(--eu-radius-sm);
+  color: var(--eu-fg-secondary);
+  font-size: var(--eu-text-xs);
+}
+
+.eu-btn.eu-snippets__footer-button:hover:not(:disabled) {
+  border-color: var(--eu-border-strong);
+  color: var(--eu-fg-primary);
+}
+
+/* What the window shows before the library has been read — or after it failed to
+   be: one column, a way to read it again, and the reason. */
+.eu-snippets__unloaded {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eu-space-3);
+  flex: 1;
+  min-height: 0;
+  padding: var(--eu-space-4);
+}
+
+/* ==========================================================================
+   Small windows
+   ==========================================================================
+   Both of these are windows a user can drag to a size the layout was not drawn
+   for — the Settings window is resizable down to 720px wide and 480px tall, and
+   the Snippet Library further. What has to survive is the *content*: a rail that
+   takes a third of a narrow window leaves the settings themselves a column too
+   narrow to read, and a form laid out in two columns becomes two columns of
+   three words each.
+
+   Nothing is hidden at any width. These are the two arrangements that stop being
+   readable, and each is answered by changing the arrangement rather than by
+   dropping something the user asked to see.
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 860px) {
+  /* The rail gives up its share before the body does: it is navigation, and a
+     navigation column that fits `Visual Editor` at 168px is still navigation. */
+  .eu-settings {
+    --eu-settings-rail-width: clamp(166px, 22vw, 200px);
+  }
+
+  .eu-settings__content {
+    padding: var(--eu-space-4) var(--eu-space-4) var(--eu-space-5);
+  }
+
+  /* The library's list pane is sized from the *window*, which at this width is
+     the wrong thing to measure: `28vw` of a narrow window is a pane narrower
+     than its own rows. The clamp's own floor is the answer — stated as a
+     percentage that cannot go below it, so the pane still takes a larger share
+     of a narrow window than of a wide one. */
+  .eu-snippets__list-pane {
+    width: clamp(280px, 38vw, 340px);
+  }
+}
+
+@media (max-width: 700px) {
+  /* A label and its control side by side needs about 420px to stay a row. Below
+     that the control moves under the label, which is the same information in the
+     only other arrangement that fits. */
+  .eu-settings__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--eu-space-3);
+  }
+
+  .eu-settings__control {
+    justify-self: start;
+  }
+
+  /* The shortcut editor's category column is a label, not a field: at this width
+     it is the first thing the row can do without. */
+  .eu-settings__shortcut-row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .eu-settings__shortcut-category {
+    display: none;
+  }
+
+  .eu-settings__binding--secondary {
+    grid-column: 2 / -1;
+  }
+}
+
+/* A short window: the panes are already scrollers, so the only thing that has to
+   give is the padding around them. */
+@media (max-height: 620px) {
+  .eu-settings__content {
+    padding-top: var(--eu-space-3);
+    padding-bottom: var(--eu-space-3);
+  }
+
+  .eu-snippets__editor-scroll {
+    padding-top: var(--eu-space-2);
+    padding-bottom: var(--eu-space-3);
+  }
+}
+
+/*
+ * A regular expression is one unbroken token and there is nowhere in it to
+ * break: `overflow-wrap: anywhere` is the only thing that keeps a long trigger
+ * inside its field rather than under the scrollbar, and it costs nothing on the
+ * triggers that do fit.
+ */
+.eu-snippets__code,
+.eu-snippets__field input,
+.eu-snippets__field textarea {
+  overflow-wrap: anywhere;
+}

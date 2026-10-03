@@ -1,0 +1,89 @@
+{
+  "name": "eukolia",
+  "version": "0.2.0",
+  "description": "A fast, modern, extensible, and purpose-built LaTeX editing application",
+  "main": "dist-electron/main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:electron": "electron .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck:tests": "tsc -p tsconfig.test.json --noEmit",
+    "build:grammars": "node scripts/generate-grammars.mjs",
+    "build:native": "node scripts/build-native-pdf.mjs",
+    "build:native:force": "node scripts/build-native-pdf.mjs --force",
+    "build:preload": "esbuild src/preload/preload.ts --bundle --platform=node --format=cjs --outfile=dist-electron/preload.cjs --external:electron",
+    "build": "npm run typecheck && vite build && npm run build:preload",
+    "pack": "node scripts/ensure-unlocked.mjs && electron-builder --dir && node scripts/verify-package.mjs --package release/win-unpacked",
+    "pack:check": "node scripts/verify-package.mjs",
+    "dist": "npm run build && npm run build:native && node scripts/ensure-unlocked.mjs && electron-builder && node scripts/verify-package.mjs --package release/win-unpacked",
+    "test": "vitest run",
+    "test:mathjax:renderer": "node scripts/test-mathjax-renderer.mjs",
+    "test:watch": "vitest",
+    "test:library": "node tests/main/projectLibrary.node.test.mjs && node tests/main/libraryServices.node.test.mjs && node tests/main/windowTheme.node.test.mjs && node tests/main/commandCatalog.node.test.mjs && node tests/ui/projectLibrary.node.test.mjs && node tests/main/libraryLaunch.node.test.mjs",
+    "smoke": "node scripts/smoke-electron.mjs",
+    "smoke:partial": "node scripts/smoke-electron.mjs --allow-missing-pdf",
+    "probe:boot": "node scripts/probe-boot.mjs",
+    "probe:windows": "node scripts/probe-windows.mjs",
+    "profile:startup": "node scripts/profile-startup.mjs",
+    "protocol": "node scripts/register-protocol.mjs",
+    "protocol:register": "node scripts/register-protocol.mjs --register",
+    "protocol:unregister": "node scripts/register-protocol.mjs --unregister"
+  },
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.18.4",
+    "@codemirror/commands": "^6.10.1",
+    "@codemirror/lang-javascript": "^6.2.5",
+    "@codemirror/lang-json": "^6.0.2",
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/language": "^6.12.1",
+    "@codemirror/lint": "^6.9.2",
+    "@codemirror/search": "^6.5.8",
+    "@codemirror/state": "^6.5.4",
+    "@codemirror/view": "^6.38.6",
+    "@floating-ui/react": "^0.27.20",
+    "@lezer/common": "^1.5.0",
+    "@lezer/highlight": "^1.2.3",
+    "@lezer/lr": "^1.4.7",
+    "@mathjax/mathjax-newcm-font": "^4.1.3",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-web-links": "^0.12.0",
+    "@xterm/xterm": "^6.0.0",
+    "dompurify": "^3.4.15",
+    "lucide-react": "^1.16.0",
+    "mathjax": "^4.1.3",
+    "mathjax-full": "^3.2.2",
+    "node-pty": "^1.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@lezer/generator": "^1.8.0",
+    "@types/node": "^22.13.9",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^34.2.0",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.25.0",
+    "jsdom": "^29.1.1",
+    "typescript": "^5.7.3",
+    "vite": "^6.2.0",
+    "vite-plugin-electron": "^0.29.0",
+    "vite-plugin-electron-renderer": "^0.14.6",
+    "vitest": "^3.0.7"
+  },
+  "build": {
+    "appId": "com.eukolia.app",
+    "productName": "Eukolia",
+    "extraResources": [
+      {
+        "from": "assets/icon.ico",
+        "to": "icon.ico"
+      }
+    ],
+    "win": {
+      "icon": "assets/icon.ico"
+    }
+  }
+}

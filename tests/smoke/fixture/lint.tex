@@ -1,0 +1,15 @@
+% Eukolia smoke-test fixture: structurally broken source.
+%
+% Its only purpose is to give the ported Overleaf linter something to report
+% *before* any compilation, which is how the linter is meant to be used: fast
+% structural feedback while typing. The unclosed group below is exactly the kind
+% of problem it detects.
+\documentclass[11pt]{article}
+
+\begin{document}
+
+\section{Unclosed}
+
+This paragraph leaves a group open: \textbf{bold text that never closes.
+
+\end{document}

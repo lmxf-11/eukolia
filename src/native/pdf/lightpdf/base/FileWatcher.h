@@ -1,0 +1,12 @@
+/* Copyright 2022 the LightPDF project authors (see AUTHORS file).
+   License: Simplified BSD (see COPYING.BSD) */
+
+struct WatchedFile;
+
+void FileWatcherSetSkipPath(Str path);
+Str FileWatcherGetSkipPath();
+void FileWatcherInit(void);
+WatchedFile* FileWatcherSubscribe(Str path, const Func0& onFileChangedCb, bool enableManualCheck = false);
+void FileWatcherUnsubscribe(WatchedFile* wf);
+void FileWatcherWaitForShutdown(void);
+void WatchedFileSetIgnore(WatchedFile* wf, bool ignore);

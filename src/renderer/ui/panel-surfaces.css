@@ -1,0 +1,765 @@
+/**
+ * Eukolia — the bottom panel and the terminal it hosts.
+ *
+ * `BottomPanel` is the one surface in the shell that changes what it *is* while
+ * it stays on screen: the same box is a problems list, a compiler stream, a
+ * parsed log, a set of search hits, and a shell. Each of those wants its own
+ * reading rhythm — a two-line diagnostic, a monospaced stream, a gutter of line
+ * numbers — and until this sheet existed every one of them was a style literal
+ * inside the component. That is a fine way to keep one view self-contained and a
+ * poor way to keep five of them agreeing: the same row was 2px of padding here
+ * and 4px there, the same locator 10.5px here and 11px there, and the panel
+ * could only ever be improved one object literal at a time.
+ *
+ * So the split is the one `eukolia-design.css` argues for, taken a level
+ * further: the component keeps what is *dynamic* — the panel's height, the
+ * dragging state of its divider, the cursor of a log row that cannot be jumped
+ * to — and everything that is a decision about appearance lives here. Where a
+ * state has to drive a rule, the selector reads the state the component already
+ * publishes (`[aria-pressed='true']`, `[role='button']`, `[data-eu-running]`)
+ * rather than a parallel class, so a style cannot disagree with what the element
+ * tells assistive technology.
+ *
+ * Naming follows the shell's BEM-ish convention — `eu-bottom-panel__row`,
+ * `eu-terminal__screen`. Nothing here restates a token's value, and where a
+ * design-system rule has to be *narrowed* rather than replaced (a sticky band
+ * that names a file and so must not be uppercased) the selector is compounded
+ * instead of overridden with `!important`, so the outcome does not depend on
+ * which sheet the bundler happens to emit first.
+ *
+ * Loaded from `BottomPanel.tsx`. The terminal's classes are here too: the
+ * terminal is only ever rendered inside this panel, and a second sheet for six
+ * rules would be a file for its own sake.
+ */
+
+/* ==========================================================================
+   1 · The panel surface
+   ========================================================================== */
+
+/*
+ * The panel is a surface lifted *over* the editor, and it has to say so — a
+ * hairline top edge, the panel background rather than the editor's (the two are
+ * a step apart in every theme, which is the whole point of having both), and a
+ * shadow cast upwards onto the editor.
+ *
+ * The upward shadow is the one shadow in the application the elevation ladder
+ * has no token for: the ladder's four steps all point down, because every other
+ * raised surface is a card, a menu or a dialog. So it is composed here from the
+ * scrim token the overlays already use — a themed translucent black in both
+ * appearances — and the spacing scale for its geometry, rather than inventing a
+ * colour that would be wrong in four of the eight themes.
+ *
+ * `z-index` is what lets the shadow be seen at all. CodeMirror's editor is a
+ * positioned element, and a non-positioned panel paints its own shadow in the
+ * block-background phase — *under* the editor's surface. Four is deliberately
+ * small: above the editor, below every overlay the shell owns (menus at 80, the
+ * palette higher still).
+ */
+.eu-bottom-panel {
+  position: relative;
+  z-index: 4;
+  background: var(--eu-bg-panel);
+  border-top: 1px solid var(--eu-border);
+  box-shadow: 0 calc(var(--eu-space-2) * -1) var(--eu-space-5) calc(var(--eu-space-3) * -1) var(--eu-bg-overlay);
+}
+
+/* ==========================================================================
+   2 · The tab strip
+   ========================================================================== */
+
+/*
+ * The strip is the panel's mode control, so it reads as a row of segments rather
+ * than as five words in a line. `user-select` is off because the strip is chrome:
+ * a drag across it must not leave a selection behind that survives into whatever
+ * is clicked next.
+ */
+.eu-bottom-panel__tabs {
+  padding-right: var(--eu-space-2);
+  background: var(--eu-bg-toolbar);
+  border-bottom: 1px solid var(--eu-border);
+  user-select: none;
+}
+
+/*
+ * One segment.
+ *
+ * A quiet, medium-weight label — the strip is not where the user is *reading*,
+ * and five labels at full contrast would compete with the list below them — but
+ * quiet stops at the secondary colour rather than the muted one: "Search Results"
+ * is a label somebody has to read to find the view they want, and the muted tone
+ * does not carry 12px text on the strip's toolbar surface.
+ *
+ * The selected tab is marked twice, and the two marks say different things: a
+ * panel-coloured surface, which makes it continuous with the body it is showing,
+ * and an accent rule, which says it is the one selected. On a 26px strip either
+ * alone is easy to miss.
+ */
+.eu-bottom-panel__tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  padding: 0 var(--eu-space-3);
+  border: none;
+  background-color: transparent;
+  color: var(--eu-fg-secondary);
+  font: inherit;
+  font-size: var(--eu-text-sm);
+  font-weight: var(--eu-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: var(--eu-transition-control);
+}
+
+.eu-bottom-panel__tab:hover:not([aria-pressed='true']) {
+  background-color: var(--eu-hover-tint);
+  color: var(--eu-fg-primary);
+}
+
+.eu-bottom-panel__tab:active:not([aria-pressed='true']) {
+  background-color: var(--eu-active-tint);
+}
+
+.eu-bottom-panel__tab[aria-pressed='true'] {
+  background-color: var(--eu-bg-panel);
+  color: var(--eu-fg-primary);
+}
+
+/*
+ * The rule, drawn rather than set as a border, because a border cannot animate:
+ * `scaleX` from the middle makes the selection *grow into* place, and a mark that
+ * arrives rather than appears is the difference between "this tab is selected"
+ * and "the strip repainted".
+ */
+.eu-bottom-panel__tab::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--eu-space-half);
+  background: var(--eu-accent);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform var(--eu-dur-base) var(--eu-ease-out);
+}
+
+/* Under the pointer, an unselected tab shows where the rule *would* be — in the
+   border colour, so a hover can never be mistaken for a selection. */
+.eu-bottom-panel__tab:hover:not([aria-pressed='true'])::after {
+  background: var(--eu-border-strong);
+  transform: scaleX(1);
+}
+
+.eu-bottom-panel__tab[aria-pressed='true']::after {
+  transform: scaleX(1);
+}
+
+/* The count is a badge, so it reads as one everywhere it appears; on the tab
+   that is showing it is tinted, which keeps the number legible against the
+   panel-coloured surface the selected tab has. */
+.eu-bottom-panel__tab[aria-pressed='true'] .eu-bottom-panel__tab-count {
+  background: var(--eu-accent-muted);
+  color: var(--eu-fg-primary);
+}
+
+.eu-bottom-panel__tab-glyphs {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eu-space-1);
+}
+
+/*
+ * The strip's own controls. They are `.eu-btn-quiet` — 22px, a hairline border
+ * on hover — so they read as the strip's baseline rather than as a second row of
+ * tabs, and `align-self` centres them in a strip that is taller than they are
+ * (the strip stretches its children so the tabs can reach the rule).
+ */
+.eu-bottom-panel__action {
+  align-self: center;
+}
+
+/* Compounded with `.eu-btn-quiet` rather than standing alone: the width and the
+   padding here have to beat that class's own, and a selector that wins by
+   specificity does so no matter which sheet is emitted first. */
+.eu-btn-quiet.eu-bottom-panel__action--icon {
+  width: 22px;
+  padding: 0;
+}
+
+/*
+ * "Following" is a *state*, and the word changes with it, but a word in a strip
+ * of quiet controls is easy to stop reading. The tinted surface answers "is the
+ * output being followed?" at a glance, which matters because the answer changes
+ * the meaning of everything in the list below.
+ */
+.eu-bottom-panel__action[data-eu-active='true'] {
+  color: var(--eu-accent);
+  background: var(--eu-accent-muted);
+}
+
+.eu-bottom-panel__action[data-eu-active='true']:hover:not(:disabled) {
+  color: var(--eu-accent);
+  background: var(--eu-accent-muted);
+}
+
+/*
+ * A narrow window is the one case the strip cannot solve by itself: the labels
+ * are content ("Search Results") and shortening one would be worse than
+ * tightening all of them. The group band's full path goes first — the file name
+ * it already shows is the part being read.
+ */
+@media (max-width: 760px) {
+  .eu-bottom-panel__tab {
+    padding: 0 var(--eu-space-2);
+  }
+
+  .eu-bottom-panel__group-path {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+   3 · The filter row
+   ========================================================================== */
+
+/*
+ * The severity filters and the filter field are one control group, not a field
+ * with four buttons after it, so they share a row, a gap and a hairline under
+ * them. `.eu-input` and `.eu-chip` supply both controls' surfaces — the chip's
+ * selected state is already written against `[aria-pressed='true']` in the
+ * design system, which is why the counts below can be styled against the same
+ * attribute without the component tracking a second source of truth.
+ */
+.eu-bottom-panel__filters {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  flex-shrink: 0;
+  padding: var(--eu-space-1) var(--eu-space-3);
+  border-bottom: 1px solid var(--eu-border);
+}
+
+.eu-bottom-panel__filter {
+  flex: 1;
+  min-width: 0;
+}
+
+/*
+ * A count inside a chip is a quantity, and a quantity is read as one: tabular
+ * figures keep the four chips from twitching as diagnostics arrive one at a
+ * time, and the muted colour keeps the label the thing being clicked.
+ */
+.eu-bottom-panel__chip-count {
+  color: var(--eu-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   4 · Sticky group bands
+   ========================================================================== */
+
+/*
+ * A file group header: the section band the design system draws, narrowed for a
+ * *file name*. `.eu-section` uppercases and letter-spaces its label, which is
+ * right for "OUTLINE" and wrong for `main.tex` — a filename is spelled the way
+ * the file is spelled — so the selector is compounded (two classes, not one and
+ * `!important`) and the narrowing holds wherever the sheets land.
+ *
+ * The band must be opaque: rows scroll *under* it, and a translucent band is a
+ * band you can read the list through. `--eu-bg-toolbar` is the step the panel's
+ * own toolbar uses, and it is a step away from the panel in every theme.
+ */
+.eu-section.eu-bottom-panel__group {
+  gap: var(--eu-space-2);
+  height: var(--eu-space-6);
+  padding: 0 var(--eu-space-3);
+  background: var(--eu-bg-toolbar);
+  border-bottom: 1px solid var(--eu-hairline);
+  color: var(--eu-fg-secondary);
+  font-size: var(--eu-text-xs);
+  font-weight: var(--eu-weight-medium);
+  letter-spacing: normal;
+  text-transform: none;
+  user-select: none;
+}
+
+/* The name leads and never shrinks: it is the thing the group *is*. The two
+   glyphs beside it are the same — a 12px icon that gave up width would be a
+   smudge, and a count that gave up width would be a lie. */
+.eu-bottom-panel__group-name,
+.eu-bottom-panel__group > svg,
+.eu-bottom-panel__group > .eu-badge {
+  flex-shrink: 0;
+}
+
+.eu-bottom-panel__group-name {
+  color: var(--eu-fg-primary);
+}
+
+/* The full path is the qualifier and gives its width up first — ellipsis at the
+   end, because the end of a path is the part the name above already said. */
+.eu-bottom-panel__group-path {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-2xs);
+}
+
+/* ==========================================================================
+   5 · Rows — one shape for the problems, log and search lists
+   ========================================================================== */
+
+/*
+ * A row is two lines when the data has two lines (a diagnostic's message and the
+ * source it points at) and one when it does not. That is why the leading glyph is
+ * aligned to the *first* line rather than to the row's middle: a 13px severity
+ * icon centred on a two-line row floats between the lines and reads as belonging
+ * to neither.
+ *
+ * The interactive surface is keyed off `role="button"`, which the component sets
+ * exactly on the rows that can be opened — so a log entry the parser could not
+ * place keeps its default cursor, no hover tint and no focus ring, and says so
+ * by being inert rather than by being a button that does nothing.
+ */
+.eu-bottom-panel__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--eu-space-2);
+  padding: var(--eu-space-1) var(--eu-space-3);
+  color: var(--eu-fg-secondary);
+  font-size: var(--eu-text-sm);
+  line-height: var(--eu-leading-snug);
+  cursor: default;
+  transition: background-color var(--eu-dur-instant) var(--eu-ease-out);
+}
+
+.eu-bottom-panel__row > svg {
+  margin-top: var(--eu-space-half);
+}
+
+.eu-bottom-panel__row[role='button'] {
+  cursor: pointer;
+}
+
+.eu-bottom-panel__row[role='button']:hover {
+  background: var(--eu-bg-hover);
+  color: var(--eu-fg-primary);
+}
+
+.eu-bottom-panel__row[role='button']:active {
+  background: var(--eu-bg-active);
+}
+
+/*
+ * The focus ring is drawn *inside* the row. A row is full-bleed, so the standard
+ * outward offset would paint over the row above it and look like a second
+ * separator; inset, the ring reads as the row being picked out of the list.
+ */
+.eu-bottom-panel__row[role='button']:focus-visible {
+  outline: 2px solid var(--eu-border-focus);
+  outline-offset: -2px;
+  border-radius: var(--eu-radius-sm);
+  background: var(--eu-bg-hover);
+}
+
+.eu-bottom-panel__row-text {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The message is the row's primary content: full contrast, one line, and it is
+   what truncates when the locator and the glyph have taken their width. */
+.eu-bottom-panel__row-message {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--eu-fg-primary);
+}
+
+/* The source line under a diagnostic — the LaTeX the compiler objected to.
+   Monospaced, because it is source and one space of it is one space of it. */
+.eu-bottom-panel__row-source {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre;
+  color: var(--eu-fg-muted);
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-xs);
+}
+
+/* The locator is the row's *answer* — where the problem is — so it holds its
+   width, stays on one line, and aligns right across every row in the list. */
+.eu-bottom-panel__row-locator {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-2xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/*
+ * A log entry is a *stream*, not a list of sentences: the parser keeps the
+ * message's own layout, so it wraps rather than truncating, and it breaks inside
+ * a word because a LaTeX log's unbreakable token is usually a path or a macro
+ * name far longer than the panel.
+ */
+.eu-bottom-panel__row--log .eu-bottom-panel__row-message {
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-xs);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* A search hit is read down a gutter of line numbers, and a gutter is only
+   readable if the numbers line up: tabular figures, right-aligned, one width. */
+.eu-bottom-panel__hit-line {
+  flex-shrink: 0;
+  min-width: var(--eu-space-8);
+  text-align: right;
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-2xs);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--eu-leading-normal);
+}
+
+.eu-bottom-panel__hit-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre;
+  color: var(--eu-fg-secondary);
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-xs);
+}
+
+/* ==========================================================================
+   6 · Status rows
+   ========================================================================== */
+
+/*
+ * The thin summary line above a list answers "what is this showing?" in one
+ * line, so it is set at the smallest size the interface has and its facts are
+ * separated by a hairline rather than by whitespace alone: at 11px, four facts in
+ * a row read as one sentence otherwise.
+ *
+ * The separators are pseudo-elements on the spans that follow another span,
+ * which is why the flexible spacer carries a class — it is a gap, not a fact, and
+ * a rule drawn in front of it would divide nothing from nothing.
+ */
+.eu-bottom-panel__status {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  flex-shrink: 0;
+  padding: var(--eu-space-1) var(--eu-space-3);
+  border-bottom: 1px solid var(--eu-border);
+  color: var(--eu-fg-secondary);
+  font-size: var(--eu-text-xs);
+  user-select: none;
+}
+
+.eu-bottom-panel__status > span {
+  display: inline-flex;
+  align-items: center;
+}
+
+.eu-bottom-panel__status > span + span::before {
+  content: '';
+  flex-shrink: 0;
+  width: 1px;
+  height: var(--eu-space-2);
+  margin-right: var(--eu-space-2);
+  background: var(--eu-border);
+}
+
+/* The spacer is a gap, not a fact: the rule above is written for `span + span`,
+   so it has to be told — with a selector at least as specific — that this span is
+   not one of the things being separated. */
+.eu-bottom-panel__status > .eu-bottom-panel__spacer::before {
+  content: none;
+}
+
+/* A fact that is not merely reported but *flagged*: a skipped build, a
+   truncated search, a compiler error the parser kept. */
+.eu-bottom-panel__fact--warning {
+  color: var(--eu-warning);
+}
+
+.eu-bottom-panel__fact--error {
+  color: var(--eu-error);
+}
+
+/*
+ * A build in flight, drawn on the row that reports it.
+ *
+ * There is deliberately no element for this: the panel publishes the state
+ * (`data-eu-running`) and the line is a pseudo-element, so the indication costs
+ * the DOM nothing, cannot be scrolled away, and — being two pixels at the bottom
+ * edge of the row that says "Building…" — cannot be mistaken for a second
+ * scrollbar. `eu-progress-sweep` is the design system's own indeterminate
+ * motion, reused rather than redefined, so a running build looks the same here
+ * as it does anywhere else in the application.
+ */
+.eu-bottom-panel__status[data-eu-running='true']::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 35%;
+  height: var(--eu-space-half);
+  background: linear-gradient(90deg, transparent, var(--eu-accent), transparent);
+  animation: eu-progress-sweep 1.2s var(--eu-ease-in-out) infinite;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   6b · The failure strip
+   ========================================================================== */
+
+/*
+ * Why a build failed, said once and in full.
+ *
+ * The status row above a list is a *summary* line — one line, facts separated by
+ * hairlines, everything that does not fit truncated — which is right for "12
+ * errors, 3 warnings" and wrong for a reason somebody has to act on. "spawn
+ * pdflatex ENOENT" at the end of a row of counts is a reason nobody reads twice.
+ *
+ * So this is its own band, and it wraps: `pre-wrap` on the command line (the
+ * spaces in a command line are the command line's), ordinary wrapping on the
+ * sentence, no `text-overflow` anywhere. The failure colour is carried by the
+ * glyph and the left rule rather than by the background alone, so it survives
+ * the light themes, where a red-tinted surface reads as pink rather than as an
+ * error.
+ */
+.eu-bottom-panel__failure {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--eu-space-2);
+  flex-shrink: 0;
+  padding: var(--eu-space-2) var(--eu-space-3);
+  background: var(--eu-bg-toolbar);
+  border-bottom: 1px solid var(--eu-border);
+  border-left: var(--eu-space-half) solid var(--eu-error);
+  color: var(--eu-fg-primary);
+  font-size: var(--eu-text-sm);
+  line-height: var(--eu-leading-snug);
+}
+
+/* The glyph is the severity mark, so it stays on the first line whatever the
+   reason's length — the same rule the list rows follow. */
+.eu-bottom-panel__failure > svg {
+  flex-shrink: 0;
+  margin-top: var(--eu-space-half);
+  color: var(--eu-error);
+}
+
+.eu-bottom-panel__failure-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eu-space-half);
+  min-width: 0;
+}
+
+.eu-bottom-panel__failure-message {
+  color: var(--eu-error);
+  font-weight: var(--eu-weight-medium);
+}
+
+.eu-bottom-panel__failure-reason {
+  color: var(--eu-fg-primary);
+}
+
+/* The command line, verbatim and monospaced: it is going to be compared against
+   one typed into the terminal, and the panel must not reflow it into a sentence.
+   `pre-wrap` keeps the compiler's own spacing while still wrapping a long
+   `latexmk -outdir=…` line inside the panel. */
+.eu-bottom-panel__failure-command {
+  color: var(--eu-fg-secondary);
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-xs);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.eu-bottom-panel__failure-hint {
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-xs);
+}
+
+/* ==========================================================================
+   7 · Empty lists and the compiler stream
+   ========================================================================== */
+
+/*
+ * `.eu-empty` supplies the look; the height is what centres it in the list it is
+ * standing in for, which is a whole view and not a paragraph.
+ */
+.eu-bottom-panel__empty {
+  min-height: 100%;
+}
+
+/*
+ * The compiler's own stream, verbatim: `pre-wrap` because the line breaks are
+ * the compiler's, `break-word` because a \input path is longer than the panel,
+ * and a generous leading because this is the one view in the panel that is read
+ * rather than scanned. The element is a `<pre>` and stays one — the text must not
+ * be re-flowed by anything but the stylesheet's own wrapping.
+ */
+.eu-bottom-panel__output {
+  margin: 0;
+  padding: var(--eu-space-3) var(--eu-space-4);
+  color: var(--eu-fg-primary);
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-sm);
+  line-height: var(--eu-leading-normal);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Before the first build the same `<pre>` holds a sentence rather than a stream,
+   so it takes the empty state's roomier padding, its muted colour and its
+   centring — the padding is stated here as well as in `.eu-empty` because which
+   of the two sheets is emitted first is the bundler's business, not a decision
+   this rule should depend on. */
+.eu-bottom-panel__output--empty {
+  min-height: 100%;
+  padding: var(--eu-space-6) var(--eu-space-4);
+  color: var(--eu-fg-muted);
+}
+
+/* ==========================================================================
+   8 · The terminal
+   ========================================================================== */
+
+/*
+ * The emulator paints its own screen, so this section's job is to give it a body
+ * that does not fight that — two decisions are worth spelling out.
+ *
+ * The first is the surface. `terminalTheme()` derives xterm's background from
+ * `--eu-bg-panel` (see `Terminal.tsx`), so the surface the host is inset into is
+ * that same token, and the inset reads as breathing room rather than as a frame
+ * of the wrong colour. A frame in the editor's colour — which is a plausible
+ * thing to reach for, since that is what the terminal *replaces* — would draw a
+ * band of one colour around a grid of another and look like a rendering fault.
+ *
+ * The second is where the padding goes. It is an *inset on the host*, never
+ * padding on it: xterm's fit addon measures the host's border box to compute the
+ * column count, so padding inside that box would be counted as columns, the grid
+ * would be laid out wider than the box holding it, and the terminal would grow a
+ * horizontal scrollbar that nothing can scroll away.
+ */
+.eu-terminal__host {
+  position: absolute;
+  /* The left inset is the panel's own gutter (12px), so the prompt starts where
+     every other view's content starts; the vertical inset is the tighter 4px,
+     because rows — not pixels — are what a terminal panel is short of. */
+  inset: var(--eu-space-1) var(--eu-space-3);
+}
+
+/*
+ * The keyboard's home. A terminal is a keystroke sink, and a click anywhere in
+ * it moves the focus out of the editor and into the shell — after which every
+ * character typed goes somewhere the user may not be looking. The ring is the
+ * only thing that can say so, and it is drawn inside the screen so it never
+ * competes with the header's own border.
+ */
+.eu-terminal__screen:focus-within {
+  box-shadow: inset 0 0 0 1px var(--eu-border-focus);
+}
+
+/* The session's row: which shell is running, and where — chrome, so it is not
+   selectable and it does not take a colour the emulator's own output might want
+   to use for text that means something. It shares the panel's gutter (12px) and
+   its 11px type, so it reads as one of the panel's status lines. */
+.eu-terminal__header {
+  padding: 0 var(--eu-space-3);
+  color: var(--eu-fg-secondary);
+  font-size: var(--eu-text-xs);
+  border-bottom: 1px solid var(--eu-border);
+  user-select: none;
+}
+
+/*
+ * The shell's name leads, as a terminal's tab does, so it is the one thing in the
+ * row at full contrast — and it is capped, because a PowerShell profile that
+ * names the window "Windows PowerShell" would otherwise push the working
+ * directory, the part that says *where a command will run*, off the row.
+ */
+.eu-terminal__title {
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--eu-fg-primary);
+  font-family: var(--eu-mono-font);
+}
+
+/*
+ * The working directory, given the room that is left. It is monospaced for the
+ * same reason the terminal is: this is a path, and it will be compared against
+ * one typed into the shell. `direction: rtl` keeps the *end* of a long path —
+ * the directory actually being worked in — on screen, and `text-align: left`
+ * puts the string back on the left edge where a path belongs.
+ *
+ * `min-width: 0` is what lets it give that room up: without it, a `nowrap` item
+ * refuses to shrink below its whole string, and a deep path would push the
+ * session's own controls off the row.
+ */
+.eu-terminal__path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--eu-fg-muted);
+  font-family: var(--eu-mono-font);
+  direction: rtl;
+  text-align: left;
+}
+
+/* The session's controls. They are the same `.eu-icon-btn` the rest of the shell
+   uses, so hover, press and the muted-to-primary colour shift come from one
+   place; only the box is the terminal header's own. */
+.eu-terminal__button {
+  width: 22px;
+  height: 20px;
+}
+
+/* Interrupt is disabled until the shell is ready. The attribute does the
+   disabling; this only stops the glyph from looking pressable. */
+.eu-terminal__button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ==========================================================================
+   9 · Preferences
+   ========================================================================== */
+
+/*
+ * Reduced motion, honoured the way the design system honours it — by removing
+ * the motion and keeping the information. A build that is running still has to
+ * look like one, so the sweep is replaced by a line drawn whole and still: the
+ * row's own text says what is happening, and a bar that stops moving but stays
+ * visible reports the same fact without animating.
+ *
+ * `!important` is required and is the same exception `.eu-spin` takes: the
+ * global reduced-motion rule writes `animation-duration` and
+ * `animation-iteration-count` on `*` with `!important`, and only an equally
+ * important declaration can put a *still* line in place of the sweep.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .eu-bottom-panel__status[data-eu-running='true']::after {
+    animation: none !important;
+    width: 100%;
+    background: var(--eu-accent-muted);
+  }
+}

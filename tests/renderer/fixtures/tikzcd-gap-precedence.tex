@@ -1,0 +1,17 @@
+\documentclass[border=8pt]{standalone}
+\usepackage{tikz-cd}
+\newsavebox{\normalgap}
+\newsavebox{\firstgap}
+\newsavebox{\latergap}
+\begin{document}
+\sbox{\normalgap}{\begin{tikzcd}[ampersand replacement=\&]A \ar[r] \ar[d] \& B \ar[d] \\ C \ar[r] \& D\end{tikzcd}}
+\sbox{\firstgap}{\begin{tikzcd}[ampersand replacement=\&]A \ar[r] \ar[d] \&[1em] B \ar[d] \\ C \ar[r] \&[4em] D\end{tikzcd}}
+\sbox{\latergap}{\begin{tikzcd}[ampersand replacement=\&]A \ar[r] \ar[d] \& B \ar[d] \\ C \ar[r] \&[4em] D\end{tikzcd}}
+\typeout{TIKZCD-NORMAL=\the\wd\normalgap}
+\typeout{TIKZCD-FIRST=\the\wd\firstgap}
+\typeout{TIKZCD-LATER=\the\wd\latergap}
+\begin{tabular}{ccc}
+Default & First row +1em; later +4em & Default; later +4em \\
+\usebox{\normalgap} & \usebox{\firstgap} & \usebox{\latergap}
+\end{tabular}
+\end{document}

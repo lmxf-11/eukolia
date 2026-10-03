@@ -1,0 +1,1080 @@
+/**
+ * Eukolia — the design system.
+ *
+ * One layer, loaded after `index.css`, that turns the theme's palette into a
+ * coherent *interface*: a spacing scale, an elevation ladder, one motion
+ * vocabulary, and the primitives (buttons, fields, rows, chips, menus, cards)
+ * every panel composes from.
+ *
+ * Why this file exists at all
+ * ---------------------------------------------------------------------------
+ * Everything Eukolia draws used to carry its own inline styles. That is a fine
+ * way to keep a component self-contained, and a poor way to make sixty
+ * components agree: the same "quiet icon button" was 22×22 in the status bar,
+ * 26×22 in the title bar and 26×26 in the tab bar, each with its own radius and
+ * its own hover colour, and the differences were visible as soon as two of them
+ * sat side by side.
+ *
+ * So the *look* lives here and the *behaviour* stays in the components. Nothing
+ * in this file is required for a control to work: a class adds a surface, a
+ * radius, a transition and a hover, and a component that keeps its inline
+ * geometry keeps every pixel it used to have. That is deliberate — the UI tests
+ * assert inline geometry (`width`, `opacity`, `background`), so the layer is
+ * additive and a className is never load-bearing for behaviour.
+ *
+ * Naming: `.eu-*` for primitives, `[data-eu-*]` for state a component publishes
+ * (`data-eu-active`, `data-eu-pressed`), so a rule can be written once for
+ * every control that can be in that state rather than once per component.
+ *
+ * Every colour is a `--eu-*` custom property written by `core/themes.ts`, so
+ * all eight themes get the whole system for free.
+ */
+
+/* ==========================================================================
+   1 · Scales
+   ========================================================================== */
+
+:root {
+  /* ---- spacing ---------------------------------------------------------- */
+  /* A 4px rhythm. `--eu-space-half` exists because 2px is genuinely needed
+     between segments of a split control, and a raw `2px` in a stylesheet is
+     how a rhythm stops being one. */
+  --eu-space-half: 2px;
+  --eu-space-1: 4px;
+  --eu-space-2: 8px;
+  --eu-space-3: 12px;
+  --eu-space-4: 16px;
+  --eu-space-5: 20px;
+  --eu-space-6: 24px;
+  --eu-space-8: 32px;
+
+  /* ---- radii ------------------------------------------------------------ */
+  --eu-radius-xs: 3px;
+  --eu-radius-sm: 4px;
+  --eu-radius-md: 6px;
+  --eu-radius-lg: 8px;
+  --eu-radius-xl: 12px;
+  --eu-radius-pill: 999px;
+
+  /* ---- type ------------------------------------------------------------- */
+  --eu-text-2xs: 10.5px;
+  --eu-text-xs: 11px;
+  --eu-text-sm: 12px;
+  --eu-text-md: 13px;
+  --eu-text-lg: 15px;
+  --eu-text-xl: 18px;
+  --eu-text-2xl: 22px;
+
+  --eu-leading-tight: 1.25;
+  --eu-leading-snug: 1.35;
+  --eu-leading-normal: 1.5;
+  --eu-leading-relaxed: 1.65;
+
+  --eu-weight-regular: 400;
+  --eu-weight-medium: 500;
+  --eu-weight-semibold: 600;
+  --eu-weight-bold: 700;
+
+  /* Tracking is only ever used to open up an all-caps micro-label, where the
+     uppercase forms a block of near-identical shapes and the letterfit is what
+     makes it readable. */
+  --eu-tracking-label: 0.06em;
+
+  /* ---- motion ----------------------------------------------------------- */
+  /*
+   * Two curves and three durations, and nothing else.
+   *
+   * `--eu-ease-out` is the standard entrance: fast to leave, slow to arrive, so
+   * a panel that appears reads as arriving rather than as being switched on.
+   * `--eu-ease-spring` overshoots by a hair and is reserved for the small
+   * things — a press, a check, an icon that changes — where the overshoot is
+   * the feedback.
+   */
+  --eu-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --eu-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --eu-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --eu-dur-instant: 90ms;
+  --eu-dur-fast: 140ms;
+  --eu-dur-base: 200ms;
+  --eu-dur-slow: 320ms;
+
+  --eu-transition-control:
+    background-color var(--eu-dur-fast) var(--eu-ease-out),
+    border-color var(--eu-dur-fast) var(--eu-ease-out),
+    color var(--eu-dur-fast) var(--eu-ease-out),
+    opacity var(--eu-dur-fast) var(--eu-ease-out),
+    box-shadow var(--eu-dur-fast) var(--eu-ease-out);
+
+  /* ---- elevation -------------------------------------------------------- */
+  /*
+   * The ladder is per-appearance because a shadow is *darkness*, and the same
+   * value that lifts a card off a dark surface disappears entirely on a light
+   * one. Every theme states which it is through `themeManager`'s
+   * `theme-dark` / `theme-light` class, so this needs no JavaScript.
+   */
+  --eu-ring: 0 0 0 1px var(--eu-border-strong);
+  --eu-ring-accent: 0 0 0 1px var(--eu-accent);
+}
+
+.theme-dark {
+  /* A hairline of white on the top edge is what separates a raised surface
+     from the one behind it on a dark background, where a drop shadow alone is
+     almost invisible. */
+  --eu-sheen: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --eu-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.30);
+  --eu-shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.34);
+  --eu-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.44);
+  --eu-shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.52);
+  --eu-shadow-pop: 0 10px 30px rgba(0, 0, 0, 0.46), var(--eu-sheen);
+  --eu-hairline: rgba(255, 255, 255, 0.055);
+  --eu-inset-field: inset 0 1px 2px rgba(0, 0, 0, 0.28);
+  --eu-hover-tint: rgba(255, 255, 255, 0.045);
+  --eu-active-tint: rgba(255, 255, 255, 0.075);
+  --eu-glass: rgba(14, 16, 23, 0.72);
+}
+
+.theme-light {
+  --eu-sheen: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --eu-shadow-xs: 0 1px 2px rgba(24, 28, 36, 0.08);
+  --eu-shadow-sm: 0 2px 6px rgba(24, 28, 36, 0.10);
+  --eu-shadow-md: 0 8px 24px rgba(24, 28, 36, 0.14);
+  --eu-shadow-lg: 0 18px 48px rgba(24, 28, 36, 0.18);
+  --eu-shadow-pop: 0 10px 30px rgba(24, 28, 36, 0.16), var(--eu-sheen);
+  --eu-hairline: rgba(24, 28, 36, 0.07);
+  --eu-inset-field: inset 0 1px 2px rgba(24, 28, 36, 0.06);
+  --eu-hover-tint: rgba(24, 28, 36, 0.05);
+  --eu-active-tint: rgba(24, 28, 36, 0.085);
+  --eu-glass: rgba(246, 247, 249, 0.78);
+}
+
+/* ==========================================================================
+   2 · Base
+   ========================================================================== */
+
+/*
+ * Body copy is set once. 13px/1.5 is the dense-desktop pairing: small enough
+ * that a file tree, a problems list and a status line all fit, open enough that
+ * a paragraph of help text is still a paragraph. Text *rendering* is left as
+ * `index.css` set it, because the editor and the PDF viewer have their own
+ * opinions and must not be second-guessed here.
+ */
+body {
+  font-size: var(--eu-text-md);
+  line-height: var(--eu-leading-normal);
+}
+
+/*
+ * Numeric runs — line and column numbers, page counts, durations, byte counts —
+ * are read as *quantities*, and a quantity that changes width as it changes
+ * value makes a status line twitch on every keystroke. Tabular figures are the
+ * fix, and they are applied where numbers live rather than globally: the
+ * document face must keep the proportions LaTeX will typeset.
+ */
+.eu-tnum,
+[data-eu-numeric] {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* All-caps micro-label — panel eyebrows, group headings, section titles. */
+.eu-eyebrow {
+  font-size: var(--eu-text-2xs);
+  font-weight: var(--eu-weight-semibold);
+  letter-spacing: var(--eu-tracking-label);
+  text-transform: uppercase;
+  color: var(--eu-fg-muted);
+  user-select: none;
+}
+
+.eu-mono {
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-xs);
+}
+
+.eu-truncate {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- focus ---- */
+
+/*
+ * One focus ring for the whole application.
+ *
+ * `:focus-visible` rather than `:focus`, so a pointer press never draws a ring
+ * around the control it just pressed — the ring means "this is where the
+ * keyboard is", and it is the only affordance that says so. The offset is
+ * negative on inset controls (menu rows, list rows) because a positive offset
+ * on a full-bleed row would be drawn over the row above it.
+ */
+:where(button, input, select, textarea, a, [tabindex]):focus-visible {
+  outline: 2px solid var(--eu-border-focus);
+  outline-offset: 1px;
+  border-radius: var(--eu-radius-sm);
+}
+
+.eu-focus-inset:focus-visible,
+[role='menuitem']:focus-visible,
+[role='option']:focus-visible {
+  outline: 2px solid var(--eu-border-focus);
+  outline-offset: -2px;
+}
+
+/* A surface that receives focus programmatically — a dialog, a pane — says so
+   without drawing a box around itself. */
+[tabindex='-1']:focus-visible {
+  outline: none;
+}
+
+/* Skip link: the first Tab stop in the window, invisible until it is one. */
+.eu-skip-link {
+  position: absolute;
+  top: var(--eu-space-2);
+  left: var(--eu-space-2);
+  z-index: 999;
+  padding: var(--eu-space-1) var(--eu-space-3);
+  background: var(--eu-accent);
+  color: var(--eu-accent-fg);
+  border-radius: var(--eu-radius-md);
+  font-size: var(--eu-text-sm);
+  font-weight: var(--eu-weight-semibold);
+  text-decoration: none;
+  box-shadow: var(--eu-shadow-md);
+  transform: translateY(-200%);
+  transition: transform var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-skip-link:focus-visible {
+  transform: translateY(0);
+  outline: none;
+}
+
+/* ==========================================================================
+   3 · Buttons
+   ========================================================================== */
+
+/*
+ * `.eu-btn` is the base every button-like control shares: it removes the user
+ * agent's chrome, unifies the transition and states the disabled treatment.
+ * Geometry (width, height, padding) is deliberately *not* set — a 22px status
+ * item and a 28px toolbar button are both buttons, and neither should have to
+ * fight the base to stay its own size.
+ */
+.eu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--eu-space-1);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: var(--eu-transition-control);
+}
+
+.eu-btn:disabled,
+.eu-btn[aria-disabled='true'] {
+  opacity: 0.42;
+  cursor: default;
+  pointer-events: none;
+}
+
+/*
+ * Hover and press are written against the *surface* rather than the text, and
+ * the press is the same tint one step stronger. That one decision is what makes
+ * a strip of unrelated controls behave identically under the pointer.
+ */
+.eu-btn:hover:not(:disabled) {
+  background-color: var(--eu-bg-hover);
+  color: var(--eu-fg-primary);
+}
+
+.eu-btn:active:not(:disabled) {
+  background-color: var(--eu-bg-active);
+}
+
+/* A press that changes nothing persistent should still be seen: the control
+   dips by a hair. Only for controls with their own box — a full-bleed row that
+   scaled would move the rows around it. */
+.eu-pressable:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.eu-pressable {
+  transition: var(--eu-transition-control), transform var(--eu-dur-instant) var(--eu-ease-out);
+}
+
+/* ---- icon button ---------------------------------------------------------- */
+
+.eu-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--eu-radius-sm);
+  background: transparent;
+  color: var(--eu-fg-muted);
+  cursor: pointer;
+  transition: var(--eu-transition-control);
+}
+
+.eu-icon-btn:hover {
+  background-color: var(--eu-bg-hover);
+  color: var(--eu-fg-primary);
+}
+
+.eu-icon-btn:active {
+  background-color: var(--eu-bg-active);
+}
+
+/*
+ * A toggle states its state with colour and a tinted surface, and the tinted
+ * surface is what carries it in a bar of otherwise quiet glyphs. `aria-pressed`
+ * is the source of truth rather than a class, so a control cannot render as on
+ * while telling assistive technology it is off.
+ */
+.eu-icon-btn[aria-pressed='true'] {
+  color: var(--eu-fg-primary);
+  background-color: var(--eu-accent-muted);
+}
+
+.eu-icon-btn[aria-pressed='true']:hover {
+  background-color: var(--eu-accent-muted);
+  color: var(--eu-fg-primary);
+}
+
+/* ---- filled / outlined ---------------------------------------------------- */
+
+.eu-btn-primary {
+  padding: var(--eu-space-2) var(--eu-space-4);
+  border-radius: var(--eu-radius-md);
+  background: var(--eu-accent);
+  color: var(--eu-accent-fg);
+  font-size: var(--eu-text-md);
+  font-weight: var(--eu-weight-semibold);
+  box-shadow: var(--eu-shadow-xs);
+}
+
+.eu-btn-primary:hover:not(:disabled) {
+  background: var(--eu-accent-hover);
+  color: var(--eu-accent-fg);
+}
+
+.eu-btn-primary:active:not(:disabled) {
+  background: var(--eu-accent);
+  transform: scale(0.98);
+}
+
+.eu-btn-secondary {
+  padding: var(--eu-space-2) var(--eu-space-4);
+  border: 1px solid var(--eu-border-strong);
+  border-radius: var(--eu-radius-md);
+  background: transparent;
+  color: var(--eu-fg-primary);
+  font-size: var(--eu-text-md);
+  font-weight: var(--eu-weight-medium);
+}
+
+.eu-btn-secondary:hover:not(:disabled) {
+  border-color: var(--eu-accent);
+  background: var(--eu-accent-muted);
+}
+
+/* The quiet button: a control that sits inside a toolbar or a footer and is
+   not the reason the surface exists. */
+.eu-btn-quiet {
+  height: 22px;
+  padding: 0 var(--eu-space-2);
+  gap: var(--eu-space-1);
+  border: 1px solid transparent;
+  border-radius: var(--eu-radius-sm);
+  color: var(--eu-fg-secondary);
+  font-size: var(--eu-text-xs);
+}
+
+.eu-btn-quiet:hover:not(:disabled) {
+  border-color: var(--eu-border);
+  background: var(--eu-bg-hover);
+  color: var(--eu-fg-primary);
+}
+
+/* ==========================================================================
+   4 · Fields
+   ========================================================================== */
+
+.eu-input {
+  width: 100%;
+  min-width: 0;
+  padding: 5px var(--eu-space-2);
+  border: 1px solid var(--eu-border);
+  border-radius: var(--eu-radius-sm);
+  background: var(--eu-bg-input);
+  color: var(--eu-fg-primary);
+  font-family: inherit;
+  font-size: var(--eu-text-sm);
+  outline: none;
+  transition: var(--eu-transition-control);
+  box-shadow: var(--eu-inset-field);
+}
+
+.eu-input::placeholder {
+  color: var(--eu-fg-muted);
+}
+
+/*
+ * The border lights up on focus rather than a separate ring appearing, so the
+ * field does not change size or shift its neighbours when the keyboard arrives.
+ * `:focus-visible` is not used: a text field is *always* editing while focused,
+ * and there is no pointer-versus-keyboard distinction to make.
+ */
+.eu-input:focus {
+  border-color: var(--eu-accent);
+  box-shadow: var(--eu-inset-field), 0 0 0 3px var(--eu-accent-muted);
+}
+
+.eu-input[aria-invalid='true'] {
+  border-color: var(--eu-error);
+}
+
+.eu-input[aria-invalid='true']:focus {
+  box-shadow: var(--eu-inset-field), 0 0 0 3px var(--eu-error-bg);
+}
+
+/* A field that is a search box: room for the glyph, and the glyph drawn. */
+.eu-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  min-width: 0;
+}
+
+.eu-search > svg {
+  flex-shrink: 0;
+  color: var(--eu-fg-muted);
+}
+
+/* ==========================================================================
+   5 · Chips, badges, keys
+   ========================================================================== */
+
+.eu-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eu-space-1);
+  padding: 1px var(--eu-space-2);
+  border: 1px solid var(--eu-border);
+  border-radius: var(--eu-radius-pill);
+  background: transparent;
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-xs);
+  line-height: 1.6;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: var(--eu-transition-control);
+}
+
+.eu-chip:hover {
+  border-color: var(--eu-border-strong);
+  color: var(--eu-fg-secondary);
+}
+
+.eu-chip[aria-pressed='true'] {
+  border-color: var(--eu-accent);
+  background: var(--eu-accent-muted);
+  color: var(--eu-fg-primary);
+}
+
+.eu-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 var(--eu-space-1);
+  border-radius: var(--eu-radius-pill);
+  background: var(--eu-bg-active);
+  color: var(--eu-fg-secondary);
+  font-size: var(--eu-text-2xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.eu-badge-error {
+  background: var(--eu-error-bg);
+  color: var(--eu-error);
+}
+
+.eu-badge-warning {
+  background: var(--eu-warning-bg);
+  color: var(--eu-warning);
+}
+
+/*
+ * A keycap. `kbd` is the right element for one and browsers style it
+ * inconsistently, so it is reset to the raised, monospaced box every shortcut
+ * list in this application draws — a shortcut read as a *key* rather than as
+ * more prose is the whole reason to show it.
+ */
+.eu-kbd,
+kbd.eu-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--eu-border-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--eu-radius-xs);
+  background: var(--eu-bg-card);
+  color: var(--eu-fg-secondary);
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-2xs);
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* A status dot: the smallest way to say "this is fine" or "this is not". */
+.eu-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--eu-radius-pill);
+  flex-shrink: 0;
+}
+
+/* ==========================================================================
+   6 · Surfaces
+   ========================================================================== */
+
+.eu-panel {
+  background: var(--eu-bg-panel);
+  color: var(--eu-fg-primary);
+}
+
+.eu-card {
+  background: var(--eu-bg-card);
+  border: 1px solid var(--eu-border);
+  border-radius: var(--eu-radius-lg);
+  box-shadow: var(--eu-shadow-sm);
+  transition: var(--eu-transition-control), box-shadow var(--eu-dur-base) var(--eu-ease-out);
+}
+
+/* A card that can be picked: it lifts rather than changing colour, because the
+   colour is what says what the card *is*. */
+.eu-card-interactive {
+  cursor: pointer;
+}
+
+.eu-card-interactive:hover {
+  border-color: var(--eu-border-strong);
+  box-shadow: var(--eu-shadow-md);
+  transform: translateY(-1px);
+}
+
+.eu-card-interactive:active {
+  transform: translateY(0);
+  box-shadow: var(--eu-shadow-sm);
+}
+
+/* The floating surface every popover, menu and suggestion list is a case of. */
+.eu-popover {
+  background: var(--eu-bg-card);
+  border: 1px solid var(--eu-border-strong);
+  border-radius: var(--eu-radius-lg);
+  box-shadow: var(--eu-shadow-pop);
+}
+
+.eu-divider {
+  height: 1px;
+  flex-shrink: 0;
+  background: var(--eu-border);
+}
+
+.eu-divider-v {
+  width: 1px;
+  align-self: stretch;
+  flex-shrink: 0;
+  background: var(--eu-border);
+}
+
+/* A dragged divider — the sidebar's edge, the panel's top, a split's seam.
+   The highlight is what promises the drag, so a static 1px seam must never use
+   this class. */
+.eu-resizer {
+  flex-shrink: 0;
+  background: transparent;
+  position: relative;
+  transition: background var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-resizer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  transition: background var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-resizer:hover::after,
+.eu-resizer:focus-visible::after,
+.eu-resizer[data-eu-dragging='true']::after {
+  background: var(--eu-accent);
+}
+
+/* ==========================================================================
+   7 · Rows and lists
+   ========================================================================== */
+
+.eu-row {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--eu-fg-secondary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: var(--eu-transition-control);
+}
+
+.eu-row:hover {
+  background: var(--eu-bg-hover);
+  color: var(--eu-fg-primary);
+}
+
+.eu-row:active {
+  background: var(--eu-bg-active);
+}
+
+.eu-row[aria-selected='true'],
+.eu-row[data-eu-selected='true'] {
+  background: var(--eu-bg-selection-list);
+  color: var(--eu-fg-primary);
+}
+
+.eu-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--eu-border-strong) transparent;
+  overscroll-behavior: contain;
+}
+
+.eu-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-1);
+  flex-shrink: 0;
+  user-select: none;
+}
+
+/*
+ * A section header inside a panel: a quiet, sticky band. `position: sticky` is
+ * what lets a long file tree or problems list keep saying what it is, and the
+ * background must be opaque or the rows scroll through it.
+ */
+.eu-section {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  min-height: 24px;
+  padding: 0 var(--eu-space-2);
+  background: var(--eu-bg-sidebar);
+  border-bottom: 1px solid var(--eu-hairline);
+  font-size: var(--eu-text-2xs);
+  font-weight: var(--eu-weight-semibold);
+  letter-spacing: var(--eu-tracking-label);
+  text-transform: uppercase;
+  color: var(--eu-fg-muted);
+  user-select: none;
+}
+
+/* ==========================================================================
+   8 · Menus and overlays
+   ========================================================================== */
+
+.eu-menu {
+  padding: var(--eu-space-1);
+  min-width: 200px;
+  background: var(--eu-bg-card);
+  border: 1px solid var(--eu-border-strong);
+  border-radius: var(--eu-radius-md);
+  box-shadow: var(--eu-shadow-pop);
+  animation: eu-menu-in var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  width: 100%;
+  padding: var(--eu-space-1) var(--eu-space-2);
+  border: none;
+  border-radius: var(--eu-radius-sm);
+  background: transparent;
+  color: var(--eu-fg-primary);
+  font: inherit;
+  font-size: var(--eu-text-sm);
+  text-align: left;
+  cursor: default;
+  transition: background-color var(--eu-dur-instant) var(--eu-ease-out);
+}
+
+.eu-menu-item:hover:not(:disabled),
+.eu-menu-item[data-eu-highlighted='true'] {
+  background: var(--eu-accent);
+  color: var(--eu-accent-fg);
+}
+
+/* The shortcut is the thing that should recede when the row is highlighted,
+   not the only thing that becomes unreadable. */
+.eu-menu-item:hover .eu-menu-shortcut,
+.eu-menu-item[data-eu-highlighted='true'] .eu-menu-shortcut {
+  color: inherit;
+  opacity: 0.75;
+}
+
+.eu-menu-shortcut {
+  margin-left: auto;
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.eu-menu-separator {
+  height: 1px;
+  margin: var(--eu-space-1) var(--eu-space-2);
+  background: var(--eu-border);
+}
+
+/*
+ * The backdrop behind a modal. The blur is what makes the dialog read as being
+ * *above* the application rather than painted onto it, and it is one line: the
+ * palette, quick open and every dialog share it.
+ */
+.eu-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--eu-bg-overlay);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  animation: eu-fade-in var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-dialog {
+  display: flex;
+  flex-direction: column;
+  background: var(--eu-bg-panel);
+  color: var(--eu-fg-primary);
+  border: 1px solid var(--eu-border-strong);
+  border-radius: var(--eu-radius-xl);
+  box-shadow: var(--eu-shadow-lg);
+  overflow: hidden;
+  animation: eu-dialog-in var(--eu-dur-base) var(--eu-ease-out);
+}
+
+.eu-dialog-header {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  flex-shrink: 0;
+  padding: var(--eu-space-3) var(--eu-space-4);
+  border-bottom: 1px solid var(--eu-border);
+  background: var(--eu-bg-toolbar);
+  user-select: none;
+}
+
+.eu-dialog-title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--eu-text-md);
+  font-weight: var(--eu-weight-semibold);
+}
+
+.eu-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--eu-space-2);
+  flex-shrink: 0;
+  padding: var(--eu-space-2) var(--eu-space-3);
+  border-top: 1px solid var(--eu-border);
+  background: var(--eu-bg-toolbar);
+}
+
+/* ==========================================================================
+   9 · Feedback
+   ========================================================================== */
+
+/*
+ * A progress bar that can be drawn for two different questions: how far a build
+ * has got (`--eu-progress`, a fraction) and that something is happening with no
+ * known end (the sweep animation). The indeterminate form is a separate class
+ * rather than a state of the same one, because the two are different claims and
+ * a bar that "looks indeterminate" while a determinate value is available is
+ * simply reporting less than it knows.
+ */
+.eu-progress {
+  position: relative;
+  height: 2px;
+  overflow: hidden;
+  background: var(--eu-border);
+}
+
+.eu-progress::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--eu-progress, 0) * 100%);
+  background: var(--eu-accent);
+  transition: width var(--eu-dur-base) var(--eu-ease-out);
+}
+
+.eu-progress-indeterminate::after {
+  width: 35%;
+  animation: eu-progress-sweep 1.2s var(--eu-ease-in-out) infinite;
+}
+
+/* One line of explanation under something that has none: a panel with no
+   results, a list that has not been filled yet. */
+.eu-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--eu-space-2);
+  padding: var(--eu-space-6) var(--eu-space-4);
+  color: var(--eu-fg-muted);
+  font-size: var(--eu-text-sm);
+  text-align: center;
+  line-height: var(--eu-leading-relaxed);
+}
+
+.eu-skeleton {
+  border-radius: var(--eu-radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--eu-bg-hover) 0%,
+    var(--eu-bg-active) 50%,
+    var(--eu-bg-hover) 100%
+  );
+  background-size: 200% 100%;
+  animation: eu-shimmer 1.4s linear infinite;
+}
+
+/*
+ * The skeleton block a loading pane draws: three lines at descending width,
+ * standing in for the text that is arriving. It is bounded to a readable
+ * measure so it reads as a paragraph rather than as a progress bar, and centred
+ * so it does not look like content that failed to lay out.
+ */
+.eu-pane-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eu-space-2);
+  width: min(420px, 60%);
+}
+
+.eu-pane-skeleton .eu-skeleton {
+  height: 9px;
+}
+
+/* ==========================================================================
+   10 · Keyframes
+   ========================================================================== */
+
+/*
+ * Everything animates *in* and nothing animates out. An exit animation is a
+ * delay between the user's action and the interface agreeing that it happened,
+ * and at these durations it reads as lag rather than as polish — so the
+ * overlays are mounted and unmounted, and only their arrival is drawn.
+ */
+
+@keyframes eu-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes eu-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes eu-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes eu-slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes eu-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes eu-progress-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(340%);
+  }
+}
+
+@keyframes eu-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes eu-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* The one animation with work behind it: something is running and the glyph
+   says so. Named here so `eu-spin` in `index.css` and this agree. */
+@keyframes eu-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.eu-enter-left {
+  animation: eu-slide-in-left var(--eu-dur-base) var(--eu-ease-out);
+}
+
+.eu-enter-right {
+  animation: eu-slide-in-right var(--eu-dur-base) var(--eu-ease-out);
+}
+
+.eu-enter {
+  animation: eu-fade-in var(--eu-dur-base) var(--eu-ease-out);
+}
+
+/* ==========================================================================
+   11 · Utilities
+   ========================================================================== */
+
+.eu-hidden {
+  display: none !important;
+}
+
+/* Visually hidden but present for assistive technology. */
+.eu-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ==========================================================================
+   12 · Preferences
+   ========================================================================== */
+
+/*
+ * Reduced motion is honoured by removing the *transitions*, not by shortening
+ * them to a hundredth of a millisecond: a 0.01ms transition still runs, and for
+ * a user who asked for no motion the correct amount is none. The spinner is
+ * exempt and slowed instead — it is the only indication that a build is running,
+ * and stopping it would remove the information rather than the motion.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .eu-spin {
+    animation: eu-spin 2.4s linear infinite !important;
+  }
+}
+
+/*
+ * Raised contrast: the hairline borders that separate surfaces on a dark theme
+ * are the first thing to disappear for a user who has asked for more contrast,
+ * so they are promoted to the real border colour and the muted text steps up to
+ * the secondary one.
+ */
+@media (prefers-contrast: more) {
+  :root {
+    --eu-hairline: var(--eu-border);
+  }
+
+  .eu-chip,
+  .eu-badge,
+  .eu-btn-quiet {
+    border-color: var(--eu-border-strong);
+  }
+
+  .eu-eyebrow,
+  .eu-section {
+    color: var(--eu-fg-secondary);
+  }
+}

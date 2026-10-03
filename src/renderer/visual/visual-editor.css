@@ -1,0 +1,1334 @@
+/*
+ * Eukolia Visual Mode stylesheet.
+ *
+ * The ported Overleaf visual editor paints itself almost entirely from
+ * `extensions/visual/visual-theme.ts`, which is a CodeMirror theme — that is
+ * where Overleaf defines the `ol-cm-*` appearance, and the port carries it over
+ * unchanged. This file therefore must not restate those rules.
+ *
+ * It could not simply be empty, for two reasons:
+ *
+ *  1. CodeMirror mounts its generated stylesheet as the *first* child of
+ *     `<head>` (`style-mod`'s `StyleSet.mount`), so any app stylesheet that
+ *     matches the same elements with the same specificity wins by document
+ *     order. An earlier version of this file redefined `ol-cm-*` rules at equal
+ *     specificity, which silently replaced the reference's layout — most
+ *     visibly the theorem header, whose `ol-cm-environment-padding` rules were
+ *     switched off entirely. Nothing here may compete with the ported theme.
+ *  2. The theme is written against Overleaf's design tokens (`--font-size`,
+ *     `--content-width`, `--font-sans`, …). Eukolia has its own token set, so
+ *     the Overleaf names are mapped onto Eukolia's values here.
+ *
+ * Instructions.md §54 (careful mathematical typography, readable line length,
+ * headings, theorem blocks, lists, source islands, cursor and selection
+ * visibility).
+ */
+
+.eukolia-visual-editor {
+  /* Tokens the ported theme and the ported toolbar read. */
+  --font-sans: var(--eu-ui-font);
+  --font-size-02: 12px;
+  --font-size-04: 16px;
+  --spacing-03: 4px;
+  --spacing-10: 32px;
+  --border-radius-base: 4px;
+  --border-divider-dark: var(--eu-border-strong);
+  --content-placeholder: var(--eu-fg-muted);
+  --content-placeholder-dark: var(--eu-fg-muted);
+  --content-primary-themed: var(--eu-fg-primary);
+  --bg-secondary-themed: var(--eu-bg-panel);
+  --border-primary-themed: var(--eu-border);
+  /* Toolbar colours. */
+  --editor-toolbar-bg: var(--eu-bg-toolbar);
+  --toolbar-btn-color: var(--eu-fg-secondary);
+  --editor-toolbar-popover-border-color: var(--eu-border);
+  --toolbar-dropdown-divider-color: var(--eu-border);
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.eukolia-visual-editor .cm-editor {
+  height: 100%;
+}
+
+.eukolia-visual-editor .cm-editor.cm-focused {
+  outline: none;
+}
+
+/* The two modes share one `EditorView`, and these two rules are the only place
+   an Eukolia stylesheet tells them apart. `editorExtensions.ts` puts the
+   matching `data-mode` attribute on the editor element through the same
+   `visualOnly` / `sourceOnly` compartment the rest of the mode-dependent
+   extensions use, so it flips with `setVisualMode` and needs no React state.
+   They were one mode-blind rule before, which gave Code Mode the visual
+   surface's background and colour. */
+.eukolia-visual-editor .cm-editor[data-mode='visual'] {
+  background: var(--eu-visual-bg);
+  color: var(--eu-visual-fg);
+}
+
+/* Code Mode is the source editor, and this is the surface Monaco gave it. */
+.eukolia-visual-editor .cm-editor[data-mode='source'] {
+  background: var(--eu-editor-bg);
+  color: var(--eu-editor-fg);
+}
+
+.eukolia-visual-editor .cm-scroller {
+  overscroll-behavior: contain;
+}
+
+/*
+ * The panel strip, which exists whether or not there is a panel in it.
+ *
+ * `@codemirror/view` ships a *light-theme* default —
+ * `&light .cm-panels-top { border-bottom: 1px solid #ddd }` — and the editor
+ * carries `overall-theme-light`, because Eukolia's own dark palette does not set
+ * CodeMirror's `dark` facet. So the ported theme's colours are correct while
+ * CodeMirror's own defaults are still the light ones, and this one draws a
+ * `#dddddd` rule across the full width of the editor.
+ *
+ * It was invisible as a *panel* and unmistakable as a line: the strip's height
+ * collapses to under a pixel when no panel is open, so what showed was exactly the
+ * border, sitting one row below the tab bar and reading as a divider between the
+ * tabs and the document — which is why it looked like the tab bar's own edge and
+ * why removing that edge did not remove it.
+ *
+ * The backgrounds are restated rather than left alone for the same reason: the
+ * light default is `#f5f5f5`, which would be a white band the moment a search or
+ * lint panel did open.
+ */
+.eukolia-visual-editor .cm-panels {
+  background: transparent;
+  color: inherit;
+}
+
+.eukolia-visual-editor .cm-panels-top {
+  border-bottom: none;
+}
+
+.eukolia-visual-editor .cm-panels-bottom {
+  border-top: none;
+}
+
+/* The document's own font is the editor's: `--source-font-family` for source   (set by the ported theme on `.cm-content` from `editor.fontFamily`) and the
+   ported `--visual-font-family` for rendered prose. Only the visual body needs
+   Eukolia's own token, and it has to out-specify the ported theme's
+   `.cm-content.cm-content` to keep Eukolia's stack of platform serifs — the
+   ported one asks for Noto Serif first, which Eukolia does not ship. */
+.eukolia-visual-editor
+  .cm-editor[data-mode='visual']
+  .cm-content {
+  font-family: var(--eu-serif-font);
+}
+
+.eukolia-visual-editor .cm-content {
+  /* Scroll past the end, as the visual editor has always allowed. */
+  padding-bottom: 40vh;
+  /* Code Mode sets this on its content and the ported theme sets it on the editor
+     element, which does not inherit — so the *document text* was rendered with a
+     different text-rendering mode in Visual Mode than in Code Mode. It is a
+     one-word way to say "the same typography", and the glyph advance widths the
+     caret is positioned against are what it affects. */
+  text-rendering: optimizeSpeed;
+}
+
+/* ------------------------------------------------------------- the index bar
+ *
+ * The line-number gutter is the **same bar in both modes**, because there is one
+ * editor: `editorExtensions.ts` mounts one gutter set, and this is the only
+ * stylesheet that colours it. The colours come from the `--eu-editor-gutter-*`
+ * variables `themeManager` publishes from the one theme token table, and the
+ * width and padding reproduce Monaco's `lineNumbersMinChars` and
+ * `editorGutter.background`, so the bar reads the same whichever mode is
+ * showing (the ported Overleaf theme used to fade it in Visual Mode alone).
+ *
+ * The editor padding mirrors Code Mode's `padding: { top: 10, bottom: 40 }`, so
+ * the first line and the end of the document sit at the same place whichever
+ * surface is showing.
+ */
+.eukolia-visual-editor .cm-scroller {
+  padding: 10px 0 40px;
+}
+
+.eukolia-visual-editor .cm-gutters {
+  background: var(--eu-editor-gutter-bg);
+  color: var(--eu-editor-gutter-fg);
+  border-right: none;
+  /* Matches Monaco's default `lineNumbersMinChars`, so the numbers do not shift
+     sideways when the document grows past a power of ten. */
+  min-width: 3.4em;
+  font-variant-numeric: tabular-nums;
+}
+
+.eukolia-visual-editor .cm-lineNumbers .cm-gutterElement {
+  padding: 0 8px 0 12px;
+  /* Monaco draws the active line number in `editorLineNumber.activeForeground`
+     (`fgSecondary`); `highlightActiveLineGutter` puts the class on it. */
+  color: var(--eu-editor-gutter-fg);
+}
+
+.eukolia-visual-editor .cm-activeLineGutter {
+  background: var(--eu-bg-active);
+  color: var(--eu-fg-secondary);
+}
+
+/* ------------------------------------------------------------- fold column
+ *
+ * Monaco's folding control is a fixed-width column of chevrons in the gutter
+ * foreground colour, with the current line's control highlighted. The ported
+ * theme paints the chevrons a hard-coded `rgba(109, 109, 109, 0.7)`, which is
+ * neither theme's gutter colour; these rules give the column the same colour as
+ * the numbers beside it and a token-driven hover, at the specificity the app
+ * already relies on (see the note at the top of this file).
+ */
+.eukolia-visual-editor .cm-foldGutter {
+  /* A fixed column, so the numbers do not move when a line becomes foldable. */
+  width: 1.1em;
+  min-width: 1.1em;
+}
+
+.eukolia-visual-editor .cm-foldGutter .cm-gutterElement {
+  color: var(--eu-editor-gutter-fg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.eukolia-visual-editor .cm-foldGutter .cm-gutterElement > span {
+  color: inherit;
+  border-radius: 3px;
+  transition: background-color 100ms ease-out;
+}
+
+.eukolia-visual-editor .cm-foldGutter .cm-gutterElement > span:hover {
+  background-color: var(--eu-bg-hover);
+  color: var(--eu-fg-primary);
+}
+
+.eukolia-visual-editor .cm-foldGutter .cm-gutterElement.cm-activeLineGutter > span {
+  color: var(--eu-fg-secondary);
+}
+
+/* ------------------------------------------------ diagnostic line numbers
+ *
+ * Line numbers in the index bar are highlighted in red (errors) or yellow
+ * (warnings) rather than using a separate gutter column for icons, keeping
+ * the line index bar narrow.
+ */
+.eukolia-visual-editor .cm-lineNumbers .cm-gutterElement.cm-lint-error,
+.eukolia-visual-editor .cm-lineNumbers .cm-gutterElement.cm-lint-line-error {
+  color: var(--eu-error);
+  font-weight: 600;
+}
+
+.eukolia-visual-editor .cm-lineNumbers .cm-gutterElement.cm-lint-error.cm-activeLineGutter,
+.eukolia-visual-editor .cm-lineNumbers .cm-gutterElement.cm-lint-line-error.cm-activeLineGutter {
+  color: var(--eu-error);
+  font-weight: 600;
+}
+
+.eukolia-visual-editor .cm-lineNumbers .cm-gutterElement.cm-lint-warning,
+.eukolia-visual-editor .cm-lineNumbers .cm-gutterElement.cm-lint-line-warning {
+  color: var(--eu-warning);
+  font-weight: 600;
+}
+
+.eukolia-visual-editor .cm-lineNumbers .cm-gutterElement.cm-lint-warning.cm-activeLineGutter,
+.eukolia-visual-editor .cm-lineNumbers .cm-gutterElement.cm-lint-line-warning.cm-activeLineGutter {
+  color: var(--eu-warning);
+  font-weight: 600;
+}
+
+/* -------------------------------------------------- line diagnostic tooltip
+ *
+ * Modern diagnostic tooltip shown on hover over colored line numbers, styled
+ * with Eukolia's theme system tokens for consistent dark/light/solarized/etc.
+ * appearance.
+ */
+.cm-tooltip.cm-tooltip-line-diagnostic {
+  background: var(--eu-bg-card, #181b25);
+  border: 1px solid var(--eu-border, #232838);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32), 0 2px 6px rgba(0, 0, 0, 0.16);
+  color: var(--eu-fg-primary, #e2e4ea);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1.45;
+  max-width: 440px;
+  min-width: 240px;
+  overflow: hidden;
+  padding: 0;
+  pointer-events: auto;
+  user-select: text;
+  z-index: 100;
+}
+
+.cm-tooltip-line-diagnostic .cm-line-diagnostic-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: var(--eu-bg-panel, rgba(0, 0, 0, 0.1));
+  border-bottom: 1px solid var(--eu-border, #232838);
+  font-size: 11px;
+}
+
+.cm-tooltip-line-diagnostic .cm-line-diagnostic-title {
+  font-weight: 600;
+  color: var(--eu-fg-primary, #e2e4ea);
+}
+
+.cm-tooltip-line-diagnostic .cm-line-diagnostic-count {
+  color: var(--eu-fg-muted, #7c8294);
+}
+
+.cm-tooltip-line-diagnostic .cm-line-diagnostic-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.cm-tooltip-line-diagnostic .cm-line-diagnostic-item {
+  padding: 8px 12px;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid var(--eu-border, rgba(255, 255, 255, 0.05));
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cm-tooltip-line-diagnostic .cm-line-diagnostic-item:last-child {
+  border-bottom: none;
+}
+
+.cm-tooltip-line-diagnostic .cm-line-diagnostic-item-error {
+  border-left-color: var(--eu-error, #dc3545);
+}
+
+.cm-tooltip-line-diagnostic .cm-line-diagnostic-item-warning {
+  border-left-color: var(--eu-warning, #b8860b);
+}
+
+.cm-tooltip-line-diagnostic .cm-line-diagnostic-item-info {
+  border-left-color: var(--eu-info, #17a2b8);
+}
+
+.cm-tooltip-line-diagnostic .cm-line-diagnostic-item-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cm-tooltip-line-diagnostic .cm-line-diagnostic-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.cm-tooltip-line-diagnostic .cm-line-diagnostic-badge-error {
+  background: var(--eu-error-bg, rgba(220, 53, 69, 0.15));
+  color: var(--eu-error, #dc3545);
+  border: 1px solid rgba(220, 53, 69, 0.25);
+}
+
+.cm-tooltip-line-diagnostic .cm-line-diagnostic-badge-warning {
+  background: var(--eu-warning-bg, rgba(184, 134, 11, 0.15));
+  color: var(--eu-warning, #b8860b);
+  border: 1px solid rgba(184, 134, 11, 0.25);
+}
+
+.cm-tooltip-line-diagnostic .cm-line-diagnostic-badge-info {
+  background: var(--eu-info-bg, rgba(23, 162, 184, 0.15));
+  color: var(--eu-info, #17a2b8);
+  border: 1px solid rgba(23, 162, 184, 0.25);
+}
+
+.cm-tooltip-line-diagnostic .cm-line-diagnostic-icon {
+  flex-shrink: 0;
+}
+
+.cm-tooltip-line-diagnostic .cm-line-diagnostic-source {
+  font-size: 11px;
+  color: var(--eu-fg-muted, #7c8294);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.cm-tooltip-line-diagnostic .cm-line-diagnostic-message {
+  color: var(--eu-fg-primary, #e2e4ea);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.cm-tooltip-line-diagnostic .cm-line-diagnostic-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.cm-tooltip-line-diagnostic .cm-line-diagnostic-action-btn {
+  background: var(--eu-bg-hover, rgba(255, 255, 255, 0.08));
+  color: var(--eu-fg-primary, #e2e4ea);
+  border: 1px solid var(--eu-border, #232838);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.cm-tooltip-line-diagnostic .cm-line-diagnostic-action-btn:hover {
+  background: var(--eu-bg-active, rgba(255, 255, 255, 0.15));
+  border-color: var(--eu-border-strong, #3a4256);
+}
+
+/* Also style standard @codemirror/lint tooltips so all diagnostic popups look unified */
+.cm-tooltip.cm-tooltip-lint:not(.cm-tooltip-line-diagnostic) {
+  background: var(--eu-bg-card, #181b25);
+  border: 1px solid var(--eu-border, #232838);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28);
+  color: var(--eu-fg-primary, #e2e4ea);
+  padding: 4px 0;
+  max-width: 440px;
+}
+
+.cm-tooltip.cm-tooltip-lint:not(.cm-tooltip-line-diagnostic) .cm-diagnostic {
+  padding: 6px 12px;
+  color: var(--eu-fg-primary, #e2e4ea);
+}
+
+.cm-tooltip.cm-tooltip-lint:not(.cm-tooltip-line-diagnostic) .cm-diagnostic-error {
+  border-left-color: var(--eu-error, #dc3545);
+}
+
+.cm-tooltip.cm-tooltip-lint:not(.cm-tooltip-line-diagnostic) .cm-diagnostic-warning {
+  border-left-color: var(--eu-warning, #b8860b);
+}
+
+.cm-tooltip.cm-tooltip-lint:not(.cm-tooltip-line-diagnostic) .cm-diagnosticSource {
+  color: var(--eu-fg-muted, #7c8294);
+}
+
+/* ------------------------------------------------ theme-aware tooltips & math
+ *
+ * Generic CodeMirror tooltips, autocompletion popups, math preview tooltips,
+ * and rendered math SVG elements styled to strictly follow active theme tokens.
+ */
+.cm-tooltip {
+  background: var(--eu-bg-card, #181b25);
+  border: 1px solid var(--eu-border, #232838);
+  border-radius: 6px;
+  color: var(--eu-fg-primary, #e2e4ea);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+
+.cm-tooltip-arrow:before {
+  border-top-color: var(--eu-border, #232838) !important;
+  border-bottom-color: var(--eu-border, #232838) !important;
+}
+
+.cm-tooltip-arrow:after {
+  border-top-color: var(--eu-bg-card, #181b25) !important;
+  border-bottom-color: var(--eu-bg-card, #181b25) !important;
+}
+
+/* Math preview tooltip container and math tooltip card */
+.cm-tooltip.ol-cm-math-tooltip-container {
+  background-color: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.ol-cm-math-tooltip {
+  background: var(--eu-bg-card, #181b25) !important;
+  border: 1px solid var(--eu-border, #232838) !important;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28), 0 1px 4px rgba(0, 0, 0, 0.12);
+  color: var(--eu-visual-fg, #e8ecf4) !important;
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px !important;
+  margin: 0 !important;
+  line-height: 1;
+  max-width: min(1200px, 95vw);
+  box-sizing: border-box;
+  overflow: auto;
+}
+
+.ol-cm-math-tooltip > div:not(.dropdown) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  margin: 0;
+  padding: 0;
+  max-width: 100%;
+}
+
+.ol-cm-math-tooltip mjx-container,
+.ol-cm-math-tooltip mjx-container[display="true"] {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  margin: 0 !important;
+  padding: 0 !important;
+  text-align: left !important;
+  max-width: 100% !important;
+  line-height: 0 !important;
+}
+
+.ol-cm-math-tooltip svg {
+  display: block;
+  margin: 0 !important;
+}
+
+.math-tooltip-options-toggle {
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 4px;
+  opacity: 0.6;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.math-tooltip-options-toggle:hover {
+  opacity: 1;
+}
+
+/* Rendered math SVG blocks & preview math glyphs follow visual editor text color */
+.ol-cm-math,
+.ol-cm-math svg,
+.ol-cm-math mjx-container,
+.ol-cm-math-tooltip,
+.ol-cm-math-tooltip svg,
+.ol-cm-math-tooltip mjx-container,
+.eu-theorem-header-svg,
+.eukolia-visual-editor mjx-container,
+.eukolia-visual-editor mjx-container svg {
+  color: var(--eu-visual-fg, #e8ecf4) !important;
+  fill: currentColor !important;
+}
+
+.ol-cm-math svg path,
+.ol-cm-math svg use,
+.ol-cm-math svg rect,
+.ol-cm-math svg g,
+.ol-cm-math svg text,
+.ol-cm-math svg line,
+.ol-cm-math svg polygon,
+.ol-cm-math svg polyline,
+.ol-cm-math svg circle,
+.ol-cm-math-tooltip svg path,
+.ol-cm-math-tooltip svg use,
+.ol-cm-math-tooltip svg rect,
+.ol-cm-math-tooltip svg g,
+.ol-cm-math-tooltip svg text,
+.ol-cm-math-tooltip svg line,
+.ol-cm-math-tooltip svg polygon,
+.ol-cm-math-tooltip svg polyline,
+.ol-cm-math-tooltip svg circle,
+.eu-theorem-header-svg path,
+.eu-theorem-header-svg use,
+.eu-theorem-header-svg rect,
+.eu-theorem-header-svg g,
+.eukolia-visual-editor mjx-container svg path,
+.eukolia-visual-editor mjx-container svg use,
+.eukolia-visual-editor mjx-container svg rect,
+.eukolia-visual-editor mjx-container svg g {
+  color: var(--eu-visual-fg, #e8ecf4) !important;
+  fill: currentColor !important;
+}
+
+/* Autocomplete popups attached to body */
+.cm-tooltip.cm-tooltip-autocomplete {
+  background: var(--eu-bg-card, #181b25);
+  border: 1px solid var(--eu-border, #232838);
+  color: var(--eu-fg-primary, #e2e4ea);
+}
+
+.cm-tooltip.cm-tooltip-autocomplete ul li[aria-selected] {
+  background: var(--eu-bg-selection-list, var(--eu-bg-active, rgba(255, 255, 255, 0.12))) !important;
+  color: var(--eu-fg-primary, #e2e4ea) !important;
+}
+
+.cm-tooltip.cm-tooltip-autocomplete li[role="option"]:hover {
+  background: var(--eu-bg-hover, rgba(255, 255, 255, 0.08)) !important;
+}
+
+.cm-tooltip.cm-tooltip-autocomplete .cm-completionMatchedText {
+  color: var(--eu-accent, #528bff) !important;
+}
+
+.cm-tooltip.cm-tooltip-autocomplete .cm-completionDetail {
+  color: var(--eu-fg-muted, #7c8294) !important;
+}
+
+.cm-tooltip.cm-completionInfo {
+  background: var(--eu-bg-panel, #12141c);
+  border: 1px solid var(--eu-border, #232838);
+  color: var(--eu-fg-primary, #e2e4ea);
+}
+
+/* Command tooltip popups attached to body */
+.cm-tooltip.ol-cm-command-tooltip {
+  background: var(--eu-bg-card, #181b25);
+  border: 1px solid var(--eu-border, #232838);
+  color: var(--eu-fg-primary, #e2e4ea);
+}
+
+.btn-link.ol-cm-command-tooltip-link {
+  color: var(--eu-fg-link, var(--eu-accent, #528bff));
+}
+
+.btn-link.ol-cm-command-tooltip-link:hover {
+  background: var(--eu-bg-hover, rgba(255, 255, 255, 0.08));
+}
+
+/* ---------------------------------------------------------- indent guides
+ *
+ * One thin line per indentation level, drawn by `indentGuides.ts` as a 1px
+ * background at the left edge of each leading indentation unit, so the guides
+ * cost nothing in layout. The colours are Monaco's
+ * `editorIndentGuide.background` / `.activeBackground`, which Eukolia's theme
+ * table already carries.
+ */
+.eukolia-visual-editor .cm-indent-guide {
+  background-image: linear-gradient(
+    to right,
+    var(--eu-editor-indent-guide) 0,
+    var(--eu-editor-indent-guide) 1px,
+    transparent 1px
+  );
+  background-repeat: no-repeat;
+  background-position: left top;
+  background-size: 1px 100%;
+}
+
+/* The guides of the caret's own line, in Monaco's brighter active colour. */
+.eukolia-visual-editor .cm-indent-guide-active {
+  background-image: linear-gradient(
+    to right,
+    var(--eu-editor-active-indent-guide) 0,
+    var(--eu-editor-active-indent-guide) 1px,
+    transparent 1px
+  );
+}
+
+/* ------------------------------------------------- raw-LaTeX islands (§24/§25) */
+
+/* A construct the editor cannot interpret stays visible source; the tint marks
+   it as source rather than as rendered content. */
+.eukolia-visual-editor .ol-cm-command-unknown {
+  background: rgba(127, 127, 127, 0.12);
+  border-radius: 3px;
+}
+
+/* ------------------------------------------------------- mathematical source
+ *
+ * What the caret is editing when it is inside a mathematical region. The ported
+ * `atomic-decorations.ts` renders mathematics as a widget only while the
+ * selection is *outside* it, so entering a region replaces the rendered
+ * mathematics with its LaTeX source — and that source is code. `mathContext.ts`
+ * marks it `eu-cm-math-source`.
+ *
+ * Without these rules the source inherits `.cm-content`, i.e. the visual
+ * surface's prose face: a serif at `calc(var(--font-size) * 1.15)` with the
+ * prose line height. The same characters were therefore set two different ways
+ * depending on which context they appeared in. This rule sets them once — the
+ * editor's own source face (`--source-font-family`, published by the ported
+ * theme from `editor.fontFamily`) at `--font-size`, the size `editor.fontSize`
+ * gives Code Mode — so code reads identically wherever the editor shows it, and
+ * the caret drawn against it has the height the surrounding source has.
+ *
+ * Colours are deliberately *not* set here: they come from the one syntax palette
+ * (`--eu-syntax-*`, see `syntaxHighlighting.ts`), which is already identical in
+ * both surfaces. Only the tint that marks a region as being edited is added, and
+ * only on the visual surface — Code Mode is source everywhere and has no
+ * regions to pick out.
+ */
+.eukolia-visual-editor .eu-cm-math-source {
+  font-family: var(--source-font-family);
+  font-size: var(--font-size);
+  font-weight: normal;
+  font-style: normal;
+  font-variant: normal;
+  /* The document's own line height, not the `1` the ported theme gives a code
+     span: the caret is measured from the line, so this is what makes it the same
+     height here as in Code Mode and as on every other line. Which one the ported
+     theme sets is not a matter of taste — measured on the classes it styles —
+     so the declaration stays explicit rather than relying on inheritance. */
+  line-height: var(--line-height);
+}
+
+.eukolia-visual-editor
+  .cm-editor[data-mode='visual']
+  .eu-cm-math-source {
+  background: var(--eu-visual-math-source-bg);
+  border-radius: 3px;
+}
+
+/* ------------------------------------------------------- un-renderable maths
+ *
+ * A `tikzcd` diagram: mathematics to the author, graphics to every renderer that
+ * would have to draw it. MathJax cannot render it at all, so the source stays —
+ * visibly, in the source face, with a label that says what it is. That is §24's
+ * rule ("render what Eukolia understands; preserve visibly what it does not")
+ * applied to a construct the reader would otherwise meet as an error box.
+ *
+ * The palette is the one the app already uses for LaTeX it cannot interpret:
+ * `visualRawLatex*` — the amber tint that marks source as source.
+ */
+.eukolia-visual-editor .ol-cm-unrenderable-math {
+  margin: 0.75rem 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--eu-visual-raw-latex-border);
+  border-left-width: 3px;
+  border-radius: 4px;
+  background: var(--eu-visual-raw-latex-bg);
+}
+
+.eukolia-visual-editor .ol-cm-unrenderable-math-label {
+  font-family: var(--eu-ui-font);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--eu-visual-raw-latex-fg);
+  opacity: 0.9;
+  margin-bottom: 0.35rem;
+}
+
+.eukolia-visual-editor .ol-cm-unrenderable-math-source {
+  margin: 0;
+  font-family: var(--source-font-family);
+  font-size: var(--font-size);
+  line-height: var(--line-height);
+  color: var(--eu-fg-primary);
+  /*
+   * Wrapped, not scrollable, and the first version of this had it backwards.
+   *
+   * The reasoning was that source keeps its own line structure — which is true of
+   * a listing and false of this: the construct here is a diagram whose lines are
+   * written to be *drawn*, not read, and TikZ puts a whole edge on one line. On a
+   * real paper the widest line is 120 characters against a column of about 60, so
+   * `white-space: pre` with `overflow-x: auto` hid half of every diagram behind a
+   * horizontal scrollbar that a reader had to drag to see the rest of a line they
+   * were not editing.
+   *
+   * `pre-wrap` keeps the author's line breaks — each edge still starts where they
+   * put it — and lets a long one continue on the next visual line. Continuation
+   * lines are indented so a wrapped edge is not mistaken for a second one.
+   */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------- the QED mark
+ *
+ * `\qedhere` is replaced by this span rather than typeset. It draws the same
+ * AMS end-of-proof square MathJax draws for `\blacksquare`, as text: no
+ * typesetting, no promise, no frame of delay — and, unlike a definition handed
+ * to MathJax, it works at all, because the command sits outside the mathematics.
+ *
+ * Sized in `em` so it follows the text it ends, and nudged onto the baseline of
+ * the sentence rather than the maths axis.
+ */
+.eukolia-visual-editor .ol-cm-qed {
+  display: inline;
+  margin-left: 0.28em;
+  font-size: 0.86em;
+  line-height: 1;
+  vertical-align: 0.02em;
+  color: inherit;
+}
+
+/* ------------------------------------------------------ code, at one size
+ *
+ * Visual Mode's body text is *prose*, and the ported theme sets it at
+ * `calc(var(--font-size) * 1.15)` — a fifth larger than the source, which is the
+ * right relationship between a document and the code quoted in it. The ported
+ * theme then swaps the *face* for code and leaves the size alone, so every piece
+ * of code the visual editor shows — a verbatim block, `\verb`, a URL, an
+ * uninterpretable command — came out at the prose size too: the same LaTeX that
+ * Code Mode sets at `editor.fontSize`, a fifth larger, and larger than the
+ * mathematics the caret has just entered.
+ *
+ * These are the elements the ported theme renders in `--source-font-family`; the
+ * declarations mirror its own, so nothing here competes with it. What they add is
+ * the size, and that is the point: code is set at `--font-size` wherever the
+ * editor shows it, so the text does not change size when the caret crosses into
+ * a mathematical region, and Code Mode and Visual Mode agree on it exactly.
+ *
+ * **Line height is the other half, and it is the half the caret shows.** The
+ * ported theme also sets `line-height: 1` on these classes, which is right for a
+ * code span quoted inside a paragraph and wrong for a line of source: it makes a
+ * source line's box shorter than the prose line's, and CodeMirror measures
+ * `textHeight` — the height it draws the caret at — from the lines whose text has
+ * no non-ASCII characters. Stating `--line-height`, the same variable Code Mode's
+ * content inherits, is therefore what makes the caret the same height in both
+ * modes. "The caret is a different size in Visual Mode" and "code is set
+ * differently in Visual Mode" are one bug seen from two directions.
+ *
+ * `\texttt{}` is deliberately **not** here. It is not a code island but a font
+ * choice inside prose — `--source-font-family` is the ported theme's stand-in for
+ * a typewriter face there — and setting a word of a sentence at two thirds of the
+ * sentence's height would be a typographic error rather than a consistency fix.
+ */
+.eukolia-visual-editor .ol-cm-monospace,
+.eukolia-visual-editor .ol-cm-punctuation,
+.eukolia-visual-editor .ol-cm-command-url,
+.eukolia-visual-editor .ol-cm-environment-verbatim,
+.eukolia-visual-editor .ol-cm-environment-lstlisting,
+.eukolia-visual-editor .ol-cm-begin,
+.eukolia-visual-editor .ol-cm-end,
+.eukolia-visual-editor .eu-cm-math-source {
+  font-size: var(--font-size);
+  line-height: var(--line-height);
+}
+
+/* `--font-size` and `--line-height` are the ported theme's own variables,
+   published on the editor element from `editor.fontSize` and
+   `editor.lineHeight` — the same two values Code Mode sets its content with, and
+   the same ones this stylesheet has read for the mathematics source since it was
+   written. Nothing here redefines them: the declarations above are Code Mode's
+   typography, which is the whole claim. */
+
+/* --------------------------------------- code and prose are different faces
+ *
+ * `\verb` and `\texttt` are typewriter text inside a sentence: the ported theme
+ * expresses that as the source stack, which is right, and this keeps them at the
+ * surrounding size so a word in a sentence does not change scale.
+ *
+ * `\textsf{}` is deliberately not here: it asks for a sans face, and the source
+ * stack is only the port's stand-in for one.
+ *
+ * An unrecognised command is *not* here either. The previous revision forced
+ * those back to the prose face, on the reasoning that an unknown command's
+ * argument is prose — and for a preamble that is exactly backwards: the preamble
+ * is code, and `\geometry{margin=1in}` should read as code throughout. The
+ * preamble rule below sets the whole region to the code face in one place, which
+ * is both the correct answer and the smaller one.
+ */
+.eukolia-visual-editor .ol-cm-command-verb .ol-cm-monospace,
+.eukolia-visual-editor .ol-cm-command-texttt {
+  font-family: var(--source-font-family);
+  font-size: 1em;
+  line-height: inherit;
+}
+
+/* ------------------------------------------------------------ preamble toggle
+ *
+ * The row above the preamble: a chevron, a label, and — while the preamble is
+ * open — a link that explains what it is. The ported theme gives the row
+ * `justify-content: space-between` and the arrow a fixed 32 px box, which with
+ * any real label puts the arrow off the right edge; and it rotates the arrow,
+ * which says nothing about which way the control will move.
+ *
+ * Eukolia's arrangement is the ordinary one for a disclosure control: the
+ * chevron leads the label so the two read as one target, the state is carried by
+ * the glyph (`expand_more` / `expand_less`, chosen by the widget) rather than by
+ * a rotation, and the help link sits at the far end so that clicking the label
+ * toggles and clicking "Learn more" does not.
+ */
+.eukolia-visual-editor .ol-cm-preamble-widget {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  width: 100%;
+  /* A `<button>`, so the browser's own chrome has to go: this is a row in the
+     document, not a control with a border, and it must not change the metrics of
+     the text it sits among. */
+  appearance: none;
+  border: none;
+  background: none;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+
+.eukolia-visual-editor .ol-cm-preamble-leading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  min-width: 0;
+}
+
+.eukolia-visual-editor .ol-cm-preamble-text {
+  /* The label is the row's flexible part — it is what may be long, and it is what
+     must not push the rest of the row out of the box. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eukolia-visual-editor .ol-cm-preamble-expand-icon {
+  width: 1em;
+  line-height: 1;
+  /* The glyph says which way the control moves; a rotation would contradict it. */
+  transform: none;
+  opacity: 0.7;
+  font-size: 18px;
+}
+
+.eukolia-visual-editor .ol-cm-preamble-widget:hover .ol-cm-preamble-expand-icon {
+  opacity: 1;
+}
+
+.eukolia-visual-editor .ol-cm-preamble-widget:focus-visible {
+  outline: 2px solid var(--eu-border-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ------------------------------------------------- the preamble is all code
+ *
+ * A preamble is LaTeX — declarations, package options, macro definitions — and it
+ * should read as code from end to end. What it did instead was mix faces and
+ * sizes within single lines, and the mix came from the syntax highlighter rather
+ * than from any decision:
+ *
+ *   | text | class the highlighter gives it | what it rendered as |
+ *   | --- | --- | --- |
+ *   | `\geometry` | `.ol-cm-monospace` | source face, 14 px |
+ *   | `{` `}` `[` `]` | `.ol-cm-punctuation` | source face, 14 px |
+ *   | `margin=1in` | none (`UnknownCommand` argument) | **prose face, 16.1 px** |
+ *   | `utf8` | `tags.string` → `ͼ4` | **prose face, 16.1 px** |
+ *   | `vietnam` | none | source face, **16.1 px** |
+ *   | `Tôpô compact-mở` | none | **prose face, 16.1 px** |
+ *
+ * Every one of those is reached by the class the ported decorations already put
+ * on the region: `atomic-decorations.ts` marks **every line of the preamble**
+ * with `.ol-cm-preamble-line`, so the region is addressable as a set of lines and
+ * does not have to be reconstructed command by command.
+ *
+ * The child selector is doubled — `[class] [class]` — so it outranks the
+ * single-class colour rules (`ͼ4`, `ͼb`, `tok-*`) that carry `font-size`
+ * declarations of their own. Both family and size are stated for the same reason:
+ * leaving the size to inheritance would let any one of those rules reintroduce the
+ * mix, which is exactly how the mix arose.
+ *
+ * The tint and the spell-check squiggle of a source island are deliberately not
+ * applied: a preamble is not a quotation from the document, it is the document's
+ * own header, and painting it as an island would say otherwise.
+ */
+.eukolia-visual-editor .cm-line.ol-cm-preamble-line,
+.eukolia-visual-editor .cm-line.ol-cm-preamble-line [class] [class] {
+  font-family: var(--source-font-family);
+  font-size: var(--font-size);
+  line-height: var(--line-height);
+  font-weight: normal;
+  font-style: normal;
+  font-variant: normal;
+  font-variant-numeric: normal;
+}
+
+/* The sub- and superscript commands shrink their own text on purpose, so the
+   blanket rule above must not flatten them. */
+.eukolia-visual-editor .cm-line.ol-cm-preamble-line .ol-cm-command-textsuperscript,
+.eukolia-visual-editor .cm-line.ol-cm-preamble-line .ol-cm-command-textsubscript,
+.eukolia-visual-editor .cm-line.ol-cm-preamble-line sup,
+.eukolia-visual-editor .cm-line.ol-cm-preamble-line sub {
+  font-size: smaller;
+}
+
+/* Comments stay distinguishable, which is what the italic in the palette is for —
+   restated here because the rule above sets `font-style: normal`. */
+.eukolia-visual-editor .cm-line.ol-cm-preamble-line .ͼy,
+.eukolia-visual-editor .cm-line.ol-cm-preamble-line .tok-comment {
+  font-style: italic;
+}
+
+/* And the toggle itself is chrome, not code: it keeps the UI face. */
+.eukolia-visual-editor .ol-cm-preamble-widget,
+.eukolia-visual-editor .ol-cm-preamble-widget .ol-cm-preamble-text {
+  font-family: var(--eu-ui-font);
+  font-size: 12px;
+}
+
+/* ----------------------------------------------------- cursor and selection */
+
+/* Cursor colour follows the editing context: `editor/mathContext.ts` marks the
+   editor element `data-caret-math="on"` while the caret is inside a mathematical
+   region, and the caret then takes the theme's mathematics colour. One
+   declaration point rather than two competing rules, and a variable, so anything
+   else that draws a caret can agree by reading the same name. */
+.eukolia-visual-editor .cm-editor {
+  --eu-caret-color: var(--eu-editor-cursor);
+}
+
+.eukolia-visual-editor .cm-editor[data-caret-math='on'] {
+  --eu-caret-color: var(--eu-editor-cursor-math);
+}
+
+.eukolia-visual-editor .cm-cursor,
+.eukolia-visual-editor .cm-dropCursor {
+  border-left-color: var(--eu-caret-color);
+}
+
+.cm-cursor,
+.cm-dropCursor {
+  border-left-color: var(--eu-caret-color, var(--eu-editor-cursor));
+}
+
+.cm-cursorLayer {
+  color: var(--eu-caret-color, var(--eu-editor-cursor));
+}
+
+.eukolia-visual-editor .cm-selectionBackground,
+.eukolia-visual-editor .cm-content ::selection {
+  background: color-mix(in srgb, var(--eu-accent) 28%, transparent);
+}
+
+.eukolia-visual-editor .cm-editor.cm-focused .cm-selectionBackground {
+  background: color-mix(in srgb, var(--eu-accent) 38%, transparent);
+}
+
+/* ------------------------------------------------------------ caret motion
+ *
+ * Code Mode's caret is configured by Monaco's `editor.cursorBlinking` and
+ * `editor.smoothCaret`; these rules give Visual Mode the same five behaviours
+ * and the same smooth-motion option. `caretAppearance.ts` puts the matching
+ * `data-caret-*` attributes on the editor element and starts the cursor layer
+ * off with an `animationName`; the ported `draw-selection.ts` toggles that name
+ * between `cm-blink` and `cm-blink2` on every selection change purely to
+ * restart the animation, so each mode declares its keyframes under *both*
+ * names.
+ *
+ * These live here rather than in a CodeMirror theme because CodeMirror mounts
+ * its generated stylesheet as the first child of `<head>` (see the note at the
+ * top of this file), so a theme would compete with the ported Overleaf theme at
+ * equal specificity. The selectors below match the specificity the app already
+ * relies on and win by document order.
+ *
+ * `cm-blink` / `cm-blink2` are the names CodeMirror's own base theme uses, and
+ * they are restated here so `blink` means the same thing as in a plain
+ * CodeMirror editor regardless of what the base theme does with them.
+ */
+@keyframes cm-blink {
+  0% { opacity: 1; }
+  50% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes cm-blink2 {
+  0% { opacity: 1; }
+  50% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes cm-caret-fade {
+  0% { opacity: 1; }
+  50% { opacity: 0.15; }
+  100% { opacity: 1; }
+}
+
+@keyframes cm-caret-fade2 {
+  0% { opacity: 1; }
+  50% { opacity: 0.15; }
+  100% { opacity: 1; }
+}
+
+@keyframes cm-caret-expand {
+  0% { opacity: 1; transform: scaleY(1); }
+  50% { opacity: 1; transform: scaleY(0.35); }
+  100% { opacity: 1; transform: scaleY(1); }
+}
+
+@keyframes cm-caret-expand2 {
+  0% { opacity: 1; transform: scaleY(1); }
+  50% { opacity: 1; transform: scaleY(0.35); }
+  100% { opacity: 1; transform: scaleY(1); }
+}
+
+/* `solid`: no animation, before or after the restart toggle. The layer carries
+   the name as an inline style, so this needs `!important` — the same mechanism
+   the ported `non-blinking-cursor` extension uses. */
+.eukolia-visual-editor .cm-editor[data-caret-blinking='solid'] .cm-cursorLayer {
+  animation-name: none !important;
+}
+
+.eukolia-visual-editor
+  .cm-editor[data-caret-blinking='blink']
+  .cm-cursorLayer {
+  animation: 1.2s steps(1, end) cm-blink infinite;
+}
+
+.eukolia-visual-editor
+  .cm-editor[data-caret-blinking='blink']
+  .cm-cursorLayer[style*='cm-blink2'] {
+  animation: 1.2s steps(1, end) cm-blink2 infinite;
+}
+
+.eukolia-visual-editor
+  .cm-editor[data-caret-blinking='smooth']
+  .cm-cursorLayer {
+  animation: 1.2s ease-in-out cm-caret-fade infinite;
+}
+
+.eukolia-visual-editor
+  .cm-editor[data-caret-blinking='smooth']
+  .cm-cursorLayer[style*='cm-blink2'] {
+  animation: 1.2s ease-in-out cm-caret-fade2 infinite;
+}
+
+/* `phase`: the same fade, offset by half a cycle, so a resting caret is at its
+   faintest. */
+.eukolia-visual-editor
+  .cm-editor[data-caret-blinking='phase']
+  .cm-cursorLayer {
+  animation: 1.2s ease-in-out -0.6s cm-caret-fade infinite;
+}
+
+.eukolia-visual-editor
+  .cm-editor[data-caret-blinking='phase']
+  .cm-cursorLayer[style*='cm-blink2'] {
+  animation: 1.2s ease-in-out -0.6s cm-caret-fade2 infinite;
+}
+
+.eukolia-visual-editor
+  .cm-editor[data-caret-blinking='expand']
+  .cm-cursorLayer {
+  animation: 1.2s ease-in-out cm-caret-expand infinite;
+}
+
+.eukolia-visual-editor
+  .cm-editor[data-caret-blinking='expand']
+  .cm-cursorLayer[style*='cm-blink2'] {
+  animation: 1.2s ease-in-out cm-caret-expand2 infinite;
+}
+
+/* `editor.smoothCaret`: transform-only, so it cannot fight the blink animation
+   running on the layer above. */
+.eukolia-visual-editor
+  .cm-editor[data-caret-smooth='on']
+  .cm-cursor,
+.eukolia-visual-editor
+  .cm-editor[data-caret-smooth='on']
+  .cm-dropCursor {
+  transition-property: transform;
+  transition-duration: 80ms;
+  transition-timing-function: ease-out;
+}
+
+/* ------------------------------------------------------------- figure dialog */
+
+.eukolia-figure-dialog .figure-dialog-path {
+  margin: 0 0 0.75rem;
+  font-family: var(--eu-mono-font);
+  font-size: 0.85em;
+  opacity: 0.75;
+  word-break: break-all;
+}
+
+.eukolia-figure-dialog .figure-dialog-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.85em;
+  opacity: 0.7;
+}
+
+.eukolia-figure-dialog .btn-group {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+/* ------------------------------------------------- rendering containment
+ *
+ * Eukolia: measured, and **not** applied. `contain: content` on the widgets that
+ * hold a picture — a rendered equation, an included graphic, the source island a
+ * diagram is shown as — is semantically right: nothing inside one can affect
+ * anything outside it. It was added on a reading that looked decisive, and the
+ * reading was wrong.
+ *
+ * The first comparison measured one gesture per configuration and reported 31 ms
+ * per wheel step without containment against 7 ms with it. What it actually
+ * measured was *where the scroll was*: the first gesture walked through territory
+ * the document had never shown, so it paid to mount every widget it met, while the
+ * later ones met widgets that were already built. Alternating six warm cycles from
+ * the same starting point reverses the answer:
+ *
+ *   | | per wheel step | DOM nodes during the gesture |
+ *   |---|---|---|
+ *   | contained | **29.8 ms** | 1 263 → 1 785 |
+ *   | uncontained | **12.3 ms** | flat |
+ *
+ * The contained passes grow the DOM while the uncontained ones do not, and that is
+ * the tell: containment changes what the editor measures, something downstream
+ * rebuilds the widgets in response, and the gesture pays for that instead. A
+ * property that makes the editor do more work is not a performance fix, whatever
+ * the first reading said.
+ *
+ * The block is kept as a comment rather than deleted silently, because "containment
+ * was tried and measured worse" is the useful half of the result.
+ */
+
+/* ------------------------------------------------- theorems, environments, and brackets
+ *
+ * Theorems, propositions, and definitions are rendered into boxed SVG headers
+ * (MathJax typeset or LaTeX typography), with no horizontal divider lines.
+ * Ends of environments are rendered as boxed `end` markers or filled QED tombstones.
+ * The closest environment containing the caret has a left square bracket connecting
+ * its \begin and \end.
+ * Sections are numbered with data-section-number matching real LaTeX PDFs.
+ * Labels are rendered as an SVG tag icon oriented top-left to bottom-right.
+ */
+
+/* Hide the horizontal line padding for theorem headers and end lines */
+.eukolia-visual-editor .ol-cm-begin-theorem .ol-cm-environment-padding {
+  display: none !important;
+  background: none !important;
+}
+
+.eukolia-visual-editor .ol-cm-begin-theorem {
+  display: inline-flex !important;
+  align-items: center !important;
+  vertical-align: middle !important;
+  position: relative !important;
+  top: -2px !important;
+  margin: 0 4px 0 0 !important;
+  padding: 0 !important;
+  height: 20px !important;
+  line-height: 1 !important;
+  box-sizing: border-box !important;
+}
+
+.eukolia-visual-editor .ol-cm-end {
+  background: none !important;
+  display: inline-flex !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  vertical-align: middle !important;
+  padding: 0 !important;
+  margin: 0 4px 0 0 !important;
+  min-height: auto !important;
+  height: 20px !important;
+  line-height: 1 !important;
+  text-align: left !important;
+  box-sizing: border-box !important;
+}
+
+/* Boxed theorem header */
+.eukolia-visual-editor .eu-theorem-header-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--eu-border-strong, var(--eu-border, #333a4e));
+  background: var(--eu-editor-bg, transparent);
+  color: var(--eu-editor-fg, currentColor);
+  margin: 0;
+  cursor: pointer;
+  user-select: none;
+  font-family: var(--eu-serif-font, 'Latin Modern Roman', serif);
+  font-size: 1.05em;
+  font-weight: 600;
+  box-sizing: border-box;
+  line-height: 1;
+  height: 20px;
+}
+
+.eukolia-visual-editor .eu-theorem-header-svg {
+  display: inline-block;
+  vertical-align: middle;
+  margin: 0;
+  padding: 0;
+  max-height: 16px;
+  width: auto;
+}
+
+/* End markers: boxed `end` and QED tombstone */
+.eukolia-visual-editor .eu-cm-end-box,
+.eukolia-visual-editor .eu-cm-qed-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 3px;
+  background: var(--eu-editor-bg, transparent);
+  color: var(--eu-editor-fg, currentColor);
+  vertical-align: middle !important;
+  padding: 0;
+  height: 20px;
+  box-sizing: border-box;
+}
+
+.eukolia-visual-editor .eu-cm-end-box-svg rect {
+  fill: var(--eu-editor-bg, transparent) !important;
+  stroke: var(--eu-border-strong, var(--eu-border, #333a4e)) !important;
+  stroke-width: 1px !important;
+}
+
+.eukolia-visual-editor .eu-cm-end-box-svg text {
+  fill: var(--eu-editor-fg, currentColor) !important;
+}
+
+.eukolia-visual-editor .eu-cm-qed-box {
+  vertical-align: middle !important;
+}
+
+/* Section number prefix matching LaTeX PDF output */
+.eukolia-visual-editor .ol-cm-heading[data-section-number]::before {
+  content: attr(data-section-number) " ";
+  font-weight: inherit;
+  opacity: 0.9;
+  margin-right: 0.15em;
+}
+
+/* Label tag icon (top-left to bottom-right) */
+.eukolia-visual-editor .eu-cm-label-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  margin-right: 4px;
+  cursor: pointer;
+  user-select: none;
+  vertical-align: middle;
+}
+
+.eukolia-visual-editor .eu-cm-label-icon {
+  color: var(--eu-fg-muted, #57606a);
+  transition: color 0.15s ease;
+}
+
+.eukolia-visual-editor .eu-cm-label-icon-wrap:hover .eu-cm-label-icon {
+  color: var(--eu-accent, #0969da);
+}
+
+/* Left bracket sticking out into the left margin connecting \begin and \end of closest environment */
+.eukolia-visual-editor .eu-cm-env-bracket-svg {
+  position: absolute;
+  pointer-events: none;
+  z-index: 4;
+  overflow: visible;
+  color: var(--eu-editor-fg, currentColor);
+}
+
+.eukolia-visual-editor .cm-line.eu-cm-env-bracket-start,
+.eukolia-visual-editor .cm-line.eu-cm-env-bracket-mid,
+.eukolia-visual-editor .cm-line.eu-cm-env-bracket-cusp,
+.eukolia-visual-editor .cm-line.eu-cm-env-bracket-end,
+.eukolia-visual-editor .cm-line.eu-cm-env-bracket-single {
+  /* Line decoration classes preserved for selection/environment query */
+  position: relative;
+}
+
+

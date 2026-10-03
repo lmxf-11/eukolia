@@ -1,0 +1,33 @@
+# Eukolia — build and run artifacts
+
+node_modules/
+dist/
+dist-electron/
+release/
+
+# Native build intermediates.
+# The vendored runtime next to them (resources/native/*.dll, *.exe) is NOT
+# ignored: Instructions.md §8 requires Eukolia to build and run without the
+# References directory, so those binaries are part of the tree.
+src/native/pdf/.build/
+
+# Local scratch and generated reports
+.scratch/
+smoke-report.json
+startup-report.json
+
+# Logs written by the app while running, but not the compiler-log fixtures the
+# tests assert against (tests/**/fixtures/*.log).
+*.log
+!tests/**/fixtures/*.log
+
+# Smoke-test build output: the fixture is copied to a scratch directory per run,
+# but a stray build in place must not be committed.
+tests/smoke/fixture/*.aux
+tests/smoke/fixture/*.pdf
+tests/smoke/fixture/*.log
+tests/smoke/fixture/*.fls
+tests/smoke/fixture/*.fdb_latexmk
+tests/smoke/fixture/*.synctex.gz
+tests/smoke/fixture/*.toc
+tests/smoke/fixture/*.out

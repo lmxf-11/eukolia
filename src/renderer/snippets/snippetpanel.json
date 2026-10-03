@@ -1,0 +1,2847 @@
+{
+  "$comment": "The math symbols offered in Eukolia's snippet view, in the order it lists them. Kept as data: Eukolia renders its own previews, so the source SVGs are dropped and the LaTeX each symbol inserts is what is carried across.",
+  "categories": [
+    {
+      "name": "Greek/Hebrew Letters",
+      "filtered": true,
+      "symbols": [
+        {
+          "name": "alpha",
+          "latex": "\\alpha",
+          "keywords": "greek"
+        },
+        {
+          "name": "beta",
+          "latex": "\\beta",
+          "keywords": "greek"
+        },
+        {
+          "name": "gamma",
+          "latex": "\\gamma",
+          "keywords": "greek"
+        },
+        {
+          "name": "delta",
+          "latex": "\\delta",
+          "keywords": "greek kronecker"
+        },
+        {
+          "name": "epsilon",
+          "latex": "\\epsilon",
+          "keywords": "greek"
+        },
+        {
+          "name": "varepsilon",
+          "latex": "\\varepsilon",
+          "keywords": "greek"
+        },
+        {
+          "name": "zeta",
+          "latex": "\\zeta",
+          "keywords": "greek"
+        },
+        {
+          "name": "eta",
+          "latex": "\\eta",
+          "keywords": "greek"
+        },
+        {
+          "name": "theta",
+          "latex": "\\theta",
+          "keywords": "greek"
+        },
+        {
+          "name": "vartheta",
+          "latex": "\\vartheta",
+          "keywords": "greek"
+        },
+        {
+          "name": "iota",
+          "latex": "\\iota",
+          "keywords": "greek"
+        },
+        {
+          "name": "kappa",
+          "latex": "\\kappa",
+          "keywords": "greek"
+        },
+        {
+          "name": "lambda",
+          "latex": "\\lambda",
+          "keywords": "greek"
+        },
+        {
+          "name": "mu",
+          "latex": "\\mu",
+          "keywords": "greek"
+        },
+        {
+          "name": "nu",
+          "latex": "\\nu",
+          "keywords": "greek"
+        },
+        {
+          "name": "xi",
+          "latex": "\\xi",
+          "keywords": "greek"
+        },
+        {
+          "name": "o",
+          "latex": "o",
+          "keywords": "greek"
+        },
+        {
+          "name": "pi",
+          "latex": "\\pi",
+          "keywords": "greek Archimedes' constant"
+        },
+        {
+          "name": "varpi",
+          "latex": "\\varpi",
+          "keywords": "greek"
+        },
+        {
+          "name": "rho",
+          "latex": "\\rho",
+          "keywords": "greek probability cordd"
+        },
+        {
+          "name": "varrho",
+          "latex": "\\varrho",
+          "keywords": "greek"
+        },
+        {
+          "name": "sigma",
+          "latex": "\\sigma",
+          "keywords": "greek standard deviation covarience"
+        },
+        {
+          "name": "varsigma",
+          "latex": "\\varsigma",
+          "keywords": "greek"
+        },
+        {
+          "name": "tau",
+          "latex": "\\tau",
+          "keywords": "greek"
+        },
+        {
+          "name": "upsilon",
+          "latex": "\\upsilon",
+          "keywords": "greek"
+        },
+        {
+          "name": "phi",
+          "latex": "\\phi",
+          "keywords": "greek"
+        },
+        {
+          "name": "varphi",
+          "latex": "\\varphi",
+          "keywords": "greek golden ratio"
+        },
+        {
+          "name": "chi",
+          "latex": "\\chi",
+          "keywords": "greek"
+        },
+        {
+          "name": "psi",
+          "latex": "\\psi",
+          "keywords": "greek"
+        },
+        {
+          "name": "omega",
+          "latex": "\\omega",
+          "keywords": "greek asymptotic big o dominates"
+        },
+        {
+          "name": "Alpha",
+          "latex": "A",
+          "keywords": "greek"
+        },
+        {
+          "name": "Beta",
+          "latex": "B",
+          "keywords": "greek"
+        },
+        {
+          "name": "Gamma",
+          "latex": "\\Gamma",
+          "keywords": "greek"
+        },
+        {
+          "name": "varGamma",
+          "latex": "\\varGamma",
+          "keywords": "greek"
+        },
+        {
+          "name": "Delta",
+          "latex": "\\Delta",
+          "keywords": "greek laplace operator"
+        },
+        {
+          "name": "varDelta",
+          "latex": "\\varDelta",
+          "keywords": "greek"
+        },
+        {
+          "name": "Epsilon",
+          "latex": "E",
+          "keywords": "greek"
+        },
+        {
+          "name": "Zeta",
+          "latex": "Z",
+          "keywords": "greek"
+        },
+        {
+          "name": "Eta",
+          "latex": "H",
+          "keywords": "greek"
+        },
+        {
+          "name": "Theta",
+          "latex": "\\Theta",
+          "keywords": "greek asymptotic big o bounded above and below"
+        },
+        {
+          "name": "varTheta",
+          "latex": "\\varTheta",
+          "keywords": "greek"
+        },
+        {
+          "name": "Iota",
+          "latex": "I",
+          "keywords": "greek"
+        },
+        {
+          "name": "Kappa",
+          "latex": "K",
+          "keywords": "greek"
+        },
+        {
+          "name": "Lambda",
+          "latex": "\\Lambda",
+          "keywords": "greek"
+        },
+        {
+          "name": "Lambda",
+          "latex": "\\varLambda",
+          "keywords": "greek"
+        },
+        {
+          "name": "Mu",
+          "latex": "M",
+          "keywords": "greek"
+        },
+        {
+          "name": "Nu",
+          "latex": "N",
+          "keywords": "greek"
+        },
+        {
+          "name": "Xi",
+          "latex": "\\Xi",
+          "keywords": "greek"
+        },
+        {
+          "name": "Xi",
+          "latex": "\\varXi",
+          "keywords": "greek"
+        },
+        {
+          "name": "O",
+          "latex": "O",
+          "keywords": "greek"
+        },
+        {
+          "name": "Pi",
+          "latex": "\\Pi",
+          "keywords": "greek"
+        },
+        {
+          "name": "varPi",
+          "latex": "\\varPi",
+          "keywords": "greek"
+        },
+        {
+          "name": "Rho",
+          "latex": "P",
+          "keywords": "greek"
+        },
+        {
+          "name": "Sigma",
+          "latex": "\\Sigma",
+          "keywords": "greek"
+        },
+        {
+          "name": "varSigma",
+          "latex": "\\varSigma",
+          "keywords": "greek"
+        },
+        {
+          "name": "Tau",
+          "latex": "T",
+          "keywords": "greek"
+        },
+        {
+          "name": "Upsilon",
+          "latex": "\\Upsilon",
+          "keywords": "greek"
+        },
+        {
+          "name": "varUpsilon",
+          "latex": "\\varUpsilon",
+          "keywords": "greek"
+        },
+        {
+          "name": "Phi",
+          "latex": "\\Phi",
+          "keywords": "greek"
+        },
+        {
+          "name": "varPhi",
+          "latex": "\\varPhi",
+          "keywords": "greek"
+        },
+        {
+          "name": "Chi",
+          "latex": "X",
+          "keywords": "greek"
+        },
+        {
+          "name": "Psi",
+          "latex": "\\Psi",
+          "keywords": "greek"
+        },
+        {
+          "name": "varPsi",
+          "latex": "\\varPsi",
+          "keywords": "greek"
+        },
+        {
+          "name": "Omega",
+          "latex": "\\Omega",
+          "keywords": "greek asymptotic big o bounded below"
+        },
+        {
+          "name": "varOmega",
+          "latex": "\\varOmega",
+          "keywords": "greek"
+        },
+        {
+          "name": "aleph",
+          "latex": "\\aleph",
+          "keywords": "hebrew infinite cardinality"
+        },
+        {
+          "name": "beth",
+          "latex": "\\beth",
+          "keywords": "hebrew"
+        },
+        {
+          "name": "daleth",
+          "latex": "\\daleth",
+          "keywords": "hebrew"
+        },
+        {
+          "name": "gimel",
+          "latex": "\\gimel",
+          "keywords": "hebrew"
+        }
+      ]
+    },
+    {
+      "name": "Delimiters",
+      "filtered": false,
+      "symbols": [
+        {
+          "name": "vertical bar",
+          "latex": "|"
+        },
+        {
+          "name": "vertical bar",
+          "latex": "\\vert",
+          "keywords": "cardinality restriction"
+        },
+        {
+          "name": "double vertical bar",
+          "latex": "\\|"
+        },
+        {
+          "name": "double vertical bar",
+          "latex": "\\Vert"
+        },
+        {
+          "name": "left parenthesis",
+          "latex": "(",
+          "keywords": "interval"
+        },
+        {
+          "name": "right parenthesis",
+          "latex": ")",
+          "keywords": "interval"
+        },
+        {
+          "name": "left bracket",
+          "latex": "[",
+          "keywords": "interval"
+        },
+        {
+          "name": "right bracket",
+          "latex": "]",
+          "keywords": "interval"
+        },
+        {
+          "name": "left curly bracket",
+          "latex": "\\{"
+        },
+        {
+          "name": "right curly bracket",
+          "latex": "\\\\}"
+        },
+        {
+          "name": "left angle bracket",
+          "latex": "\\langle"
+        },
+        {
+          "name": "right angle bracket",
+          "latex": "\\rangle"
+        },
+        {
+          "name": "left floor",
+          "latex": "\\lfloor"
+        },
+        {
+          "name": "right floor",
+          "latex": "\\rfloor"
+        },
+        {
+          "name": "left ceil",
+          "latex": "\\lceil"
+        },
+        {
+          "name": "right ceil",
+          "latex": "\\rceil"
+        },
+        {
+          "name": "forwards slash",
+          "latex": "/"
+        },
+        {
+          "name": "backslash",
+          "latex": "\\backslash"
+        },
+        {
+          "name": "Uparrow",
+          "latex": "\\Uparrow"
+        },
+        {
+          "name": "uparrow",
+          "latex": "\\uparrow",
+          "keywords": "function tends to limit approach from below"
+        },
+        {
+          "name": "Downarrow",
+          "latex": "\\Downarrow"
+        },
+        {
+          "name": "downarrow",
+          "latex": "\\downarrow",
+          "keywords": "function tends to limit approach from above"
+        },
+        {
+          "name": "lower left corner",
+          "latex": "\\llcorner"
+        },
+        {
+          "name": "lower right corner",
+          "latex": "\\lrcorner"
+        },
+        {
+          "name": "upper left corner",
+          "latex": "\\ulcorner"
+        },
+        {
+          "name": "upper right corner",
+          "latex": "\\urcorner"
+        },
+        {
+          "name": "parenthesis",
+          "latex": "\\left(${1:${TM_SELECTED_TEXT}}\\right)",
+          "keywords": "sequence vector dot product triple algebraic field extension"
+        },
+        {
+          "name": "brackets",
+          "latex": "\\left[${1:${TM_SELECTED_TEXT}}\\right]",
+          "keywords": "geometry line segment vector cross product dd equivalence class group commuter of elements polynomial ring"
+        },
+        {
+          "name": "curly brackets",
+          "latex": "\\left\\{${1:${TM_SELECTED_TEXT}}\\right\\\\}"
+        },
+        {
+          "name": "angle brackets",
+          "latex": "\\left\\langle ${1:${TM_SELECTED_TEXT}}\\right\\rangle",
+          "keywords": "vector dot product function inner linear hull subgroup generated by set average"
+        },
+        {
+          "name": "absolute value",
+          "latex": "\\left\\lvert ${1:${TM_SELECTED_TEXT}}\\right\\rvert",
+          "keywords": "set cardinality geometry length of line segment vector length matrix determinant"
+        },
+        {
+          "name": "normed",
+          "latex": "\\left\\lVert ${1:${TM_SELECTED_TEXT}}\\right\\rVert",
+          "keywords": "vector matrix"
+        },
+        {
+          "name": "floored round down",
+          "latex": "\\left\\lfloor ${1:${TM_SELECTED_TEXT}}\\right\\rfloor"
+        },
+        {
+          "name": "ceiled round up",
+          "latex": "\\left\\lceil ${1:${TM_SELECTED_TEXT}}\\right\\rceil"
+        },
+        {
+          "name": "round",
+          "latex": "\\left\\lfloor ${1:${TM_SELECTED_TEXT}}\\right\\rceil"
+        }
+      ]
+    },
+    {
+      "name": "Maths Constructs",
+      "filtered": false,
+      "symbols": [
+        {
+          "name": "fraction",
+          "latex": "\\frac{${1:${TM_SELECTED_TEXT}}}{$2}",
+          "keywords": "divide"
+        },
+        {
+          "name": "derivative",
+          "latex": "\\frac{d^${1:${TM_SELECTED_TEXT}} y}{d x^${1:${TM_SELECTED_TEXT}}}"
+        },
+        {
+          "name": "integral",
+          "latex": "\\int_{$2}^{$3} ${1:${TM_SELECTED_TEXT}} \\,d${4:x}"
+        },
+        {
+          "name": "limit",
+          "latex": "\\lim_{${2:x} \\to ${3:\\infty}} ${1:${TM_SELECTED_TEXT}}"
+        },
+        {
+          "name": "sum",
+          "latex": "\\sum_{${2:n = 1}}^{${3:\\infty}} ${1:${TM_SELECTED_TEXT}}"
+        },
+        {
+          "name": "square root",
+          "latex": "\\sqrt{${1:${TM_SELECTED_TEXT}}}"
+        },
+        {
+          "name": "nth root",
+          "latex": "\\sqrt[${2:n}]{${1:${TM_SELECTED_TEXT}}}"
+        },
+        {
+          "name": "overline",
+          "latex": "\\overline{${1:${TM_SELECTED_TEXT}}}",
+          "keywords": "set complement topology closure of set algebraic field closure rising factorial"
+        },
+        {
+          "name": "underline",
+          "latex": "\\underline{${1:${TM_SELECTED_TEXT}}}",
+          "keywords": "falling factorial"
+        },
+        {
+          "name": "widehat",
+          "latex": "\\widehat{${1:${TM_SELECTED_TEXT}}}",
+          "keywords": "corresponds to"
+        },
+        {
+          "name": "widetilde",
+          "latex": "\\widetilde{${1:${TM_SELECTED_TEXT}}}"
+        },
+        {
+          "name": "overrightarrow",
+          "latex": "\\overrightarrow{${1:${TM_SELECTED_TEXT}}}"
+        },
+        {
+          "name": "overleftarrow",
+          "latex": "\\overleftarrow{${1:${TM_SELECTED_TEXT}}}"
+        },
+        {
+          "name": "overbrace",
+          "latex": "\\overbrace{${1:${TM_SELECTED_TEXT}}}"
+        },
+        {
+          "name": "underbrace",
+          "latex": "\\underbrace{${1:${TM_SELECTED_TEXT}}}"
+        },
+        {
+          "name": "binomial",
+          "latex": "\\binom{${1:${TM_SELECTED_TEXT}}}{$2}",
+          "keywords": "combinatorics permutations"
+        }
+      ]
+    },
+    {
+      "name": "Variable-sized symbols",
+      "filtered": false,
+      "symbols": [
+        {
+          "name": "sum",
+          "latex": "\\sum"
+        },
+        {
+          "name": "product",
+          "latex": "\\prod",
+          "keywords": "sequence series"
+        },
+        {
+          "name": "coproduct",
+          "latex": "\\coprod",
+          "keywords": "sequence series"
+        },
+        {
+          "name": "int",
+          "latex": "\\int"
+        },
+        {
+          "name": "curve integral",
+          "latex": "\\oint"
+        },
+        {
+          "name": "surface integral",
+          "latex": "\\iint"
+        },
+        {
+          "name": "biguplus",
+          "latex": "\\biguplus"
+        },
+        {
+          "name": "bigcap",
+          "latex": "\\bigcap"
+        },
+        {
+          "name": "bigcup",
+          "latex": "\\bigcup"
+        },
+        {
+          "name": "bigoplus",
+          "latex": "\\bigoplus"
+        },
+        {
+          "name": "bigotimes",
+          "latex": "\\bigotimes"
+        },
+        {
+          "name": "bigodot",
+          "latex": "\\bigodot"
+        },
+        {
+          "name": "bigvee",
+          "latex": "\\bigvee",
+          "keywords": "least upper bound supremum join quantifier existential logic"
+        },
+        {
+          "name": "bigwedge",
+          "latex": "\\bigwedge",
+          "keywords": "quantifier universal logic"
+        },
+        {
+          "name": "bigsqcup",
+          "latex": "\\bigsqcup"
+        }
+      ]
+    },
+    {
+      "name": "Standard Functions",
+      "filtered": false,
+      "symbols": [
+        {
+          "name": "arc cosine",
+          "latex": "\\arccos"
+        },
+        {
+          "name": "cosine",
+          "latex": "\\cos"
+        },
+        {
+          "name": "cosecant",
+          "latex": "\\csc"
+        },
+        {
+          "name": "exponent",
+          "latex": "\\exp"
+        },
+        {
+          "name": "kernel",
+          "latex": "\\ker"
+        },
+        {
+          "name": "limit supremum",
+          "latex": "\\limsup"
+        },
+        {
+          "name": "minimum",
+          "latex": "\\min"
+        },
+        {
+          "name": "hyperbolic sine",
+          "latex": "\\sinh"
+        },
+        {
+          "name": "arc sine",
+          "latex": "\\arcsin"
+        },
+        {
+          "name": "hyperbolic cosine",
+          "latex": "\\cosh"
+        },
+        {
+          "name": "degree",
+          "latex": "\\deg"
+        },
+        {
+          "name": "greatest common denominator",
+          "latex": "\\gcd"
+        },
+        {
+          "name": "logarithm",
+          "latex": "\\lg"
+        },
+        {
+          "name": "natural logarithm",
+          "latex": "\\ln"
+        },
+        {
+          "name": "probability",
+          "latex": "\\Pr"
+        },
+        {
+          "name": "supremum",
+          "latex": "\\sup"
+        },
+        {
+          "name": "arc tangent",
+          "latex": "\\arctan"
+        },
+        {
+          "name": "cotangent",
+          "latex": "\\cot"
+        },
+        {
+          "name": "determinant",
+          "latex": "\\det"
+        },
+        {
+          "name": "hom functor",
+          "latex": "\\hom"
+        },
+        {
+          "name": "limit",
+          "latex": "\\lim"
+        },
+        {
+          "name": "logarithm",
+          "latex": "\\log"
+        },
+        {
+          "name": "secant",
+          "latex": "\\sec"
+        },
+        {
+          "name": "tangent",
+          "latex": "\\tan"
+        },
+        {
+          "name": "argument",
+          "latex": "\\arg",
+          "keywords": "complex number"
+        },
+        {
+          "name": "hyperbolic cotangent",
+          "latex": "\\coth"
+        },
+        {
+          "name": "dimension",
+          "latex": "\\dim"
+        },
+        {
+          "name": "infinum",
+          "latex": "\\inf"
+        },
+        {
+          "name": "infinum limit",
+          "latex": "\\liminf"
+        },
+        {
+          "name": "maximum",
+          "latex": "\\max"
+        },
+        {
+          "name": "sine",
+          "latex": "\\sin"
+        },
+        {
+          "name": "hyperbolic tangent",
+          "latex": "\\tanh"
+        }
+      ]
+    },
+    {
+      "name": "Operators and Relations",
+      "filtered": true,
+      "symbols": [
+        {
+          "name": "asterix",
+          "latex": "\\ast",
+          "keywords": "complex conjugate function convolution matrix transpose dual space operation of elements relation reflexive closure group units of ring"
+        },
+        {
+          "name": "star",
+          "latex": "\\star"
+        },
+        {
+          "name": "center dot",
+          "latex": "\\cdot",
+          "keywords": "multiply product matrix"
+        },
+        {
+          "name": "bullet",
+          "latex": "\\bullet",
+          "keywords": "operation of elements"
+        },
+        {
+          "name": "circle",
+          "latex": "\\circ",
+          "keywords": "function relation composition topology interior of set matrix Hadamard product shape"
+        },
+        {
+          "name": "big circle",
+          "latex": "\\bigcirc",
+          "keywords": "shape"
+        },
+        {
+          "name": "diamond",
+          "latex": "\\diamond",
+          "keywords": "shape"
+        },
+        {
+          "name": "times",
+          "latex": "\\times",
+          "keywords": "multiply cartesian product vector direct group units of ring"
+        },
+        {
+          "name": "division",
+          "latex": "\\div"
+        },
+        {
+          "name": "center dot",
+          "latex": "\\centerdot"
+        },
+        {
+          "name": "circled asterix",
+          "latex": "\\circledast"
+        },
+        {
+          "name": "circled circle",
+          "latex": "\\circledcirc"
+        },
+        {
+          "name": "circled dash",
+          "latex": "\\circleddash"
+        },
+        {
+          "name": "dotplus",
+          "latex": "\\dotplus"
+        },
+        {
+          "name": "divideontimes",
+          "latex": "\\divideontimes"
+        },
+        {
+          "name": "plus minus",
+          "latex": "\\pm"
+        },
+        {
+          "name": "minus plus",
+          "latex": "\\mp"
+        },
+        {
+          "name": "amalg",
+          "latex": "\\amalg"
+        },
+        {
+          "name": "circled dot",
+          "latex": "\\odot"
+        },
+        {
+          "name": "circled minus",
+          "latex": "\\ominus"
+        },
+        {
+          "name": "circled plus",
+          "latex": "\\oplus",
+          "keywords": "vector space sum logic xor exclusive or"
+        },
+        {
+          "name": "circled slash",
+          "latex": "\\oslash",
+          "keywords": "matrix Hadamard division"
+        },
+        {
+          "name": "circledtimes",
+          "latex": "\\otimes",
+          "keywords": "matrix Kronecker vector dyadic product tensor"
+        },
+        {
+          "name": "wreath product",
+          "latex": "\\wr"
+        },
+        {
+          "name": "Box",
+          "latex": "\\Box",
+          "keywords": "QED end of proof"
+        },
+        {
+          "name": "boxed plus",
+          "latex": "\\boxplus"
+        },
+        {
+          "name": "boxed minus",
+          "latex": "\\boxminus"
+        },
+        {
+          "name": "boxed times",
+          "latex": "\\boxtimes"
+        },
+        {
+          "name": "boxed dot",
+          "latex": "\\boxdot"
+        },
+        {
+          "name": "square",
+          "latex": "\\square",
+          "keywords": "D'Alembert operator geometry quadrilateral prism shape"
+        },
+        {
+          "name": "Intersection",
+          "latex": "\\cap",
+          "keywords": "sets"
+        },
+        {
+          "name": "Union",
+          "latex": "\\cup",
+          "keywords": "sets"
+        },
+        {
+          "name": "uplus",
+          "latex": "\\uplus"
+        },
+        {
+          "name": "square cap",
+          "latex": "\\sqcap",
+          "keywords": "greatest common divisor gcd"
+        },
+        {
+          "name": "square cup",
+          "latex": "\\sqcup",
+          "keywords": "set disjoint union least common multiple"
+        },
+        {
+          "name": "wedge",
+          "latex": "\\wedge",
+          "keywords": "logical and greatest common divisor gcd vector wedge product"
+        },
+        {
+          "name": "vee",
+          "latex": "\\vee",
+          "keywords": "logical or least common multiple"
+        },
+        {
+          "name": "dagger",
+          "latex": "\\dagger",
+          "keywords": "matrix transpose"
+        },
+        {
+          "name": "double dagger",
+          "latex": "\\ddagger"
+        },
+        {
+          "name": "barwedge",
+          "latex": "\\barwedge"
+        },
+        {
+          "name": "veebar",
+          "latex": "\\veebar",
+          "keywords": "logic xor exclusive or"
+        },
+        {
+          "name": "curlywedge",
+          "latex": "\\curlywedge"
+        },
+        {
+          "name": "curlyvee",
+          "latex": "\\curlyvee"
+        },
+        {
+          "name": "Cap",
+          "latex": "\\Cap"
+        },
+        {
+          "name": "Cup",
+          "latex": "\\Cup"
+        },
+        {
+          "name": "bot",
+          "latex": "\\bot",
+          "keywords": "Proposition contradictory contradiction"
+        },
+        {
+          "name": "top",
+          "latex": "\\top"
+        },
+        {
+          "name": "intercal",
+          "latex": "\\intercal"
+        },
+        {
+          "name": "doublebarwedge",
+          "latex": "\\doublebarwedge"
+        },
+        {
+          "name": "lhd",
+          "latex": "\\lhd"
+        },
+        {
+          "name": "rhd",
+          "latex": "\\rhd"
+        },
+        {
+          "name": "triangle left",
+          "latex": "\\triangleleft"
+        },
+        {
+          "name": "triangle right",
+          "latex": "\\triangleright"
+        },
+        {
+          "name": "unlhd",
+          "latex": "\\unlhd"
+        },
+        {
+          "name": "unrhd",
+          "latex": "\\unrhd"
+        },
+        {
+          "name": "bigtriangledown",
+          "latex": "\\bigtriangledown"
+        },
+        {
+          "name": "bigtriangleup",
+          "latex": "\\bigtriangleup"
+        },
+        {
+          "name": "set minus",
+          "latex": "\\setminus"
+        },
+        {
+          "name": "rightthreetimes",
+          "latex": "\\rightthreetimes"
+        },
+        {
+          "name": "leftthreetimes",
+          "latex": "\\leftthreetimes"
+        },
+        {
+          "name": "equivalent",
+          "latex": "\\equiv",
+          "keywords": "identical congruent modulo modular arithmetic"
+        },
+        {
+          "name": "congruent",
+          "latex": "\\cong",
+          "keywords": "groups isomorphic"
+        },
+        {
+          "name": "not equal",
+          "latex": "\\neq"
+        },
+        {
+          "name": "similar",
+          "latex": "\\sim",
+          "keywords": "asymptotically equal big o order of relation element equivalence probability distribution random variable"
+        },
+        {
+          "name": "similar or equal",
+          "latex": "\\simeq",
+          "keywords": "groups isomorphic"
+        },
+        {
+          "name": "approximately",
+          "latex": "\\approx",
+          "keywords": "probability distribution random variable"
+        },
+        {
+          "name": "asymptotically",
+          "latex": "\\asymp"
+        },
+        {
+          "name": "doteq",
+          "latex": "\\doteq"
+        },
+        {
+          "name": "proportional to",
+          "latex": "\\propto"
+        },
+        {
+          "name": "models",
+          "latex": "\\models",
+          "keywords": "inference proposition follows semantically logic tautology "
+        },
+        {
+          "name": "less than or equal",
+          "latex": "\\leq",
+          "keywords": "order relation of elements subgroup"
+        },
+        {
+          "name": "greater than or equal",
+          "latex": "\\geq"
+        },
+        {
+          "name": "precedes",
+          "latex": "\\prec",
+          "keywords": "relation element predecessor"
+        },
+        {
+          "name": "succeeds",
+          "latex": "\\succ",
+          "keywords": "relation element successor"
+        },
+        {
+          "name": "precedes or equal",
+          "latex": "\\preceq"
+        },
+        {
+          "name": "succeeds or equal",
+          "latex": "\\succeq"
+        },
+        {
+          "name": "much less than",
+          "latex": "\\ll",
+          "keywords": "smaller"
+        },
+        {
+          "name": "much greater than",
+          "latex": "\\gg",
+          "keywords": "bigger"
+        },
+        {
+          "name": "proper subset",
+          "latex": "\\subset"
+        },
+        {
+          "name": "proper superset",
+          "latex": "\\supset"
+        },
+        {
+          "name": "subset or equal",
+          "latex": "\\subseteq"
+        },
+        {
+          "name": "superset or equal",
+          "latex": "\\supseteq"
+        },
+        {
+          "name": "square subset",
+          "latex": "\\sqsubset"
+        },
+        {
+          "name": "square supset",
+          "latex": "\\sqsupset"
+        },
+        {
+          "name": "square subset or equal",
+          "latex": "\\sqsubseteq"
+        },
+        {
+          "name": "square supset or equal",
+          "latex": "\\sqsupseteq"
+        },
+        {
+          "name": "dashv",
+          "latex": "\\dashv"
+        },
+        {
+          "name": "vdash",
+          "latex": "\\vdash",
+          "keywords": "turnstile proposition can be syntactically derived"
+        },
+        {
+          "name": "perpendicular",
+          "latex": "\\perp",
+          "keywords": "relatively prime orthogonal complement of subspace probability independence"
+        },
+        {
+          "name": "mid",
+          "latex": "\\mid",
+          "keywords": "divides set that satisfy satisfies field extension conditional probability"
+        },
+        {
+          "name": "parallel",
+          "latex": "\\parallel",
+          "keywords": "geometry"
+        },
+        {
+          "name": "bowtie",
+          "latex": "\\bowtie"
+        },
+        {
+          "name": "Join",
+          "latex": "\\Join"
+        },
+        {
+          "name": "left times",
+          "latex": "\\ltimes"
+        },
+        {
+          "name": "right times",
+          "latex": "\\rtimes",
+          "keywords": "groups semidirect product"
+        },
+        {
+          "name": "smile",
+          "latex": "\\smile"
+        },
+        {
+          "name": "frown",
+          "latex": "\\frown"
+        },
+        {
+          "name": "in",
+          "latex": "\\in"
+        },
+        {
+          "name": "owns",
+          "latex": "\\ni",
+          "keywords": "in"
+        },
+        {
+          "name": "not in",
+          "latex": "\\notin"
+        },
+        {
+          "name": "approxeq",
+          "latex": "\\approxeq"
+        },
+        {
+          "name": "thicksim",
+          "latex": "\\thicksim"
+        },
+        {
+          "name": "backsim",
+          "latex": "\\backsim"
+        },
+        {
+          "name": "backsimeq",
+          "latex": "\\backsimeq"
+        },
+        {
+          "name": "triangleq",
+          "latex": "\\triangleq"
+        },
+        {
+          "name": "circeq",
+          "latex": "\\circeq"
+        },
+        {
+          "name": "bumpeq",
+          "latex": "\\bumpeq"
+        },
+        {
+          "name": "Bumpeq",
+          "latex": "\\Bumpeq"
+        },
+        {
+          "name": "doteqdot",
+          "latex": "\\doteqdot"
+        },
+        {
+          "name": "thickapprox",
+          "latex": "\\thickapprox"
+        },
+        {
+          "name": "fallingdotseq",
+          "latex": "\\fallingdotseq"
+        },
+        {
+          "name": "risingdotseq",
+          "latex": "\\risingdotseq"
+        },
+        {
+          "name": "varpropto",
+          "latex": "\\varpropto"
+        },
+        {
+          "name": "therefore",
+          "latex": "\\therefore"
+        },
+        {
+          "name": "because",
+          "latex": "\\because"
+        },
+        {
+          "name": "eqcirc",
+          "latex": "\\eqcirc"
+        },
+        {
+          "name": "neq",
+          "latex": "\\neq"
+        },
+        {
+          "name": "less than or equal",
+          "latex": "\\leqq"
+        },
+        {
+          "name": "greater than or equal",
+          "latex": "\\geqq"
+        },
+        {
+          "name": "less than or equal",
+          "latex": "\\leqslant"
+        },
+        {
+          "name": "greater than or equal",
+          "latex": "\\geqslant"
+        },
+        {
+          "name": "approximately less than",
+          "latex": "\\lessapprox"
+        },
+        {
+          "name": "approximately greater than",
+          "latex": "\\gtrapprox"
+        },
+        {
+          "name": "lll",
+          "latex": "\\lll",
+          "keywords": "smaller"
+        },
+        {
+          "name": "ggg",
+          "latex": "\\ggg",
+          "keywords": "bigger"
+        },
+        {
+          "name": "lessdot",
+          "latex": "\\lessdot"
+        },
+        {
+          "name": "gtrdot",
+          "latex": "\\gtrdot"
+        },
+        {
+          "name": "lesssim",
+          "latex": "\\lesssim"
+        },
+        {
+          "name": "gtrsim",
+          "latex": "\\gtrsim"
+        },
+        {
+          "name": "eqslantless",
+          "latex": "\\eqslantless"
+        },
+        {
+          "name": "eqslantgtr",
+          "latex": "\\eqslantgtr"
+        },
+        {
+          "name": "precsim",
+          "latex": "\\precsim"
+        },
+        {
+          "name": "succsim",
+          "latex": "\\succsim"
+        },
+        {
+          "name": "precapprox",
+          "latex": "\\precapprox"
+        },
+        {
+          "name": "succapprox",
+          "latex": "\\succapprox"
+        },
+        {
+          "name": "Subset",
+          "latex": "\\Subset"
+        },
+        {
+          "name": "Supset",
+          "latex": "\\Supset"
+        },
+        {
+          "name": "subseteqq",
+          "latex": "\\subseteqq"
+        },
+        {
+          "name": "supseteqq",
+          "latex": "\\supseteqq"
+        },
+        {
+          "name": "preccurlyeq",
+          "latex": "\\preccurlyeq"
+        },
+        {
+          "name": "succcurlyeq",
+          "latex": "\\succcurlyeq"
+        },
+        {
+          "name": "curlyeqprec",
+          "latex": "\\curlyeqprec"
+        },
+        {
+          "name": "curlyeqsucc",
+          "latex": "\\curlyeqsucc"
+        },
+        {
+          "name": "blacktriangleleft",
+          "latex": "\\blacktriangleleft",
+          "keywords": "shape"
+        },
+        {
+          "name": "blacktriangleright",
+          "latex": "\\blacktriangleright",
+          "keywords": "shape"
+        },
+        {
+          "name": "trianglelefteq",
+          "latex": "\\trianglelefteq"
+        },
+        {
+          "name": "trianglerighteq",
+          "latex": "\\trianglerighteq"
+        },
+        {
+          "name": "vartriangleleft",
+          "latex": "\\vartriangleleft",
+          "keywords": "normal subgroup shape (uncommon) ideal of ring"
+        },
+        {
+          "name": "vartriangleright",
+          "latex": "\\vartriangleright",
+          "keywords": "shape"
+        },
+        {
+          "name": "lessgtr",
+          "latex": "\\lessgtr"
+        },
+        {
+          "name": "lesseqgtr",
+          "latex": "\\lesseqgtr"
+        },
+        {
+          "name": "lesseqqgtr",
+          "latex": "\\lesseqqgtr"
+        },
+        {
+          "name": "gtreqqless",
+          "latex": "\\gtreqqless"
+        },
+        {
+          "name": "gtreqless",
+          "latex": "\\gtreqless"
+        },
+        {
+          "name": "gtrless",
+          "latex": "\\gtrless"
+        },
+        {
+          "name": "backepsilon",
+          "latex": "\\backepsilon"
+        },
+        {
+          "name": "between",
+          "latex": "\\between"
+        },
+        {
+          "name": "pitchfork",
+          "latex": "\\pitchfork"
+        },
+        {
+          "name": "shortmid",
+          "latex": "\\shortmid"
+        },
+        {
+          "name": "smallfrown",
+          "latex": "\\smallfrown"
+        },
+        {
+          "name": "smallsmile",
+          "latex": "\\smallsmile"
+        },
+        {
+          "name": "Vdash",
+          "latex": "\\Vdash"
+        },
+        {
+          "name": "vDash",
+          "latex": "\\vDash"
+        },
+        {
+          "name": "Vvdash",
+          "latex": "\\Vvdash"
+        },
+        {
+          "name": "shortparallel",
+          "latex": "\\shortparallel"
+        },
+        {
+          "name": "nshortparallel",
+          "latex": "\\nshortparallel"
+        },
+        {
+          "name": "ncong",
+          "latex": "\\ncong"
+        },
+        {
+          "name": "does not divide",
+          "latex": "\\nmid"
+        },
+        {
+          "name": "nparallel",
+          "latex": "\\nparallel",
+          "keywords": "geometry"
+        },
+        {
+          "name": "nshortmid",
+          "latex": "\\nshortmid"
+        },
+        {
+          "name": "nshortparallel",
+          "latex": "\\nshortparallel"
+        },
+        {
+          "name": "nsim",
+          "latex": "\\nsim"
+        },
+        {
+          "name": "nVDash",
+          "latex": "\\nVDash"
+        },
+        {
+          "name": "nvDash",
+          "latex": "\\nvDash"
+        },
+        {
+          "name": "nvdash",
+          "latex": "\\nvdash"
+        },
+        {
+          "name": "ntriangleleft",
+          "latex": "\\ntriangleleft"
+        },
+        {
+          "name": "ntrianglelefteq",
+          "latex": "\\ntrianglelefteq"
+        },
+        {
+          "name": "ntriangleright",
+          "latex": "\\ntriangleright"
+        },
+        {
+          "name": "ntrianglerighteq",
+          "latex": "\\ntrianglerighteq"
+        },
+        {
+          "name": "nleq",
+          "latex": "\\nleq"
+        },
+        {
+          "name": "ngeq",
+          "latex": "\\ngeq"
+        },
+        {
+          "name": "nleqq",
+          "latex": "\\nleqq"
+        },
+        {
+          "name": "ngeqq",
+          "latex": "\\ngeqq"
+        },
+        {
+          "name": "nleqslant",
+          "latex": "\\nleqslant"
+        },
+        {
+          "name": "ngeqslant",
+          "latex": "\\ngeqslant"
+        },
+        {
+          "name": "nless",
+          "latex": "\\nless"
+        },
+        {
+          "name": "ngtr",
+          "latex": "\\ngtr"
+        },
+        {
+          "name": "nprec",
+          "latex": "\\nprec"
+        },
+        {
+          "name": "nsucc",
+          "latex": "\\nsucc"
+        },
+        {
+          "name": "npreceq",
+          "latex": "\\npreceq"
+        },
+        {
+          "name": "nsucceq",
+          "latex": "\\nsucceq"
+        },
+        {
+          "name": "precnapprox",
+          "latex": "\\precnapprox"
+        },
+        {
+          "name": "succnapprox",
+          "latex": "\\succnapprox"
+        },
+        {
+          "name": "precnsim",
+          "latex": "\\precnsim"
+        },
+        {
+          "name": "succnsim",
+          "latex": "\\succnsim"
+        },
+        {
+          "name": "lnapprox",
+          "latex": "\\lnapprox"
+        },
+        {
+          "name": "gnapprox",
+          "latex": "\\gnapprox"
+        },
+        {
+          "name": "lneq",
+          "latex": "\\lneq"
+        },
+        {
+          "name": "gneq",
+          "latex": "\\gneq"
+        },
+        {
+          "name": "lneqq",
+          "latex": "\\lneqq"
+        },
+        {
+          "name": "gneqq",
+          "latex": "\\gneqq"
+        },
+        {
+          "name": "lnsim",
+          "latex": "\\lnsim"
+        },
+        {
+          "name": "gnsim",
+          "latex": "\\gnsim"
+        },
+        {
+          "name": "lvertneqq",
+          "latex": "\\lvertneqq"
+        },
+        {
+          "name": "gvertneqq",
+          "latex": "\\gvertneqq"
+        },
+        {
+          "name": "nsubseteq",
+          "latex": "\\nsubseteq"
+        },
+        {
+          "name": "nsupseteq",
+          "latex": "\\nsupseteq"
+        },
+        {
+          "name": "nsubseteqq",
+          "latex": "\\nsubseteqq"
+        },
+        {
+          "name": "nsupseteqq",
+          "latex": "\\nsupseteqq"
+        },
+        {
+          "name": "proper subset neq",
+          "latex": "\\subsetneq"
+        },
+        {
+          "name": "proper superset neq",
+          "latex": "\\supsetneq"
+        },
+        {
+          "name": "subsetneqq",
+          "latex": "\\subsetneqq"
+        },
+        {
+          "name": "supsetneqq",
+          "latex": "\\supsetneqq"
+        },
+        {
+          "name": "varsubsetneq",
+          "latex": "\\varsubsetneq"
+        },
+        {
+          "name": "varsupsetneq",
+          "latex": "\\varsupsetneq"
+        },
+        {
+          "name": "varsubsetneqq",
+          "latex": "\\varsubsetneqq"
+        },
+        {
+          "name": "varsupsetneqq",
+          "latex": "\\varsupsetneqq"
+        },
+        {
+          "name": "logic and",
+          "latex": "\\land"
+        },
+        {
+          "name": "logic or",
+          "latex": "\\lor"
+        },
+        {
+          "name": "logic negation",
+          "latex": "\\lnot",
+          "keywords": "not"
+        }
+      ]
+    },
+    {
+      "name": "Arrows",
+      "filtered": false,
+      "symbols": [
+        {
+          "name": "leftarrow",
+          "latex": "\\leftarrow",
+          "keywords": "logic converse implication"
+        },
+        {
+          "name": "longleftarrow",
+          "latex": "\\longleftarrow"
+        },
+        {
+          "name": "Leftarrow",
+          "latex": "\\Leftarrow"
+        },
+        {
+          "name": "Longleftarrow",
+          "latex": "\\Longleftarrow"
+        },
+        {
+          "name": "rightarrow",
+          "latex": "\\rightarrow",
+          "keywords": "logic concequence from proposition"
+        },
+        {
+          "name": "longrightarrow",
+          "latex": "\\longrightarrow"
+        },
+        {
+          "name": "Rightarrow",
+          "latex": "\\Rightarrow",
+          "keywords": "logic concequence from proposition"
+        },
+        {
+          "name": "Longrightarrow",
+          "latex": "\\Longrightarrow"
+        },
+        {
+          "name": "leftrightarrow",
+          "latex": "\\leftrightarrow",
+          "keywords": "logic equivalence proposition follows"
+        },
+        {
+          "name": "longleftrightarrow",
+          "latex": "\\longleftrightarrow"
+        },
+        {
+          "name": "Leftrightarrow",
+          "latex": "\\Leftrightarrow",
+          "keywords": "logic equivalence proposition follows"
+        },
+        {
+          "name": "Longleftrightarrow",
+          "latex": "\\Longleftrightarrow"
+        },
+        {
+          "name": "uparrow",
+          "latex": "\\uparrow"
+        },
+        {
+          "name": "Uparrow",
+          "latex": "\\Uparrow"
+        },
+        {
+          "name": "downarrow",
+          "latex": "\\downarrow"
+        },
+        {
+          "name": "Downarrow",
+          "latex": "\\Downarrow"
+        },
+        {
+          "name": "updownarrow",
+          "latex": "\\updownarrow"
+        },
+        {
+          "name": "Updownarrow",
+          "latex": "\\Updownarrow"
+        },
+        {
+          "name": "nleftarrow",
+          "latex": "\\nleftarrow"
+        },
+        {
+          "name": "nrightarrow",
+          "latex": "\\nrightarrow"
+        },
+        {
+          "name": "nLeftarrow",
+          "latex": "\\nLeftarrow"
+        },
+        {
+          "name": "nRightarrow",
+          "latex": "\\nRightarrow"
+        },
+        {
+          "name": "nleftrightarrow",
+          "latex": "\\nleftrightarrow"
+        },
+        {
+          "name": "nLeftrightarrow",
+          "latex": "\\nLeftrightarrow"
+        },
+        {
+          "name": "to",
+          "latex": "\\to",
+          "keywords": "sequence tends to limit function map sets"
+        },
+        {
+          "name": "mapsto",
+          "latex": "\\mapsto",
+          "keywords": "function map sets elements"
+        },
+        {
+          "name": "longmapsto",
+          "latex": "\\longmapsto"
+        },
+        {
+          "name": "implies",
+          "latex": "\\implies",
+          "keywords": "logic concequence from proposition"
+        },
+        {
+          "name": "hookleftarrow",
+          "latex": "\\hookleftarrow"
+        },
+        {
+          "name": "hookrightarrow",
+          "latex": "\\hookrightarrow",
+          "keywords": "embedding topological vector space"
+        },
+        {
+          "name": "leftharpoonup",
+          "latex": "\\leftharpoonup"
+        },
+        {
+          "name": "rightharpoonup",
+          "latex": "\\rightharpoonup"
+        },
+        {
+          "name": "leftharpoondown",
+          "latex": "\\leftharpoondown"
+        },
+        {
+          "name": "rightharpoondown",
+          "latex": "\\rightharpoondown"
+        },
+        {
+          "name": "rightleftharpoons",
+          "latex": "\\rightleftharpoons"
+        },
+        {
+          "name": "leftrightharpoons",
+          "latex": "\\leftrightharpoons"
+        },
+        {
+          "name": "upharpoonleft",
+          "latex": "\\upharpoonleft"
+        },
+        {
+          "name": "downharpoonleft",
+          "latex": "\\downharpoonleft"
+        },
+        {
+          "name": "upharpoonright",
+          "latex": "\\upharpoonright"
+        },
+        {
+          "name": "downharpoonright",
+          "latex": "\\downharpoonright"
+        },
+        {
+          "name": "leadsto",
+          "latex": "\\leadsto"
+        },
+        {
+          "name": "nearrow",
+          "latex": "\\nearrow",
+          "keywords": "function tends to limit approach from below"
+        },
+        {
+          "name": "searrow",
+          "latex": "\\searrow",
+          "keywords": "function tends to limit approach from above"
+        },
+        {
+          "name": "swarrow",
+          "latex": "\\swarrow"
+        },
+        {
+          "name": "nwarrow",
+          "latex": "\\nwarrow"
+        },
+        {
+          "name": "dashrightarrow",
+          "latex": "\\dashrightarrow"
+        },
+        {
+          "name": "dashleftarrow",
+          "latex": "\\dashleftarrow"
+        },
+        {
+          "name": "leftleftarrows",
+          "latex": "\\leftleftarrows"
+        },
+        {
+          "name": "rightrightarrows",
+          "latex": "\\rightrightarrows"
+        },
+        {
+          "name": "leftrightarrows",
+          "latex": "\\leftrightarrows"
+        },
+        {
+          "name": "rightleftarrows",
+          "latex": "\\rightleftarrows"
+        },
+        {
+          "name": "upuparrows",
+          "latex": "\\upuparrows"
+        },
+        {
+          "name": "downdownarrows",
+          "latex": "\\downdownarrows"
+        },
+        {
+          "name": "twoheadleftarrow",
+          "latex": "\\twoheadleftarrow"
+        },
+        {
+          "name": "twoheadrightarrow",
+          "latex": "\\twoheadrightarrow"
+        },
+        {
+          "name": "leftarrowtail",
+          "latex": "\\leftarrowtail"
+        },
+        {
+          "name": "rightarrowtail",
+          "latex": "\\rightarrowtail"
+        },
+        {
+          "name": "rightsquigarrow",
+          "latex": "\\rightsquigarrow"
+        },
+        {
+          "name": "leftrightsquigarrow",
+          "latex": "\\leftrightsquigarrow"
+        },
+        {
+          "name": "curvearrowleft",
+          "latex": "\\curvearrowleft"
+        },
+        {
+          "name": "curvearrowright",
+          "latex": "\\curvearrowright"
+        },
+        {
+          "name": "circlearrowleft",
+          "latex": "\\circlearrowleft"
+        },
+        {
+          "name": "circlearrowright",
+          "latex": "\\circlearrowright"
+        },
+        {
+          "name": "looparrowleft",
+          "latex": "\\looparrowleft"
+        },
+        {
+          "name": "looparrowright",
+          "latex": "\\looparrowright"
+        },
+        {
+          "name": "Lsh",
+          "latex": "\\Lsh"
+        },
+        {
+          "name": "Rsh",
+          "latex": "\\Rsh"
+        },
+        {
+          "name": "Lleftarrow",
+          "latex": "\\Lleftarrow"
+        },
+        {
+          "name": "Rrightarrow",
+          "latex": "\\Rrightarrow"
+        },
+        {
+          "name": "multimap",
+          "latex": "\\multimap"
+        }
+      ]
+    },
+    {
+      "name": "Accents",
+      "filtered": false,
+      "symbols": [
+        {
+          "name": "hat accent",
+          "latex": "\\hat{${1:${TM_SELECTED_TEXT}}}",
+          "keywords": "math fourier transform completion of metric space normalised normalized vector statistics estimator"
+        },
+        {
+          "name": "dot accent",
+          "latex": "\\dot{${1:${TM_SELECTED_TEXT}}}",
+          "keywords": "math time derivative topology punctured neighbourhood of point"
+        },
+        {
+          "name": "check accent",
+          "latex": "\\check{${1:${TM_SELECTED_TEXT}}}",
+          "keywords": "math"
+        },
+        {
+          "name": "ddot accent",
+          "latex": "\\ddot{${1:${TM_SELECTED_TEXT}}}",
+          "keywords": "math time derivative"
+        },
+        {
+          "name": "tilde accent",
+          "latex": "\\tilde{${1:${TM_SELECTED_TEXT}}}",
+          "keywords": "math"
+        },
+        {
+          "name": "breve accent",
+          "latex": "\\breve{${1:${TM_SELECTED_TEXT}}}",
+          "keywords": "math"
+        },
+        {
+          "name": "acute accent",
+          "latex": "\\acute{${1:${TM_SELECTED_TEXT}}}",
+          "keywords": "math"
+        },
+        {
+          "name": "bar accent",
+          "latex": "\\bar{${1:${TM_SELECTED_TEXT}}}",
+          "keywords": "math complex conjugate statistics average logic negation"
+        },
+        {
+          "name": "grave accent",
+          "latex": "\\grave{${1:${TM_SELECTED_TEXT}}}",
+          "keywords": "math"
+        },
+        {
+          "name": "vector accent",
+          "latex": "\\vec{${1:${TM_SELECTED_TEXT}}}",
+          "keywords": "math"
+        }
+      ]
+    },
+    {
+      "name": "Miscellaneous",
+      "filtered": false,
+      "symbols": [
+        {
+          "name": "infty",
+          "latex": "\\infty"
+        },
+        {
+          "name": "nabla",
+          "latex": "\\nabla",
+          "keywords": "gradient divergence curl"
+        },
+        {
+          "name": "partial",
+          "latex": "\\partial",
+          "keywords": "derivative topology boundry of set"
+        },
+        {
+          "name": "eth",
+          "latex": "\\eth"
+        },
+        {
+          "name": "clubsuit",
+          "latex": "\\clubsuit"
+        },
+        {
+          "name": "diamondsuit",
+          "latex": "\\diamondsuit"
+        },
+        {
+          "name": "heartsuit",
+          "latex": "\\heartsuit"
+        },
+        {
+          "name": "spadesuit",
+          "latex": "\\spadesuit"
+        },
+        {
+          "name": "cdots",
+          "latex": "\\cdots"
+        },
+        {
+          "name": "vdots",
+          "latex": "\\vdots"
+        },
+        {
+          "name": "ldots",
+          "latex": "\\ldots"
+        },
+        {
+          "name": "ddots",
+          "latex": "\\ddots"
+        },
+        {
+          "name": "Im",
+          "latex": "\\Im",
+          "keywords": "imaginary part complex number"
+        },
+        {
+          "name": "Re",
+          "latex": "\\Re",
+          "keywords": "real part complex number"
+        },
+        {
+          "name": "forall",
+          "latex": "\\forall",
+          "keywords": "quantifier universal logic"
+        },
+        {
+          "name": "exists",
+          "latex": "\\exists",
+          "keywords": "quantifier existential logic"
+        },
+        {
+          "name": "no element exists",
+          "latex": "\\nexists",
+          "keywords": "quantifier existential logic not"
+        },
+        {
+          "name": "empty set",
+          "latex": "\\emptyset"
+        },
+        {
+          "name": "varnothing",
+          "latex": "\\varnothing",
+          "keywords": "empty set"
+        },
+        {
+          "name": "imath",
+          "latex": "\\imath"
+        },
+        {
+          "name": "jmath",
+          "latex": "\\jmath"
+        },
+        {
+          "name": "ell",
+          "latex": "\\ell"
+        },
+        {
+          "name": "sharp",
+          "latex": "\\sharp",
+          "keywords": "music"
+        },
+        {
+          "name": "flat",
+          "latex": "\\flat",
+          "keywords": "music"
+        },
+        {
+          "name": "natural",
+          "latex": "\\natural",
+          "keywords": "music"
+        },
+        {
+          "name": "bigstar",
+          "latex": "\\bigstar"
+        },
+        {
+          "name": "diagdown",
+          "latex": "\\diagdown"
+        },
+        {
+          "name": "diagup",
+          "latex": "\\diagup"
+        },
+        {
+          "name": "Diamond",
+          "latex": "\\Diamond"
+        },
+        {
+          "name": "Finv",
+          "latex": "\\Finv"
+        },
+        {
+          "name": "Game",
+          "latex": "\\Game"
+        },
+        {
+          "name": "hbar",
+          "latex": "\\hbar"
+        },
+        {
+          "name": "hslash",
+          "latex": "\\hslash"
+        },
+        {
+          "name": "lozenge",
+          "latex": "\\lozenge"
+        },
+        {
+          "name": "mho",
+          "latex": "\\mho"
+        },
+        {
+          "name": "prime",
+          "latex": "\\prime",
+          "keywords": "derivative topological duel space bidual normed vector"
+        },
+        {
+          "name": "backprime",
+          "latex": "\\backprime"
+        },
+        {
+          "name": "surd",
+          "latex": "\\surd"
+        },
+        {
+          "name": "Weierstrass p",
+          "latex": "\\wp",
+          "keywords": "power set"
+        },
+        {
+          "name": "angle",
+          "latex": "\\angle",
+          "keywords": "geometry"
+        },
+        {
+          "name": "measuredangle",
+          "latex": "\\measuredangle"
+        },
+        {
+          "name": "sphericalangle",
+          "latex": "\\sphericalangle"
+        },
+        {
+          "name": "complement",
+          "latex": "\\complement"
+        },
+        {
+          "name": "triangledown",
+          "latex": "\\triangledown",
+          "keywords": "shape"
+        },
+        {
+          "name": "triangle",
+          "latex": "\\triangle",
+          "keywords": "set symmetric difference geometry shape"
+        },
+        {
+          "name": "vartriangle",
+          "latex": "\\vartriangle"
+        },
+        {
+          "name": "blacklozenge",
+          "latex": "\\blacklozenge",
+          "keywords": "shape"
+        },
+        {
+          "name": "blacksquare",
+          "latex": "\\blacksquare",
+          "keywords": "QED end of proof shape"
+        },
+        {
+          "name": "blacktriangle",
+          "latex": "\\blacktriangle",
+          "keywords": "shape"
+        },
+        {
+          "name": "blacktriangledown",
+          "latex": "\\blacktriangledown",
+          "keywords": "shape"
+        },
+        {
+          "name": "circledS",
+          "latex": "\\circledS"
+        }
+      ]
+    },
+    {
+      "name": "Letter Styles",
+      "filtered": false,
+      "symbols": [
+        {
+          "name": "Caligraphic A",
+          "latex": "\\mathcal{A}"
+        },
+        {
+          "name": "Caligraphic B",
+          "latex": "\\mathcal{B}"
+        },
+        {
+          "name": "Caligraphic C",
+          "latex": "\\mathcal{C}"
+        },
+        {
+          "name": "Caligraphic D",
+          "latex": "\\mathcal{D}"
+        },
+        {
+          "name": "Caligraphic E",
+          "latex": "\\mathcal{E}"
+        },
+        {
+          "name": "Caligraphic F",
+          "latex": "\\mathcal{F}"
+        },
+        {
+          "name": "Caligraphic G",
+          "latex": "\\mathcal{G}"
+        },
+        {
+          "name": "Caligraphic H",
+          "latex": "\\mathcal{H}"
+        },
+        {
+          "name": "Caligraphic I",
+          "latex": "\\mathcal{I}"
+        },
+        {
+          "name": "Caligraphic J",
+          "latex": "\\mathcal{J}"
+        },
+        {
+          "name": "Caligraphic K",
+          "latex": "\\mathcal{K}"
+        },
+        {
+          "name": "Caligraphic L",
+          "latex": "\\mathcal{L}"
+        },
+        {
+          "name": "Caligraphic M",
+          "latex": "\\mathcal{M}"
+        },
+        {
+          "name": "Caligraphic N",
+          "latex": "\\mathcal{N}"
+        },
+        {
+          "name": "Caligraphic O",
+          "latex": "\\mathcal{O}",
+          "keywords": "asymptotic big o bounded by"
+        },
+        {
+          "name": "Caligraphic P",
+          "latex": "\\mathcal{P}",
+          "keywords": "power set"
+        },
+        {
+          "name": "Caligraphic Q",
+          "latex": "\\mathcal{Q}"
+        },
+        {
+          "name": "Caligraphic R",
+          "latex": "\\mathcal{R}"
+        },
+        {
+          "name": "Caligraphic S",
+          "latex": "\\mathcal{S}"
+        },
+        {
+          "name": "Caligraphic T",
+          "latex": "\\mathcal{T}"
+        },
+        {
+          "name": "Caligraphic U",
+          "latex": "\\mathcal{U}"
+        },
+        {
+          "name": "Caligraphic V",
+          "latex": "\\mathcal{V}"
+        },
+        {
+          "name": "Caligraphic W",
+          "latex": "\\mathcal{W}"
+        },
+        {
+          "name": "Caligraphic X",
+          "latex": "\\mathcal{X}"
+        },
+        {
+          "name": "Caligraphic Y",
+          "latex": "\\mathcal{Y}"
+        },
+        {
+          "name": "Caligraphic Z",
+          "latex": "\\mathcal{Z}"
+        },
+        {
+          "name": "Blackboard Bold A",
+          "latex": "\\mathbb{A}",
+          "keywords": "algebraic numbers"
+        },
+        {
+          "name": "Blackboard Bold B",
+          "latex": "\\mathbb{B}"
+        },
+        {
+          "name": "Blackboard Bold C",
+          "latex": "\\mathbb{C}",
+          "keywords": "complex numbers"
+        },
+        {
+          "name": "Blackboard Bold D",
+          "latex": "\\mathbb{D}"
+        },
+        {
+          "name": "Blackboard Bold E",
+          "latex": "\\mathbb{E}"
+        },
+        {
+          "name": "Blackboard Bold F",
+          "latex": "\\mathbb{F}",
+          "keywords": "finite field"
+        },
+        {
+          "name": "Blackboard Bold G",
+          "latex": "\\mathbb{G}"
+        },
+        {
+          "name": "Blackboard Bold H",
+          "latex": "\\mathbb{H}",
+          "keywords": "quaternions"
+        },
+        {
+          "name": "Blackboard Bold I",
+          "latex": "\\mathbb{I}"
+        },
+        {
+          "name": "Blackboard Bold J",
+          "latex": "\\mathbb{J}"
+        },
+        {
+          "name": "Blackboard Bold K",
+          "latex": "\\mathbb{K}",
+          "keywords": "field real complex numbers"
+        },
+        {
+          "name": "Blackboard Bold L",
+          "latex": "\\mathbb{L}"
+        },
+        {
+          "name": "Blackboard Bold M",
+          "latex": "\\mathbb{M}"
+        },
+        {
+          "name": "Blackboard Bold N",
+          "latex": "\\mathbb{N}",
+          "keywords": "natural numbers"
+        },
+        {
+          "name": "Blackboard Bold O",
+          "latex": "\\mathbb{O}"
+        },
+        {
+          "name": "Blackboard Bold P",
+          "latex": "\\mathbb{P}"
+        },
+        {
+          "name": "Blackboard Bold Q",
+          "latex": "\\mathbb{Q}",
+          "keywords": "rational numbers"
+        },
+        {
+          "name": "Blackboard Bold R",
+          "latex": "\\mathbb{R}",
+          "keywords": "real numbers"
+        },
+        {
+          "name": "Blackboard Bold S",
+          "latex": "\\mathbb{S}"
+        },
+        {
+          "name": "Blackboard Bold T",
+          "latex": "\\mathbb{T}"
+        },
+        {
+          "name": "Blackboard Bold U",
+          "latex": "\\mathbb{U}"
+        },
+        {
+          "name": "Blackboard Bold V",
+          "latex": "\\mathbb{V}"
+        },
+        {
+          "name": "Blackboard Bold W",
+          "latex": "\\mathbb{W}"
+        },
+        {
+          "name": "Blackboard Bold X",
+          "latex": "\\mathbb{X}"
+        },
+        {
+          "name": "Blackboard Bold Y",
+          "latex": "\\mathbb{Y}"
+        },
+        {
+          "name": "Blackboard Bold Z",
+          "latex": "\\mathbb{Z}",
+          "keywords": "integers"
+        },
+        {
+          "name": "Fraktur A",
+          "latex": "\\mathfrak{A}"
+        },
+        {
+          "name": "Fraktur B",
+          "latex": "\\mathfrak{B}"
+        },
+        {
+          "name": "Fraktur C",
+          "latex": "\\mathfrak{C}"
+        },
+        {
+          "name": "Fraktur D",
+          "latex": "\\mathfrak{D}"
+        },
+        {
+          "name": "Fraktur E",
+          "latex": "\\mathfrak{E}"
+        },
+        {
+          "name": "Fraktur F",
+          "latex": "\\mathfrak{F}"
+        },
+        {
+          "name": "Fraktur G",
+          "latex": "\\mathfrak{G}"
+        },
+        {
+          "name": "Fraktur H",
+          "latex": "\\mathfrak{H}"
+        },
+        {
+          "name": "Fraktur I",
+          "latex": "\\mathfrak{I}"
+        },
+        {
+          "name": "Fraktur J",
+          "latex": "\\mathfrak{J}"
+        },
+        {
+          "name": "Fraktur K",
+          "latex": "\\mathfrak{K}"
+        },
+        {
+          "name": "Fraktur L",
+          "latex": "\\mathfrak{L}"
+        },
+        {
+          "name": "Fraktur M",
+          "latex": "\\mathfrak{M}"
+        },
+        {
+          "name": "Fraktur N",
+          "latex": "\\mathfrak{N}"
+        },
+        {
+          "name": "Fraktur O",
+          "latex": "\\mathfrak{O}"
+        },
+        {
+          "name": "Fraktur P",
+          "latex": "\\mathfrak{P}",
+          "keywords": "power set"
+        },
+        {
+          "name": "Fraktur Q",
+          "latex": "\\mathfrak{Q}"
+        },
+        {
+          "name": "Fraktur R",
+          "latex": "\\mathfrak{R}"
+        },
+        {
+          "name": "Fraktur S",
+          "latex": "\\mathfrak{S}"
+        },
+        {
+          "name": "Fraktur T",
+          "latex": "\\mathfrak{T}"
+        },
+        {
+          "name": "Fraktur U",
+          "latex": "\\mathfrak{U}"
+        },
+        {
+          "name": "Fraktur V",
+          "latex": "\\mathfrak{V}"
+        },
+        {
+          "name": "Fraktur W",
+          "latex": "\\mathfrak{W}"
+        },
+        {
+          "name": "Fraktur X",
+          "latex": "\\mathfrak{X}"
+        },
+        {
+          "name": "Fraktur Y",
+          "latex": "\\mathfrak{Y}"
+        },
+        {
+          "name": "Fraktur Z",
+          "latex": "\\mathfrak{Z}"
+        },
+        {
+          "name": "Sans serif A",
+          "latex": "\\mathsf{A}"
+        },
+        {
+          "name": "Sans serif B",
+          "latex": "\\mathsf{B}"
+        },
+        {
+          "name": "Sans serif C",
+          "latex": "\\mathsf{C}"
+        },
+        {
+          "name": "Sans serif D",
+          "latex": "\\mathsf{D}"
+        },
+        {
+          "name": "Sans serif E",
+          "latex": "\\mathsf{E}"
+        },
+        {
+          "name": "Sans serif F",
+          "latex": "\\mathsf{F}"
+        },
+        {
+          "name": "Sans serif G",
+          "latex": "\\mathsf{G}"
+        },
+        {
+          "name": "Sans serif H",
+          "latex": "\\mathsf{H}"
+        },
+        {
+          "name": "Sans serif I",
+          "latex": "\\mathsf{I}"
+        },
+        {
+          "name": "Sans serif J",
+          "latex": "\\mathsf{J}"
+        },
+        {
+          "name": "Sans serif K",
+          "latex": "\\mathsf{K}"
+        },
+        {
+          "name": "Sans serif L",
+          "latex": "\\mathsf{L}"
+        },
+        {
+          "name": "Sans serif M",
+          "latex": "\\mathsf{M}"
+        },
+        {
+          "name": "Sans serif N",
+          "latex": "\\mathsf{N}"
+        },
+        {
+          "name": "Sans serif O",
+          "latex": "\\mathsf{O}"
+        },
+        {
+          "name": "Sans serif P",
+          "latex": "\\mathsf{P}"
+        },
+        {
+          "name": "Sans serif Q",
+          "latex": "\\mathsf{Q}"
+        },
+        {
+          "name": "Sans serif R",
+          "latex": "\\mathsf{R}"
+        },
+        {
+          "name": "Sans serif S",
+          "latex": "\\mathsf{S}"
+        },
+        {
+          "name": "Sans serif T",
+          "latex": "\\mathsf{T}"
+        },
+        {
+          "name": "Sans serif U",
+          "latex": "\\mathsf{U}"
+        },
+        {
+          "name": "Sans serif V",
+          "latex": "\\mathsf{V}"
+        },
+        {
+          "name": "Sans serif W",
+          "latex": "\\mathsf{W}"
+        },
+        {
+          "name": "Sans serif X",
+          "latex": "\\mathsf{X}"
+        },
+        {
+          "name": "Sans serif Y",
+          "latex": "\\mathsf{Y}"
+        },
+        {
+          "name": "Sans serif Z",
+          "latex": "\\mathsf{Z}"
+        },
+        {
+          "name": "Bold A",
+          "latex": "\\mathbf{A}"
+        },
+        {
+          "name": "Bold B",
+          "latex": "\\mathbf{B}"
+        },
+        {
+          "name": "Bold C",
+          "latex": "\\mathbf{C}"
+        },
+        {
+          "name": "Bold D",
+          "latex": "\\mathbf{D}"
+        },
+        {
+          "name": "Bold E",
+          "latex": "\\mathbf{E}"
+        },
+        {
+          "name": "Bold F",
+          "latex": "\\mathbf{F}"
+        },
+        {
+          "name": "Bold G",
+          "latex": "\\mathbf{G}"
+        },
+        {
+          "name": "Bold H",
+          "latex": "\\mathbf{H}"
+        },
+        {
+          "name": "Bold I",
+          "latex": "\\mathbf{I}"
+        },
+        {
+          "name": "Bold J",
+          "latex": "\\mathbf{J}"
+        },
+        {
+          "name": "Bold K",
+          "latex": "\\mathbf{K}"
+        },
+        {
+          "name": "Bold L",
+          "latex": "\\mathbf{L}"
+        },
+        {
+          "name": "Bold M",
+          "latex": "\\mathbf{M}"
+        },
+        {
+          "name": "Bold N",
+          "latex": "\\mathbf{N}"
+        },
+        {
+          "name": "Bold O",
+          "latex": "\\mathbf{O}"
+        },
+        {
+          "name": "Bold P",
+          "latex": "\\mathbf{P}"
+        },
+        {
+          "name": "Bold Q",
+          "latex": "\\mathbf{Q}"
+        },
+        {
+          "name": "Bold R",
+          "latex": "\\mathbf{R}"
+        },
+        {
+          "name": "Bold S",
+          "latex": "\\mathbf{S}"
+        },
+        {
+          "name": "Bold T",
+          "latex": "\\mathbf{T}"
+        },
+        {
+          "name": "Bold U",
+          "latex": "\\mathbf{U}"
+        },
+        {
+          "name": "Bold V",
+          "latex": "\\mathbf{V}"
+        },
+        {
+          "name": "Bold W",
+          "latex": "\\mathbf{W}"
+        },
+        {
+          "name": "Bold X",
+          "latex": "\\mathbf{X}"
+        },
+        {
+          "name": "Bold Y",
+          "latex": "\\mathbf{Y}"
+        },
+        {
+          "name": "Bold Z",
+          "latex": "\\mathbf{Z}"
+        }
+      ]
+    }
+  ]
+}

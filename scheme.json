@@ -1,0 +1,4 @@
+{
+  "$comment": "This file re-exports the authoritative EUSnips schema. The one copy that is validated against at runtime and projected onto the snippet engine is src/renderer/snippets/eusnips/schema.json, which is what this file points at; edit that file, not this one. The copy is a re-export rather than a duplicate so the two can never drift.",
+  "$ref": "./src/renderer/snippets/eusnips/schema.json"
+}

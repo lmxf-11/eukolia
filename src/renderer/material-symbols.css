@@ -1,0 +1,62 @@
+/*
+ * Material Symbols, served locally.
+ *
+ * The ported Overleaf code draws its icons as ligature text — `<span
+ * class="material-symbols">expand_more</span>` — and relies on the icon font
+ * being present. Overleaf's own stylesheet is not part of the port and Eukolia
+ * ships no icon font, so every one of those spans fell back to the surrounding
+ * text face and the ligature names were painted as words: "expand" beside the
+ * preamble toggle, "help" beside its link, "abc" over the toolbar's buttons. The
+ * screenshot that prompted this work shows them clearly.
+ *
+ * Vendored rather than linked to `fonts.googleapis.com`, for the same reason
+ * MathJax is vendored: Eukolia is an offline desktop application, and a
+ * stylesheet fetched at startup would be a network dependency in a build that
+ * has none — and a blank icon in an air-gapped room.
+ *
+ * The file is Google's `Material Symbols Outlined` (variable, weight 100–700),
+ * Apache-2.0; see `vendor-licenses/`. Only the ligature names the ported code
+ * uses are exercised, but the full variable font is kept so a widget added later
+ * finds its glyph.
+ *
+ * `font-display: block` is deliberate: a swap period would paint the ligature
+ * *text* ("expand") while the font loads, which is the defect being fixed.
+ */
+@font-face {
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: block;
+  src: url('/material-symbols/material-symbols-outlined.woff2') format('woff2');
+}
+
+/*
+ * Two class names, because the ported code is not consistent about which it
+ * uses: the Eukolia substitution emits `material-symbols` and the Overleaf
+ * stylesheets style `material-symbols-outlined` in places.
+ */
+.material-symbols,
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined', sans-serif;
+  font-weight: normal;
+  font-style: normal;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  /*
+   * The variable font's default is a filled, weight-400 icon at 24px optical
+   * size. Eukolia's chrome is smaller and uses outlined icons, which is what the
+   * reference's markup asks for by name.
+   */
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 20;
+  -webkit-font-smoothing: antialiased;
+}

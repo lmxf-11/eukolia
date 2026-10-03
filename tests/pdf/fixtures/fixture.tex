@@ -1,0 +1,84 @@
+% Eukolia PDF subsystem test fixture.
+%
+% Regenerate with:
+%   pdflatex -interaction=nonstopmode -halt-on-error -synctex=1 fixture.tex
+% (run twice, so the table of contents and page count are stable)
+%
+% hyperref is not cosmetic here: it is what makes pdflatex emit a PDF outline
+% (/Outlines bookmarks) and real link annotations, so the native engine's
+% outline() and links() paths are exercised against genuine PDF structures
+% rather than against a hand-built stub.
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb}
+\usepackage[margin=1in]{geometry}
+\usepackage[hidelinks]{hyperref}
+\title{Eukolia Native PDF Engine Fixture}
+\author{Eukolia Test Suite}
+\date{2026}
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+\section{Alpha Section}
+\label{sec:alpha}
+This paragraph exists so that the native engine has real body text to extract,
+search and select. It mentions the marker AARDVARK exactly once, and it also
+mentions the standalone word marmot twice, so that a case-insensitive search and
+a whole-word search both have something real to find.
+
+It carries two deliberately distinctive tokens. The first is ZEBRAQUAGGA, and it
+is the only text on this page containing those five letters, so a whole-word
+search for the abbreviation must fail while a substring search must succeed. The
+second is QuokkaToken, whose mixed case is what the case-sensitivity assertions
+are built on. Here is marmot once more.
+
+The engine must report a sensible MediaBox for this page and must be able to
+rasterise it at several scales, so the fixture deliberately contains enough
+glyphs and rules that a rendered tile is never a single flat colour.
+
+\begin{equation}
+  \label{eq:euler}
+  e^{i\pi} + 1 = 0
+\end{equation}
+
+A display equation above gives the renderer curves and italic glyphs to deal
+with. Inline mathematics such as $\alpha^2 + \beta^2 = \gamma^2$ and a fraction
+$\frac{a+b}{c+d}$ add more glyph variety within a single line.
+
+\begin{itemize}
+  \item First bullet item, deliberately long enough to exercise line wrapping.
+  \item Second bullet item, mentioning the hyphenated
+        compound four-and-twenty so that search can be tested across a break.
+  \item Third bullet item, mentioning nothing in particular.
+\end{itemize}
+
+\subsection{Alpha Subsection}
+A subsection adds another outline entry, which lets the test assert that the
+outline tree nests rather than coming back flat. It also cross-references
+Section~\ref{sec:beta} on page~\pageref{sec:beta}, which becomes an internal
+PDF link annotation, and links to \href{https://example.com/eukolia}{an external
+page}, which becomes an external link annotation.
+
+\newpage
+\section{Beta Section}
+\label{sec:beta}
+The second page exists so that page counting, per-page text extraction and
+page-scoped search all have something real to work with. It carries a table.
+
+\begin{tabular}{|l|r|}
+  \hline
+  Item & Count \\
+  \hline
+  Alpha & 1 \\
+  Beta  & 2 \\
+  Gamma & 3 \\
+  \hline
+\end{tabular}
+
+\section{Gamma Section}
+The third section starts on the same page as the second one, so the outline has
+two entries that map onto the same PDF page.
+
+Marker line: ZEBRAFISH.
+
+\end{document}

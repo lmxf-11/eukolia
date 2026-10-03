@@ -1,0 +1,947 @@
+{
+  "version": 1,
+  "name": "Built-in LaTeX snippets",
+  "description": "Built-in LaTeX snippet library for Eukolia.",
+  "namespace": "latex",
+  "language": "latex",
+  "snippets": [
+    {
+      "id": "item",
+      "trigger": {
+        "pattern": "item"
+      },
+      "description": "\\item on a newline",
+      "expand": "auto",
+      "body": "\n\\item "
+    },
+    {
+      "id": "subscript",
+      "trigger": {
+        "pattern": "__"
+      },
+      "description": "subscript",
+      "expand": "auto",
+      "body": "_{${1:${VISUAL}}}"
+    },
+    {
+      "id": "superscript",
+      "trigger": {
+        "pattern": "\\*\\*"
+      },
+      "description": "superscript",
+      "expand": "auto",
+      "body": "^{${1:${VISUAL}}}"
+    },
+    {
+      "id": "dots",
+      "trigger": {
+        "pattern": "\\.\\.\\."
+      },
+      "description": "\\dots",
+      "expand": "auto",
+      "body": "\\dots"
+    },
+    {
+      "id": "equation",
+      "trigger": {
+        "pattern": "BEQ"
+      },
+      "description": "equation environment",
+      "expand": "auto",
+      "body": [
+        {
+          "type": "text",
+          "value": "\\begin{equation}\n\t"
+        },
+        {
+          "type": "tabstop",
+          "index": 1,
+          "default": "${VISUAL}"
+        },
+        {
+          "type": "text",
+          "value": "\n\\end{equation}"
+        },
+        {
+          "type": "tabstop",
+          "index": 0
+        }
+      ]
+    },
+    {
+      "id": "equation-2",
+      "trigger": {
+        "pattern": "BSEQ"
+      },
+      "description": "equation* environment",
+      "expand": "auto",
+      "body": [
+        {
+          "type": "text",
+          "value": "\\begin{equation*}\n\t"
+        },
+        {
+          "type": "tabstop",
+          "index": 1,
+          "default": "${VISUAL}"
+        },
+        {
+          "type": "text",
+          "value": "\n\\end{equation*}"
+        },
+        {
+          "type": "tabstop",
+          "index": 0
+        }
+      ]
+    },
+    {
+      "id": "align",
+      "trigger": {
+        "pattern": "BAL"
+      },
+      "description": "align environment",
+      "expand": "auto",
+      "body": [
+        {
+          "type": "text",
+          "value": "\\begin{align}\n\t"
+        },
+        {
+          "type": "tabstop",
+          "index": 1,
+          "default": "${VISUAL}"
+        },
+        {
+          "type": "text",
+          "value": "\n\\end{align}"
+        },
+        {
+          "type": "tabstop",
+          "index": 0
+        }
+      ]
+    },
+    {
+      "id": "align-2",
+      "trigger": {
+        "pattern": "BSAL"
+      },
+      "description": "align* environment",
+      "expand": "auto",
+      "body": [
+        {
+          "type": "text",
+          "value": "\\begin{align*}\n\t"
+        },
+        {
+          "type": "tabstop",
+          "index": 1,
+          "default": "${VISUAL}"
+        },
+        {
+          "type": "text",
+          "value": "\n\\end{align*}"
+        },
+        {
+          "type": "tabstop",
+          "index": 0
+        }
+      ]
+    },
+    {
+      "id": "gather",
+      "trigger": {
+        "pattern": "BGA"
+      },
+      "description": "gather environment",
+      "expand": "auto",
+      "body": [
+        {
+          "type": "text",
+          "value": "\\begin{gather}\n\t"
+        },
+        {
+          "type": "tabstop",
+          "index": 1,
+          "default": "${VISUAL}"
+        },
+        {
+          "type": "text",
+          "value": "\n\\end{gather}"
+        },
+        {
+          "type": "tabstop",
+          "index": 0
+        }
+      ]
+    },
+    {
+      "id": "gather-2",
+      "trigger": {
+        "pattern": "BSGA"
+      },
+      "description": "gather* environment",
+      "expand": "auto",
+      "body": [
+        {
+          "type": "text",
+          "value": "\\begin{gather*}\n\t"
+        },
+        {
+          "type": "tabstop",
+          "index": 1,
+          "default": "${VISUAL}"
+        },
+        {
+          "type": "text",
+          "value": "\n\\end{gather*}"
+        },
+        {
+          "type": "tabstop",
+          "index": 0
+        }
+      ]
+    },
+    {
+      "id": "multline",
+      "trigger": {
+        "pattern": "BMU"
+      },
+      "description": "multline environment",
+      "expand": "auto",
+      "body": [
+        {
+          "type": "text",
+          "value": "\\begin{multline}\n\t"
+        },
+        {
+          "type": "tabstop",
+          "index": 1,
+          "default": "${VISUAL}"
+        },
+        {
+          "type": "text",
+          "value": "\n\\end{multline}"
+        },
+        {
+          "type": "tabstop",
+          "index": 0
+        }
+      ]
+    },
+    {
+      "id": "multline-2",
+      "trigger": {
+        "pattern": "BSMU"
+      },
+      "description": "multline* environment",
+      "expand": "auto",
+      "body": [
+        {
+          "type": "text",
+          "value": "\\begin{multline*}\n\t"
+        },
+        {
+          "type": "tabstop",
+          "index": 1,
+          "default": "${VISUAL}"
+        },
+        {
+          "type": "text",
+          "value": "\n\\end{multline*}"
+        },
+        {
+          "type": "tabstop",
+          "index": 0
+        }
+      ]
+    },
+    {
+      "id": "itemize",
+      "trigger": {
+        "pattern": "BIT"
+      },
+      "description": "itemize environment",
+      "expand": "auto",
+      "body": [
+        {
+          "type": "text",
+          "value": "\\begin{itemize}\n\t\\item "
+        },
+        {
+          "type": "tabstop",
+          "index": 1,
+          "default": "${VISUAL}"
+        },
+        {
+          "type": "text",
+          "value": "\n\\end{itemize}"
+        },
+        {
+          "type": "tabstop",
+          "index": 0
+        }
+      ]
+    },
+    {
+      "id": "enumerate",
+      "trigger": {
+        "pattern": "BEN"
+      },
+      "description": "enumerate environment",
+      "expand": "auto",
+      "body": [
+        {
+          "type": "text",
+          "value": "\\begin{enumerate}\n\t\\item "
+        },
+        {
+          "type": "tabstop",
+          "index": 1,
+          "default": "${VISUAL}"
+        },
+        {
+          "type": "text",
+          "value": "\n\\end{enumerate}"
+        },
+        {
+          "type": "tabstop",
+          "index": 0
+        }
+      ]
+    },
+    {
+      "id": "split",
+      "trigger": {
+        "pattern": "BSPL"
+      },
+      "description": "split environment",
+      "expand": "auto",
+      "body": [
+        {
+          "type": "text",
+          "value": "\\begin{split}\n\t"
+        },
+        {
+          "type": "tabstop",
+          "index": 1,
+          "default": "${VISUAL}"
+        },
+        {
+          "type": "text",
+          "value": "\n\\end{split}"
+        },
+        {
+          "type": "tabstop",
+          "index": 0
+        }
+      ]
+    },
+    {
+      "id": "cases",
+      "trigger": {
+        "pattern": "BCAS"
+      },
+      "description": "cases environment",
+      "expand": "auto",
+      "body": [
+        {
+          "type": "text",
+          "value": "\\begin{cases}\n\t"
+        },
+        {
+          "type": "tabstop",
+          "index": 1,
+          "default": "${VISUAL}"
+        },
+        {
+          "type": "text",
+          "value": "\n\\end{cases}"
+        },
+        {
+          "type": "tabstop",
+          "index": 0
+        }
+      ]
+    },
+    {
+      "id": "frame",
+      "trigger": {
+        "pattern": "BFR"
+      },
+      "description": "frame",
+      "expand": "auto",
+      "body": [
+        {
+          "type": "text",
+          "value": "\\begin{frame}\n\t\\frametitle{"
+        },
+        {
+          "type": "tabstop",
+          "index": 1,
+          "default": "<title>"
+        },
+        {
+          "type": "text",
+          "value": "}\n\n\t"
+        },
+        {
+          "type": "tabstop",
+          "index": 2,
+          "default": "${VISUAL}"
+        },
+        {
+          "type": "text",
+          "value": "\n\n\\end{frame}"
+        },
+        {
+          "type": "tabstop",
+          "index": 0
+        }
+      ]
+    },
+    {
+      "id": "figure",
+      "trigger": {
+        "pattern": "BFI"
+      },
+      "description": "figure",
+      "expand": "auto",
+      "body": [
+        {
+          "type": "text",
+          "value": "\\begin{figure}["
+        },
+        {
+          "type": "tabstop",
+          "index": 1,
+          "default": "htbp"
+        },
+        {
+          "type": "text",
+          "value": "]\n\t\\centering\n\t"
+        },
+        {
+          "type": "tabstop",
+          "index": 2,
+          "default": "${VISUAL}"
+        },
+        {
+          "type": "text",
+          "value": "\n\t\\caption{"
+        },
+        {
+          "type": "tabstop",
+          "index": 2,
+          "default": "<caption>"
+        },
+        {
+          "type": "text",
+          "value": "}\n\t\\label{"
+        },
+        {
+          "type": "tabstop",
+          "index": 3,
+          "default": "<label>"
+        },
+        {
+          "type": "text",
+          "value": "}\n\\end{figure}"
+        },
+        {
+          "type": "tabstop",
+          "index": 0
+        }
+      ]
+    },
+    {
+      "id": "table-caption-after-tabular",
+      "trigger": {
+        "pattern": "BTA"
+      },
+      "description": "table",
+      "expand": "auto",
+      "body": [
+        {
+          "type": "text",
+          "value": "\\begin{table}["
+        },
+        {
+          "type": "tabstop",
+          "index": 1,
+          "default": "htbp"
+        },
+        {
+          "type": "text",
+          "value": "]\n\t\\centering\n\t\\begin{tabular}{"
+        },
+        {
+          "type": "tabstop",
+          "index": 4,
+          "default": "<columns>"
+        },
+        {
+          "type": "text",
+          "value": "}\n\t\t"
+        },
+        {
+          "type": "tabstop",
+          "index": 5,
+          "default": "${VISUAL}"
+        },
+        {
+          "type": "text",
+          "value": "\n\t\\end{tabular}\n\t\\caption{"
+        },
+        {
+          "type": "tabstop",
+          "index": 2,
+          "default": "<caption>"
+        },
+        {
+          "type": "text",
+          "value": "}\n\t\\label{"
+        },
+        {
+          "type": "tabstop",
+          "index": 3,
+          "default": "<label>"
+        },
+        {
+          "type": "text",
+          "value": "}\n\\end{table}"
+        },
+        {
+          "type": "tabstop",
+          "index": 0
+        }
+      ]
+    },
+    {
+      "id": "table-caption-before-tabular",
+      "trigger": {
+        "pattern": "BTB"
+      },
+      "description": "table",
+      "expand": "auto",
+      "body": [
+        {
+          "type": "text",
+          "value": "\\begin{table}["
+        },
+        {
+          "type": "tabstop",
+          "index": 1,
+          "default": "htbp"
+        },
+        {
+          "type": "text",
+          "value": "]\n\t\\centering\n\t\\caption{"
+        },
+        {
+          "type": "tabstop",
+          "index": 2,
+          "default": "<caption>"
+        },
+        {
+          "type": "text",
+          "value": "}\n\t\\label{"
+        },
+        {
+          "type": "tabstop",
+          "index": 3,
+          "default": "<label>"
+        },
+        {
+          "type": "text",
+          "value": "}\n\t\\begin{tabular}{"
+        },
+        {
+          "type": "tabstop",
+          "index": 4,
+          "default": "<columns>"
+        },
+        {
+          "type": "text",
+          "value": "}\n\t\t"
+        },
+        {
+          "type": "tabstop",
+          "index": 5,
+          "default": "${VISUAL}"
+        },
+        {
+          "type": "text",
+          "value": "\n\t\\end{tabular}\n\\end{table}"
+        },
+        {
+          "type": "tabstop",
+          "index": 0
+        }
+      ]
+    },
+    {
+      "id": "tikzcd",
+      "trigger": {
+        "pattern": "BTC"
+      },
+      "description": "tikzcd",
+      "expand": "auto",
+      "body": [
+        {
+          "type": "text",
+          "value": "\\begin{tikzcd}\n\t"
+        },
+        {
+          "type": "tabstop",
+          "index": 1,
+          "default": "${VISUAL}"
+        },
+        {
+          "type": "text",
+          "value": "\n\\end{tikzcd}"
+        },
+        {
+          "type": "tabstop",
+          "index": 0
+        }
+      ]
+    },
+    {
+      "id": "tikzpicture",
+      "trigger": {
+        "pattern": "BTP"
+      },
+      "description": "tikzpicture",
+      "expand": "auto",
+      "body": [
+        {
+          "type": "text",
+          "value": "\\begin{tikzpicture}\n\t"
+        },
+        {
+          "type": "tabstop",
+          "index": 1,
+          "default": "${VISUAL}"
+        },
+        {
+          "type": "text",
+          "value": "\n\\end{tikzpicture}"
+        },
+        {
+          "type": "tabstop",
+          "index": 0
+        }
+      ]
+    },
+    {
+      "id": "set-font-size",
+      "trigger": {
+        "pattern": "fontsize"
+      },
+      "description": "Select a font size",
+      "expand": "auto",
+      "body": "${1|\\Huge,\\huge,\\LARGE,\\Large,\\large,\\normalsize,\\small,\\footnotesize,\\scriptsize,\\tiny|}"
+    },
+    {
+      "id": "textnormal",
+      "trigger": {
+        "pattern": "FNO"
+      },
+      "description": "normal font",
+      "expand": "auto",
+      "body": "\\textnormal{${1:${VISUAL:text}}}"
+    },
+    {
+      "id": "textrm",
+      "trigger": {
+        "pattern": "FRM"
+      },
+      "description": "roman font",
+      "expand": "auto",
+      "body": "\\textrm{${1:${VISUAL:text}}}"
+    },
+    {
+      "id": "emph",
+      "trigger": {
+        "pattern": "FEM"
+      },
+      "description": "emphasis font",
+      "expand": "auto",
+      "body": "\\emph{${1:${VISUAL:text}}}"
+    },
+    {
+      "id": "textsf",
+      "trigger": {
+        "pattern": "FSF"
+      },
+      "description": "sans serif font",
+      "expand": "auto",
+      "body": "\\textsf{${1:${VISUAL:text}}}"
+    },
+    {
+      "id": "texttt",
+      "trigger": {
+        "pattern": "FTT"
+      },
+      "description": "typewriter font",
+      "expand": "auto",
+      "body": "\\texttt{${1:${VISUAL:text}}}"
+    },
+    {
+      "id": "textit",
+      "trigger": {
+        "pattern": "FIT"
+      },
+      "description": "italic font",
+      "expand": "auto",
+      "body": "\\textit{${1:${VISUAL:text}}}"
+    },
+    {
+      "id": "textsl",
+      "trigger": {
+        "pattern": "FSL"
+      },
+      "description": "slanted font",
+      "expand": "auto",
+      "body": "\\textsl{${1:${VISUAL:text}}}"
+    },
+    {
+      "id": "textsc",
+      "trigger": {
+        "pattern": "FSC"
+      },
+      "description": "smallcaps font",
+      "expand": "auto",
+      "body": "\\textsc{${1:${VISUAL:text}}}"
+    },
+    {
+      "id": "underline",
+      "trigger": {
+        "pattern": "FUL"
+      },
+      "description": "Underline text",
+      "expand": "auto",
+      "body": "\\underline{${1:${VISUAL:text}}}"
+    },
+    {
+      "id": "uppercase",
+      "trigger": {
+        "pattern": "FUC"
+      },
+      "description": "Make text uppercase (all caps)",
+      "expand": "auto",
+      "body": "\\uppercase{${1:${VISUAL:text}}}"
+    },
+    {
+      "id": "lowercase",
+      "trigger": {
+        "pattern": "FLC"
+      },
+      "description": "Make text lowercase (no caps)",
+      "expand": "auto",
+      "body": "\\lowercase{${1:${VISUAL:text}}}"
+    },
+    {
+      "id": "textbf",
+      "trigger": {
+        "pattern": "FBF"
+      },
+      "description": "bold font",
+      "expand": "auto",
+      "body": "\\textbf{${1:${VISUAL:text}}}"
+    },
+    {
+      "id": "textsuperscript",
+      "trigger": {
+        "pattern": "FSS"
+      },
+      "description": "Make text a superscript",
+      "expand": "auto",
+      "body": "\\textsuperscript{${1:${VISUAL:text}}}"
+    },
+    {
+      "id": "textsubscript",
+      "trigger": {
+        "pattern": "FBS"
+      },
+      "description": "Make text a superscript",
+      "expand": "auto",
+      "body": "\\textsubscript{${1:${VISUAL:text}}}"
+    },
+    {
+      "id": "mathrm",
+      "trigger": {
+        "pattern": "MRM"
+      },
+      "description": "math roman font",
+      "expand": "auto",
+      "body": "\\mathrm{${1:${VISUAL:text}}}"
+    },
+    {
+      "id": "mathsf",
+      "trigger": {
+        "pattern": "MSF"
+      },
+      "description": "math sans serif font",
+      "expand": "auto",
+      "body": "\\mathsf{${1:${VISUAL:text}}}"
+    },
+    {
+      "id": "mathbf",
+      "trigger": {
+        "pattern": "MBF"
+      },
+      "description": "math bold font",
+      "expand": "auto",
+      "body": "\\mathbf{${1:${VISUAL:text}}}"
+    },
+    {
+      "id": "mathbb",
+      "trigger": {
+        "pattern": "MBB"
+      },
+      "description": "math blackboard bold font",
+      "expand": "auto",
+      "body": "\\mathbb{${1:${VISUAL:text}}}"
+    },
+    {
+      "id": "mathcal",
+      "trigger": {
+        "pattern": "MCA"
+      },
+      "description": "math caligraphic font",
+      "expand": "auto",
+      "body": "\\mathcal{${1:${VISUAL:text}}}"
+    },
+    {
+      "id": "mathit",
+      "trigger": {
+        "pattern": "MIT"
+      },
+      "description": "math italic font",
+      "expand": "auto",
+      "body": "\\mathit{${1:${VISUAL:text}}}"
+    },
+    {
+      "id": "mathtt",
+      "trigger": {
+        "pattern": "MTT"
+      },
+      "description": "math typewriter font",
+      "expand": "auto",
+      "body": "\\mathtt{${1:${VISUAL:text}}}"
+    },
+    {
+      "id": "wrapenv",
+      "trigger": {
+        "pattern": "wrap-env"
+      },
+      "description": "Wrap selection into an environment",
+      "expand": "auto",
+      "body": [
+        {
+          "type": "text",
+          "value": "\n\\begin{"
+        },
+        {
+          "type": "tabstop",
+          "index": 1
+        },
+        {
+          "type": "text",
+          "value": "}\n\t"
+        },
+        {
+          "type": "tabstop",
+          "index": 2,
+          "default": "${VISUAL}"
+        },
+        {
+          "type": "text",
+          "value": "\n\\end{"
+        },
+        {
+          "type": "tabstop",
+          "index": 1
+        },
+        {
+          "type": "text",
+          "value": "}"
+        },
+        {
+          "type": "tabstop",
+          "index": 0
+        }
+      ],
+      "metadata": {
+        "importedFrom": "latex-snippet.json",
+        "note": "trigger assigned by Eukolia"
+      }
+    },
+    {
+      "id": "part",
+      "trigger": {
+        "pattern": "SPA"
+      },
+      "description": "part",
+      "expand": "auto",
+      "body": "\\part{${1:${VISUAL}}}"
+    },
+    {
+      "id": "chapter",
+      "trigger": {
+        "pattern": "SCH"
+      },
+      "description": "chapter",
+      "expand": "auto",
+      "body": "\\chapter{${1:${VISUAL}}}"
+    },
+    {
+      "id": "section",
+      "trigger": {
+        "pattern": "SSE"
+      },
+      "description": "section",
+      "expand": "auto",
+      "body": "\\section{${1:${VISUAL}}}"
+    },
+    {
+      "id": "subsection",
+      "trigger": {
+        "pattern": "SSS"
+      },
+      "description": "subsection",
+      "expand": "auto",
+      "body": "\\subsection{${1:${VISUAL}}}"
+    },
+    {
+      "id": "subsubsection",
+      "trigger": {
+        "pattern": "SS2"
+      },
+      "description": "subsubsection",
+      "expand": "auto",
+      "body": "\\subsubsection{${1:${VISUAL}}}"
+    },
+    {
+      "id": "paragraph",
+      "trigger": {
+        "pattern": "SPG"
+      },
+      "description": "paragraph",
+      "expand": "auto",
+      "body": "\\paragraph{${1:${VISUAL}}}"
+    },
+    {
+      "id": "subparagraph",
+      "trigger": {
+        "pattern": "SSP"
+      },
+      "description": "subparagraph",
+      "expand": "auto",
+      "body": "\\subparagraph{${1:${VISUAL}}}"
+    }
+  ]
+}
