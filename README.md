@@ -1,8 +1,6 @@
 ## 📦 Installation
 
-Download the latest release from:
-
-[**https://github.com/lmxf-11/eukolia/releases**](https://github.com/lmxf-11/eukolia/releases)
+Download the latest release from: [**https://github.com/lmxf-11/eukolia/releases**](https://github.com/lmxf-11/eukolia/releases)
 
 ### Installer
 
@@ -24,9 +22,7 @@ My personal Eukolia settings, macros, and snippets are included in the [`.eukoli
 
 Eukolia is still at an early stage of development and is currently intended primarily for testing and experimentation.
 
-Feedback is especially valuable during the alpha stage. If you encounter a bug, have an idea for an improvement, or would like to request a feature, please open an issue:
-
-**[https://github.com/lmxf-11/eukolia/issues](https://github.com/lmxf-11/eukolia/issues)**
+Feedback is especially valuable during the alpha stage. If you encounter a bug, have an idea for an improvement, or would like to request a feature, please open an issue: **[https://github.com/lmxf-11/eukolia/issues](https://github.com/lmxf-11/eukolia/issues)**
 
 ## ☕ Support Eukolia
 
