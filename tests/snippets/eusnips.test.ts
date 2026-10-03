@@ -21,7 +21,6 @@ import {
   engineContext,
   escapeRegexText,
   fileLanguage,
-  flagsOf,
   initialSnippetFile,
   nextSnippetId,
   normalizeSnippetFile,
@@ -46,7 +45,6 @@ import {
 import { offsetOfJsonPointer, offsetsOfJsonPointers, positionOfOffset } from '../../src/renderer/snippets/eusnips/jsonSource';
 import {
   anchorPattern,
-  flagLetters,
   unescapeHeaderTrigger
 } from '../../src/renderer/snippets/eusnips/hsnips';
 import { BACKSLASH } from '../hypersnips/helpers';

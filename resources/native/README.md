@@ -8,7 +8,6 @@ Eukolia never reads from `References/` (Instructions.md §8).
 | `eukolia-pdf.exe` | built from `src/native/pdf/` | the worker; ~0.9 MB, statically linked libstdc++/libgcc |
 | `libmupdf.dll` | `References/light-pdf/out/dbg64/libmupdf.dll` | MuPDF 1.28.0, **debug** build (~20 MB) |
 | `mupdf-COPYING.txt` | `References/light-pdf/mupdf/COPYING` | AGPL-3.0 |
-| `light-pdf-COPYING.txt` | `References/light-pdf/COPYING` | GPL-3.0 |
 
 Matching copies are kept in `vendor-licenses/` alongside the other reference
 projects' licences.

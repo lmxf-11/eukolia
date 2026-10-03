@@ -79,11 +79,6 @@ function installApi(): void {
       return {
         requestId: request.requestId,
         page: request.page,
-        // The scale the engine rendered at, echoed back — a real render reports it,
-        // and the viewer sizes the canvas's CSS box from it (`canvasDisplayBox`). A
-        // stub that omits it hands the viewer `undefined` where a number belongs, so
-        // the harness was not modelling the contract it is used to assert.
-        scale: request.scale,
         width: 8,
         height: 8,
         stride: 32,

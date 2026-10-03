@@ -200,7 +200,7 @@ describe('the watcher policy', () => {
   it('resolves a rename by looking, so a deleted file is a delete', async () => {
     // `fs.watch` reports `rename` for both directions; the difference is whether
     // the path is there afterwards.
-    const harness = collect({ recursive: 'ok', existing: [] })
+    const harness = collect({ recursive: 'ok', exists: () => false })
     harness.watcher.start()
 
     harness.emit(ROOT, { type: 'rename', filename: 'gone.tex' })
@@ -382,7 +382,7 @@ describe('the real filesystem', () => {
     const watcher = new TreeWatcher({
       root,
       excludes,
-      ports: nodeWatchPorts(excludes),
+      ports: nodeWatchPorts(),
       deliver: (events) => batches.push(events),
       report: () => undefined,
       debounceMs: 50
@@ -414,7 +414,7 @@ describe('the real filesystem', () => {
     const watcher = new TreeWatcher({
       root,
       excludes,
-      ports: nodeWatchPorts(excludes),
+      ports: nodeWatchPorts(),
       deliver: (events) => batches.push(events),
       report: () => undefined,
       debounceMs: 50

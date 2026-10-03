@@ -126,15 +126,11 @@ require_(
 
 if (packageDir) {
   const asarPath = path.join(packageDir, 'resources', 'app.asar');
+  require_(path.join(packageDir, 'Eukolia.exe'), 'the packaged Windows executable is missing');
+  require_(path.join(packageDir, 'resources', 'native', 'eukolia-pdf.exe'), 'the native PDF worker was not packaged');
+  require_(path.join(packageDir, 'resources', 'native', 'libmupdf.dll'), 'the PDF runtime was not packaged');
   if (!existsSync(packageDir)) {
-    /*
-     * Not a failure. `--dir` always produces an unpacked directory, but a build
-     * aimed at a single-file target need not, and a guard that turns "this target
-     * has no directory to inspect" into a failed build is a guard people turn off.
-     * The build output was still checked above, which is the half that catches a
-     * half-finished renderer.
-     */
-    console.warn(`  (no ${path.relative(projectRoot, packageDir)} to inspect; the build output was checked on its own)`);
+    problems.push(`missing ${path.relative(projectRoot, packageDir)} — the requested package was not produced`);
   } else if (!existsSync(asarPath)) {
     problems.push(
       `${path.relative(projectRoot, asarPath)} was not written — the package has no application in it; re-run \`npm run pack\``
@@ -144,7 +140,7 @@ if (packageDir) {
     try {
       ({ listPackage } = await import('@electron/asar'));
     } catch {
-      console.warn('  (@electron/asar is unavailable, so the archive contents were not checked)');
+      problems.push('@electron/asar is unavailable — the requested archive could not be verified');
     }
     if (listPackage) {
       /** Asar stores forward-slash paths with no leading separator. */

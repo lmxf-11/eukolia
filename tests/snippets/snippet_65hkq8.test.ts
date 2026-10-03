@@ -53,7 +53,7 @@ const displayMath: EusnipsFile = {
   ]
 }
 
-const displayMathFile = () => normalizeSnippetFile(parseSnippetFileText(JSON.stringify(displayMath)).file)
+const displayMathFile = () => normalizeSnippetFile(parseSnippetFileText(JSON.stringify(displayMath)).file!)
 
 describe('Snippet 65hkq8 reproduction & verification', () => {
   it('loads, expands snippet 65hkq8 and navigates all 8 dynamic placeholders', () => {

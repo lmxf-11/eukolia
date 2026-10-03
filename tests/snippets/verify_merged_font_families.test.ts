@@ -72,7 +72,7 @@ describe('Merge Math Font Snippets by Role Across Families', () => {
     expect(sourceData.snippets.length).toBe(556);
 
     // Verify none of the candidate individual IDs remain in sourceData
-    const remainingCandidateCount = sourceData.snippets.filter(s => candidateIds.has(s.id)).length;
+    const remainingCandidateCount = sourceData.snippets.filter(s => candidateIds.has(s.id ?? "")).length;
     expect(remainingCandidateCount).toBe(0);
 
     // Verify all 4 meta-snippets exist in sourceData

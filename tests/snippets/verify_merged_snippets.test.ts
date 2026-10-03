@@ -36,6 +36,7 @@ export function translateHsnips(hsnipsContent: string, existingUserSnippets: Eus
 
   if (existingUserSnippets && Array.isArray(existingUserSnippets.snippets)) {
     for (const s of existingUserSnippets.snippets) {
+      if (!s.id) continue;
       const p = s.trigger?.pattern ?? '';
       const b = typeof s.body === 'string' ? s.body : '';
       const d = s.description || '';
@@ -883,7 +884,7 @@ function renderFunctionTabstopBinary(match, mode = "command") {
     if (ctx === 'math' && (
       s.id === 'dots_variants' ||
       ['..c', '..m', '..b', '..i', '..o', '\\.\\.c', '\\.\\.m', '\\.\\.b', '\\.\\.i', '\\.\\.o'].includes(pat) ||
-      ['k79n9s', '5u3ff4', 'u4s99v', 'netu3m', '5jf47j'].includes(s.id)
+      ['k79n9s', '5u3ff4', 'u4s99v', 'netu3m', '5jf47j'].includes(s.id ?? "")
     )) {
       if (!dotsVariantsInserted) {
         newSnippets.push({
@@ -905,7 +906,7 @@ function renderFunctionTabstopBinary(match, mode = "command") {
     if (ctx === 'math' && (
       s.id === 'unit_vectors_math' ||
       [':x', ':y', ':z'].includes(pat) ||
-      ['wasbvz', 'u8x8g6', '7vgyhm'].includes(s.id)
+      ['wasbvz', 'u8x8g6', '7vgyhm'].includes(s.id ?? "")
     )) {
       if (!unitVectorsInserted) {
         newSnippets.push({
@@ -950,7 +951,7 @@ function renderFunctionTabstopBinary(match, mode = "command") {
     if (ctx === 'text' && (
       s.id === 'inverse_trig_text' ||
       /(sin|cos|tan|cot|sec|csc)iv $/.test(pat) ||
-      ['iaewm2', '3fcgtk', 'bzavyp'].includes(s.id)
+      ['iaewm2', '3fcgtk', 'bzavyp'].includes(s.id ?? "")
     )) {
       if (!inverseTrigTextInserted) {
         newSnippets.push({

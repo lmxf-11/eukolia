@@ -1042,28 +1042,13 @@ export const createDecorations = (
               {
                 const theoremName = theoremEnvironments.get(envName)
 
-                if (theoremName && shouldDecorate(state, nodeRef)) {
+                if (theoremName && hasMatchingEnvironmentEnd(nodeRef.node, state)) {
+                  // Counting follows the document, even when this header is disclosed.
+                  const number = theoremCounterManager.formatNumber(envName)
+                  if (!shouldDecorateEnvTag(state, nodeRef)) break
                   const argumentNode = nodeRef.node
                     .getChild('OptionalArgument')
                     ?.getChild('ShortOptionalArg')
-
-                  /*
-                   * Eukolia: the theorem's number, from the counter this walk has
-                   * stepped through every chapter and section above it, and the range
-                   * the widget stands for (the bundle was the authority for both
-                   * arguments, and for the `block: false` below).
-                   *
-                   * `formatNumber` is not a lookup: it *increments* the counter for
-                   * this environment's counter, which is why it is called once per
-                   * theorem rendered and why it must not be called anywhere else.
-                   * `theoremCounterManager` is the same object `scanContextUpTo` left
-                   * standing at the boundary of a bounded build, so the first theorem
-                   * on screen is numbered as if the whole document had been walked.
-                   *
-                   * `''` for an unnumbered environment — `proof`, `remark` — and the
-                   * widget renders no number at all for an empty string.
-                   */
-                  const number = theoremCounterManager.formatNumber(envName)
 
                   decorations.push(
                     Decoration.replace({
@@ -1104,7 +1089,7 @@ export const createDecorations = (
               if (shouldDecorate(state, nodeRef)) {
                 decorations.push(
                   Decoration.replace({
-                    widget: new EndWidget(),
+                    widget: new EndWidget(envName, nodeRef.from),
                     block: true,
                   }).range(nodeRef.from, nodeRef.to)
                 )
@@ -1131,11 +1116,11 @@ export const createDecorations = (
               }
               break
             default:
-              if (theoremEnvironments.has(envName)) {
-                if (shouldDecorate(state, nodeRef)) {
+              if (theoremEnvironments.has(envName) && hasMatchingEnvironmentBegin(nodeRef.node, state)) {
+                if (shouldDecorateEnvTag(state, nodeRef)) {
                   decorations.push(
                     Decoration.replace({
-                      widget: new EndWidget(),
+                      widget: new EndWidget(envName, nodeRef.from),
                       block: true,
                     }).range(nodeRef.from, nodeRef.to)
                   )
@@ -1320,19 +1305,10 @@ export const createDecorations = (
 
         return false // no markup in ref content
       } else if (nodeRef.type.is('Label')) {
-        // \label definition
-        if (shouldDecorate(state, nodeRef)) {
-          const argumentNode = nodeRef.node
-            .getChild('LabelArgument')
-            ?.getChild('ShortTextArgument')
-
-          decorations.push(
-            ...decorateArgumentBraces(
-              new IconBraceWidget('🏷'),
-              argumentNode,
-              nodeRef.from
-            )
-          )
+        if (shouldDecorateEnvTag(state, nodeRef) && !nodeHasError(nodeRef.node)) {
+          decorations.push(Decoration.replace({
+            widget: new LabelIconWidget(nodeRef.from),
+          }).range(nodeRef.from, nodeRef.to))
         }
 
         return false // no markup in label content
@@ -1660,6 +1636,19 @@ export const createDecorations = (
               )
             }
           } else {
+            // Keep each item semantic while retaining the reference marker widget.
+            // Per-line wrappers also work when the list begins outside the viewport.
+            if (line.to > from) {
+              decorations.push(
+                Decoration.mark({
+                  tagName: currentListEnvironment === 'enumerate' ? 'ol' : 'ul',
+                  attributes: currentListEnvironment === 'enumerate'
+                    ? { start: String(currentOrdinal), class: 'ol-cm-list' }
+                    : { class: 'ol-cm-list' },
+                }).range(from, line.to),
+                Decoration.mark({ tagName: 'li', class: 'ol-cm-list-item' }).range(from, line.to)
+              )
+            }
             decorations.push(
               Decoration.replace({
                 widget: new ItemWidget(
@@ -1697,21 +1686,12 @@ export const createDecorations = (
           }
         }
       } else if (nodeRef.type.is('$ToggleTextFormattingCommand')) {
-        // markup that can be toggled using toolbar buttons/keyboard shortcuts
         const textArgumentNode = nodeRef.node.getChild('TextArgument')
-        const argumentText = textArgumentNode?.getChild('LongArg')
-        const shouldShowBraces =
-          !shouldDecorate(state, nodeRef) ||
-          argumentText?.from === argumentText?.to
-        decorations.push(
-          ...decorateArgumentBraces(
-            new BraceWidget(shouldShowBraces ? '{' : ''),
-            textArgumentNode,
-            nodeRef.from,
-            true,
-            new BraceWidget(shouldShowBraces ? '}' : '')
-          )
-        )
+        if (shouldDecorate(state, nodeRef)) {
+          decorations.push(...decorateArgumentBraces(
+            new BraceWidget(), textArgumentNode, nodeRef.from
+          ))
+        }
       } else if (nodeRef.type.is('$OtherTextFormattingCommand')) {
         // markup that can't be toggled using toolbar buttons/keyboard shortcuts
         const textArgumentNode = nodeRef.node.getChild('TextArgument')
@@ -1770,7 +1750,14 @@ export const createDecorations = (
           if (commandName.length > 0) {
             const textArgumentNode = commandNode.getChild('TextArgument')
 
-            if (commandName === '\\keywords') {
+            if (commandName === '\\stag' && textArgumentNode) {
+              if (shouldDecorateEnvTag(state, nodeRef) && !nodeHasError(nodeRef.node)) {
+                decorations.push(Decoration.replace({
+                  widget: new LabelIconWidget(nodeRef.from),
+                }).range(nodeRef.from, nodeRef.to))
+              }
+              return false
+            } else if (commandName === '\\keywords') {
               if (shouldDecorate(state, nodeRef)) {
                 // command name and opening brace
                 decorations.push(

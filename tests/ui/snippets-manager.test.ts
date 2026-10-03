@@ -290,7 +290,7 @@ describe('attributing issues to fields', () => {
   });
 
   it('rewrites the schema vocabulary a person cannot act on', () => {
-    const file = fileOf([{ id: 'x', trigger: { pattern: 'a' }, body: 'b', expand: 'sometimes' }]);
+    const file = { snippets: [{ id: 'x', trigger: { pattern: 'a' }, body: 'b', expand: 'sometimes' }] };
     const text = JSON.stringify({ version: 1, language: 'latex', snippets: file.snippets });
     const validation = validateSnippetFile(JSON.parse(text) as unknown, { text });
     const [problem] = fieldIssuesFor(0, validation.issues, []);
@@ -374,7 +374,6 @@ describe('editing the whole schema', () => {
       trigger: { pattern: 'a' },
       body: 'b',
       multiline: true,
-      options: ['b'],
       metadata: { importedFrom: 'old.hsnips' },
       script: { language: 'javascript', code: 'rv = 1' },
       tags: ['maths']
@@ -382,7 +381,6 @@ describe('editing the whole schema', () => {
     const edited = { ...snippet, description: 'a name' };
     expect(edited).toMatchObject({
       multiline: true,
-      options: ['b'],
       metadata: { importedFrom: 'old.hsnips' },
       script: { language: 'javascript', code: 'rv = 1' },
       tags: ['maths']
@@ -521,7 +519,7 @@ describe('the quick test', () => {
   });
 
   it('says so when the trigger does not fire, rather than showing nothing', () => {
-    const snippet = { id: 'ff', trigger: { pattern: 'ff' }, body: 'X', expand: 'auto', boundary: 'word' as const };
+    const snippet = { id: 'ff', trigger: { pattern: 'ff' }, body: 'X', expand: 'auto' as const, boundary: 'word' as const };
     expect(testSnippet(snippet, 'staff').kind).toBe('no-match');
     expect(testSnippet(snippet, 'ff').kind).toBe('match');
     // The boundary is part of the answer: `anywhere` fires inside a word.

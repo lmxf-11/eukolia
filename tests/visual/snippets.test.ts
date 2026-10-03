@@ -702,7 +702,8 @@ describe('Visual Mode snippet completion', () => {
     const option = result?.options.find(candidate => candidate.label === 'mm')
     expect(option, `offered: ${result?.options.map(o => o.label).join(', ')}`).toBeDefined()
 
-    option?.apply?.(view, option, result?.from ?? 0, result?.to ?? 0)
+    if (!option || typeof option.apply !== 'function') throw new Error('Missing snippet completion callback')
+    option.apply(view, option, result?.from ?? 0, result?.to ?? 0)
 
     const text = view.state.doc.toString()
     // The trigger is replaced whole rather than left in front of the expansion.
@@ -752,19 +753,18 @@ describe('Visual Mode snippet completion', () => {
     view.destroy()
   })
 
-  it('runs snippet ws6qtr from user snippets.json in live CodeMirror view', async () => {
-    const fs = await import('fs')
-    const userSnippetsPath = 'C:/Users/Yinji/AppData/Roaming/Eukolia/User/snippets/snippets.json'
-    const raw = fs.readFileSync(userSnippetsPath, 'utf8')
+  it('runs the ws6qtr snippet fixture in live CodeMirror view', async () => {
+    const raw = JSON.stringify({ version: 1, language: 'latex', snippets: [{
+      id: 'ws6qtr', trigger: { pattern: '(sin|cos|tan) ' }, description: 'rm functions',
+      expand: 'auto', boundary: 'anywhere', context: 'text', body: '``rv = m[1]`` ${1:($2)}$0'
+    }] })
     const { parseSnippetFileText, normalizeSnippetFile, loadEusnipsIntoEngine } = await import('@/snippets/eusnips')
     const parsed = parseSnippetFileText(raw)
     const normalized = normalizeSnippetFile(parsed.file!)
 
     const engine = getSnippetEngine()
     engine.clearStack()
-    const loadedList = loadEusnipsIntoEngine(engine, [normalized])
-    const normWs = normalized.snippets.find(s => s.id === 'ws6qtr')
-    const loadedWs = loadedList.find(s => s.id === 'ws6qtr')
+    loadEusnipsIntoEngine(engine, [normalized])
 
     const parent = document.createElement('div')
     document.body.append(parent)

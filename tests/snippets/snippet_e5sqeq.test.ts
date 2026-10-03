@@ -34,7 +34,7 @@ describe('Snippet e5sqeq verification', () => {
     ]
   }
 
-  const e5sqeqFile = () => normalizeSnippetFile(parseSnippetFileText(JSON.stringify(e5sqeq)).file)
+  const e5sqeqFile = () => normalizeSnippetFile(parseSnippetFileText(JSON.stringify(e5sqeq)).file!)
 
   it('tokenizes snippet e5sqeq body without false-positive substitutions', () => {
     const tokens = tokenizeBody(e5sqeqBody)

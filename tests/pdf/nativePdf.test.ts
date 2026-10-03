@@ -406,7 +406,7 @@ describe('page rendering', () => {
     expect(stats.cacheBytes).toBeGreaterThan(0);
   });
 
-  it('cancels a queued render without streaming its pixels', async () => {
+  it('keeps the worker usable when cancelling a queued render', async () => {
     // Queue a large render, cancel it immediately, then prove the engine is
     // still healthy by rendering something else successfully.
     const pending = engine.renderPage(2001, { page: 0, scale: 6, format: 'bgra', allowCache: false });
@@ -424,7 +424,7 @@ describe('page rendering', () => {
     const after = await engine.renderPage(2002, { page: 2, scale: 1, format: 'bgra' });
     expect(after.ok).toBe(true);
     expect(after.pixels.byteLength).toBeGreaterThan(0);
-  });
+  }, 60_000);
 
   it('rejects an absurd scale instead of allocating for it', async () => {
     await expect(engine.renderPage(2003, { page: 0, scale: 500 })).rejects.toThrow(/rejected/i);

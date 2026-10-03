@@ -133,7 +133,7 @@ describe('Delimiter auto-closing settings', () => {
       const tr1 = insertBracket(state1, '[')
       expect(tr1).not.toBeNull()
       expect(tr1?.newDoc.toString()).toBe('[]')
-      expect(tr1?.selection.main.head).toBe(1)
+      expect(tr1?.state.selection.main.head).toBe(1)
 
       settingsManager.setValue('editor.autoCloseSquareBrackets', false, 'user')
       const state2 = createTestState()
@@ -147,7 +147,7 @@ describe('Delimiter auto-closing settings', () => {
       const tr1 = insertBracket(state1, '{')
       expect(tr1).not.toBeNull()
       expect(tr1?.newDoc.toString()).toBe('{}')
-      expect(tr1?.selection.main.head).toBe(1)
+      expect(tr1?.state.selection.main.head).toBe(1)
 
       settingsManager.setValue('editor.autoCloseCurlyBraces', false, 'user')
       const state2 = createTestState()
@@ -161,7 +161,7 @@ describe('Delimiter auto-closing settings', () => {
       const tr1 = insertBracket(state1, '(')
       expect(tr1).not.toBeNull()
       expect(tr1?.newDoc.toString()).toBe('()')
-      expect(tr1?.selection.main.head).toBe(1)
+      expect(tr1?.state.selection.main.head).toBe(1)
 
       settingsManager.setValue('editor.autoCloseParentheses', false, 'user')
       const state2 = createTestState()
@@ -175,7 +175,7 @@ describe('Delimiter auto-closing settings', () => {
       const tr1 = insertBracket(state1, '$')
       expect(tr1).not.toBeNull()
       expect(tr1?.newDoc.toString()).toBe('$$')
-      expect(tr1?.selection.main.head).toBe(1)
+      expect(tr1?.state.selection.main.head).toBe(1)
 
       settingsManager.setValue('editor.autoCloseDollarSigns', false, 'user')
       const state2 = createTestState()

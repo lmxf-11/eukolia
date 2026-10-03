@@ -21,6 +21,7 @@
  */
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
+import { EditorView } from '@codemirror/view'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -145,7 +146,7 @@ async function mount(anchor: number) {
 function withRebuildCounter(view: Awaited<ReturnType<typeof mount>>) {
   let rebuilds = 0
   const raw = view.dispatch.bind(view)
-  const setsOf = () => view.state.facet(view.constructor.atomicRanges)
+  const setsOf = () => view.state.facet(EditorView.atomicRanges)
   let last = setsOf().length ? setsOf()[0](view) : null
   view.dispatch = ((...args: Parameters<typeof view.dispatch>) => {
     raw(...args)

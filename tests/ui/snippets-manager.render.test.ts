@@ -156,7 +156,7 @@ const setInputValue = async (input: HTMLInputElement | HTMLTextAreaElement, valu
 };
 
 
-const IDLE = { trigger: 'shrug', description: 'shrug', body: '\\shrug{$1}$0' };
+const IDLE = { trigger: { pattern: 'shrug' }, description: 'shrug', body: '\\shrug{$1}$0' };
 
 describe('Simple and Advanced modes', () => {
   it('shows the common fields in Simple and the rest in Advanced', async () => {

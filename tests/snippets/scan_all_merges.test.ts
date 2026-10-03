@@ -90,7 +90,7 @@ describe('Scan All Possible Merges - Candidate Audits', () => {
     const sourceData: EusnipsFile = JSON.parse(fs.readFileSync(xplaceJsonPath, 'utf8'));
 
     // Verify none of the candidate individual IDs remain
-    const remainingCandidateCount = sourceData.snippets.filter(s => candidateIds.has(s.id)).length;
+    const remainingCandidateCount = sourceData.snippets.filter(s => candidateIds.has(s.id ?? "")).length;
     expect(remainingCandidateCount).toBe(0);
 
     // Verify all meta-snippets are present

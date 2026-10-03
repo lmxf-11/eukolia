@@ -136,6 +136,16 @@ describe('Theorems, environments, and section styling in Visual Mode', () => {
     view.destroy()
   })
 
+  it('keeps later theorem numbers stable while editing an earlier header', async () => {
+    const view = await createTestView(TEST_DOC, TEST_DOC.indexOf('\\begin{theorem}') + 2)
+    try {
+      const lemma = view.dom.querySelector('.ol-cm-begin-lemma .ol-cm-environment-number')
+      expect(lemma?.textContent).toBe(' 1.2')
+    } finally {
+      view.destroy()
+    }
+  })
+
   it('renders \\end{theorem} as a boxed end marker and \\end{proof} as a filled QED tombstone', () => {
     const thmEnd = new EndWidget('theorem', 100)
     const thmDom = thmEnd.toDOM(null as unknown as EditorView)
@@ -384,7 +394,7 @@ Then $F$ is differentiable.
     view.dispatch({
       selection: EditorSelection.cursor(mathPos),
     })
-    view.measure()
+    view.requestMeasure()
     await new Promise(r => setTimeout(r, 60))
 
     const bracketSvg = view.dom.querySelector('.eu-cm-env-bracket-svg') as SVGSVGElement | null
@@ -428,7 +438,7 @@ ${contentLines}
     view.dispatch({
       selection: EditorSelection.cursor(midPos),
     })
-    view.measure()
+    view.requestMeasure()
     await new Promise(r => setTimeout(r, 60))
 
     const bracketSvg = view.dom.querySelector('.eu-cm-env-bracket-svg') as SVGSVGElement | null
@@ -462,7 +472,7 @@ Some short argument.
     view.dispatch({
       selection: EditorSelection.cursor(endPos),
     })
-    view.measure()
+    view.requestMeasure()
     await new Promise(r => setTimeout(r, 60))
 
     const bracketSvg = view.dom.querySelector('.eu-cm-env-bracket-svg') as SVGSVGElement | null
@@ -502,7 +512,7 @@ A statement.
     view.dispatch({
       selection: EditorSelection.cursor(contentPos),
     })
-    view.measure()
+    view.requestMeasure()
     await new Promise(r => setTimeout(r, 60))
 
     const bracketSvg = view.dom.querySelector('.eu-cm-env-bracket-svg') as SVGSVGElement | null
@@ -538,18 +548,18 @@ A statement.
 
     // Caret immediately after \end{theorem}
     view.dispatch({ selection: EditorSelection.cursor(endTo) })
-    view.measure()
+    view.requestMeasure()
     expect(view.dom.querySelector('.ol-cm-end')).not.toBeNull()
 
     // Caret strictly inside \begin{theorem} -> disclosed
     view.dispatch({ selection: EditorSelection.cursor(beginFrom + 2) })
-    view.measure()
+    view.requestMeasure()
     await new Promise(r => setTimeout(r, 60))
     expect(view.dom.querySelector('.ol-cm-begin-theorem')).toBeNull()
 
     // Caret strictly inside \end{theorem} -> disclosed
     view.dispatch({ selection: EditorSelection.cursor(doc.indexOf('\\end{theorem}') + 2) })
-    view.measure()
+    view.requestMeasure()
     await new Promise(r => setTimeout(r, 60))
     expect(view.dom.querySelector('.ol-cm-end')).toBeNull()
 
@@ -654,7 +664,7 @@ A statement.
 
     // 1. Caret in theorem body: both \\begin and \\end are collapsed as SVGs
     const view = await createTestView(doc, thmBodyPos)
-    view.measure()
+    view.requestMeasure()
     await new Promise(r => setTimeout(r, 60))
 
     const bracketSvg = (view.dom.querySelector('.eu-cm-env-bracket-svg') ??
@@ -681,7 +691,7 @@ A statement.
 
     // 2. Expand \\begin{theorem} by moving caret inside it
     view.dispatch({ selection: EditorSelection.cursor(beginInsidePos) })
-    view.measure()
+    view.requestMeasure()
     await new Promise(r => setTimeout(r, 60))
 
     const expandedBegin = parsePathCoords(path?.getAttribute('d') ?? '')
@@ -691,7 +701,7 @@ A statement.
 
     // 3. Expand \\end{theorem} by moving caret inside it
     view.dispatch({ selection: EditorSelection.cursor(endInsidePos) })
-    view.measure()
+    view.requestMeasure()
     await new Promise(r => setTimeout(r, 60))
 
     const expandedEnd = parsePathCoords(path?.getAttribute('d') ?? '')
@@ -714,7 +724,7 @@ Let S be a set.
 \\end{document}
 `
     const view = await createTestView(doc, 0)
-    view.measure()
+    view.requestMeasure()
     await new Promise(r => setTimeout(r, 60))
 
     // 1. \stag{st:fol-terms} is rendered as a LabelIconWidget
@@ -730,7 +740,7 @@ Let S be a set.
     // 2. Moving cursor into \stag{st:fol-terms} discloses the raw text
     const stagPos = doc.indexOf('\\stag{st:fol-terms}') + 3
     view.dispatch({ selection: EditorSelection.cursor(stagPos) })
-    view.measure()
+    view.requestMeasure()
     await new Promise(r => setTimeout(r, 60))
 
     expect(view.dom.textContent).toContain('\\stag{st:fol-terms}')
@@ -746,7 +756,7 @@ And here is \\texttt{code text} and \\emph{italic text}.
 \\end{document}
 `
     const view = await createTestView(doc, 0)
-    view.measure()
+    view.requestMeasure()
     await new Promise(r => setTimeout(r, 60))
 
     // 1. Caret outside: command names and braces are hidden, words are rendered
@@ -757,7 +767,7 @@ And here is \\texttt{code text} and \\emph{italic text}.
     // 2. Caret inside \textbf: discloses full \textbf{strong text}, NOT a mere {strong text}
     const boldPos = doc.indexOf('\\textbf{strong text}') + 10
     view.dispatch({ selection: EditorSelection.cursor(boldPos) })
-    view.measure()
+    view.requestMeasure()
     await new Promise(r => setTimeout(r, 60))
 
     expect(view.dom.textContent).toContain('\\textbf{strong text}')
@@ -765,7 +775,7 @@ And here is \\texttt{code text} and \\emph{italic text}.
     // 3. Caret inside \textit: discloses full \textit{emphasized text}, NOT a mere {emphasized text}
     const italicPos = doc.indexOf('\\textit{emphasized text}') + 10
     view.dispatch({ selection: EditorSelection.cursor(italicPos) })
-    view.measure()
+    view.requestMeasure()
     await new Promise(r => setTimeout(r, 60))
 
     expect(view.dom.textContent).toContain('\\textit{emphasized text}')
@@ -836,7 +846,7 @@ Definition content.
     settingsManager.setValue('visual.displayAllEnvironmentBrackets', false)
     const outsidePos = doc.indexOf('\\section{Section}')
     const view = await createTestView(doc, outsidePos)
-    view.measure()
+    view.requestMeasure()
     await new Promise(r => setTimeout(r, 60))
 
     const svg = view.dom.querySelector('.eu-cm-env-bracket-svg') as SVGSVGElement | null
@@ -847,7 +857,7 @@ Definition content.
 
     // 2. Enable visual.displayAllEnvironmentBrackets setting
     settingsManager.setValue('visual.displayAllEnvironmentBrackets', true)
-    view.measure()
+    view.requestMeasure()
     await new Promise(r => setTimeout(r, 80))
 
     expect(svg?.style.display).toBe('block')
@@ -888,7 +898,7 @@ Definition content.
 
     // 3. Clean up by restoring setting to false
     settingsManager.setValue('visual.displayAllEnvironmentBrackets', false)
-    view.measure()
+    view.requestMeasure()
     await new Promise(r => setTimeout(r, 60))
     expect(svg?.style.display).toBe('none')
 
@@ -955,7 +965,7 @@ x &= y
     // 6. When visual.displayAllEnvironmentBrackets is enabled:
     // Only theorem receives a bracket, no brackets on equation/gather/aligned
     settingsManager.setValue('visual.displayAllEnvironmentBrackets', true)
-    view.measure()
+    view.requestMeasure()
     await new Promise(r => setTimeout(r, 80))
 
     const svg = view.dom.querySelector('.eu-cm-env-bracket-svg') as SVGSVGElement | null
@@ -1047,7 +1057,7 @@ Let X be an affine variety.
 
     // 4. Verify connecting brackets are generated for convention
     view.dispatch({ selection: EditorSelection.cursor(conventionPos) })
-    view.measure()
+    view.requestMeasure()
     await new Promise(r => setTimeout(r, 60))
 
     const svg = view.dom.querySelector('.eu-cm-env-bracket-svg') as SVGSVGElement | null

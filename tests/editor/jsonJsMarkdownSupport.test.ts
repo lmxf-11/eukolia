@@ -61,7 +61,7 @@ describe('JSON, JavaScript, and Markdown Support', () => {
       expect(doc.getText()).toBe('{\n  "name": "eukolia-app"\n}')
 
       // Analysis remains EMPTY_ANALYSIS for non-LaTeX documents
-      expect(doc.analysis).toEqual(EMPTY_ANALYSIS)
+      expect(doc.getAnalysis()).toEqual(EMPTY_ANALYSIS)
     })
 
     it('creates and edits a JavaScript document model', () => {
@@ -71,7 +71,7 @@ describe('JSON, JavaScript, and Markdown Support', () => {
 
       doc.applyDeltas([{ from: 16, to: 19, insert: 'sum' }])
       expect(doc.getText()).toBe('export function sum(a, b) { return a + b; }')
-      expect(doc.analysis).toEqual(EMPTY_ANALYSIS)
+      expect(doc.getAnalysis()).toEqual(EMPTY_ANALYSIS)
     })
 
     it('creates and edits a Markdown document model', () => {
@@ -81,7 +81,7 @@ describe('JSON, JavaScript, and Markdown Support', () => {
 
       doc.replaceRange(2, 7, 'Document Overview')
       expect(doc.getText()).toBe('# Document Overview\n\nSome **bold** prose.')
-      expect(doc.analysis).toEqual(EMPTY_ANALYSIS)
+      expect(doc.getAnalysis()).toEqual(EMPTY_ANALYSIS)
     })
   })
 

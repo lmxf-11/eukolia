@@ -16,6 +16,10 @@
         "eukolia-pdf.exe",
         "libmupdf.dll"
       ]
+    },
+    {
+      "from": "assets/icon.ico",
+      "to": "icon.ico"
     }
   ],
   "win": {
@@ -32,7 +36,8 @@
           "x64"
         ]
       }
-    ]
+    ],
+    "icon": "assets/icon.ico"
   },
   "nsis": {
     "oneClick": false,

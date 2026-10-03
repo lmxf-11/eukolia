@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { EditorState } from '@codemirror/state'
+import { EditorState, StateEffect } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
-import { syntaxTree } from '@codemirror/language'
+import { ensureSyntaxTree, syntaxTree } from '@codemirror/language'
 
 import { LaTeXLanguage } from '@/vendor/overleaf/languages/latex/latex-language'
 import { atomicDecorations } from '@/vendor/overleaf/extensions/visual/atomic-decorations'
@@ -16,17 +16,20 @@ import { EUKOLIA_EDITOR_PHRASES } from '@/visual/scope'
  * editor would paint without a DOM: the facet values are `(view) =>
  * DecorationSet` functions that only read `view.state`.
  */
-const createVisualState = (doc: string, anchor = 0) =>
-  EditorState.create({
+const createVisualState = (doc: string, anchor = 0) => {
+  const state = EditorState.create({
     doc,
     selection: { anchor },
     extensions: [
       LaTeXLanguage,
       phrases(EUKOLIA_EDITOR_PHRASES),
       filePreview(() => null),
-      atomicDecorations,
     ],
   })
+  // These assertions inspect the complete document, independent of CPU load.
+  expect(ensureSyntaxTree(state, state.doc.length, 10000)?.length).toBe(state.doc.length)
+  return state.update({ effects: StateEffect.appendConfig.of(atomicDecorations) }).state
+}
 
 interface DecorationRange {
   from: number

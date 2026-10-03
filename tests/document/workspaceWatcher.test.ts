@@ -33,10 +33,10 @@ function createMockFs() {
     listTree: vi.fn(async (dir: string): Promise<FileNode[]> => [
       { path: `${dir}/main.tex`, name: 'main.tex', isDirectory: false, size: 10, mtimeMs: 1 }
     ]),
-    watchTree: vi.fn(async () => true),
-    unwatchTree: vi.fn(async () => true),
-    watch: vi.fn(async () => true),
-    unwatch: vi.fn(async () => true),
+    watchTree: vi.fn(async (_root: string, _excludes: string[]) => true),
+    unwatchTree: vi.fn(async (_root: string, _excludes: string[]) => true),
+    watch: vi.fn(async (_paths: string[]) => true),
+    unwatch: vi.fn(async (_paths: string[]) => true),
     writeFile: vi.fn(async () => true),
     createFile: vi.fn(async () => true),
     setState: vi.fn(async () => undefined),

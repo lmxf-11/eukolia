@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
 import { EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
@@ -41,7 +42,7 @@ describe('diagnosis: the rendered text', () => {
       await wait(25)
     }
     await wait(150)
-    view.measure()
+    view.requestMeasure()
 
     // eslint-disable-next-line no-console
     console.log('TEXT:', JSON.stringify(view.dom.textContent))

@@ -813,7 +813,8 @@ export async function runSmokeProbe(window: BrowserWindow): Promise<void> {
     let built = false;
     for (let attempt = 0; attempt < 45; attempt++) {
       await wait(2000);
-      if (fs.existsSync(pdfFile) && fs.statSync(pdfFile).size > 2000) {
+      const buildStatus = await evaluate<string | null>(`document.querySelector('[data-testid="status-build"]')?.getAttribute('data-build-status') ?? null`);
+      if (buildStatus === 'succeeded' && fs.existsSync(pdfFile) && fs.statSync(pdfFile).size > 2000) {
         built = true;
         break;
       }
@@ -1765,10 +1766,12 @@ export async function runSmokeProbe(window: BrowserWindow): Promise<void> {
     {
       command('view.focusMode');
       await wait(700);
-      const focusOn = await evaluate<boolean>(`!!document.querySelector('[data-testid="focus-pdf-float"]')`);
+      command('pdf.toggleFocusFloat');
+      await wait(700);
+      const focusOn = await evaluate<boolean>(`!!document.querySelector('[data-testid="pdf-focus-float"][data-open="1"]')`);
       command('view.focusMode');
       await wait(700);
-      const focusOff = await evaluate<boolean>(`!!document.querySelector('[data-testid="focus-pdf-float"]')`);
+      const focusOff = await evaluate<boolean>(`!!document.querySelector('[data-testid="pdf-focus-float"][data-open="1"]')`);
       probe.windowChrome = {
         ...section(probe, 'windowChrome'),
         focusFloatEntered: focusOn,
@@ -1800,12 +1803,19 @@ export async function runSmokeProbe(window: BrowserWindow): Promise<void> {
 
       let written: Record<string, unknown> | null = null;
       let parseError: string | null = null;
-      if (fs.existsSync(settingsPath)) {
-        try {
-          written = JSON.parse(fs.readFileSync(settingsPath, 'utf8')) as Record<string, unknown>;
-        } catch (error) {
-          parseError = error instanceof Error ? error.message : String(error);
+      // Theme rendering and the debounced IPC write may finish after the initial
+      // delay. Wait for the setting itself, rather than accepting an empty file.
+      for (let attempt = 0; attempt < 100; attempt += 1) {
+        if (fs.existsSync(settingsPath)) {
+          try {
+            written = JSON.parse(fs.readFileSync(settingsPath, 'utf8')) as Record<string, unknown>;
+            parseError = null;
+          } catch (error) {
+            parseError = error instanceof Error ? error.message : String(error);
+          }
         }
+        if (typeof written?.['general.theme'] === 'string') break;
+        await wait(100);
       }
 
       probe.userSettings = {
@@ -1823,7 +1833,7 @@ export async function runSmokeProbe(window: BrowserWindow): Promise<void> {
         problems.push(`User settings: ${settingsPath} was not written`);
       } else if (userSettings.parseError) {
         problems.push(`User settings: the file is not valid JSON (${String(userSettings.parseError)})`);
-      } else if (Number(userSettings.keys) === 0) {
+      } else if (typeof userSettings.theme !== 'string') {
         problems.push('User settings: changing a setting did not reach the user settings file');
       }
       if (userSettings.snippetsDirectory !== true) {
@@ -1841,9 +1851,14 @@ export async function runSmokeProbe(window: BrowserWindow): Promise<void> {
 
     command('view.toggleTabBar');
     await wait(600);
-    const afterTabBarOff = await evaluate<Record<string, unknown>>(
-      `(() => ({ tabListVisible: !!document.querySelector('[role="tablist"]') }))()`
-    );
+    let afterTabBarOff: Record<string, unknown> = { tabListVisible: true };
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      afterTabBarOff = await evaluate<Record<string, unknown>>(
+        `(() => ({ tabListVisible: !!document.querySelector('[data-testid="tab-bar"] [role="tablist"]') }))()`
+      );
+      if (afterTabBarOff.tabListVisible === false) break;
+      await wait(100);
+    }
     command('view.toggleTabBar');
     await wait(600);
     const afterTabBarOn = await evaluate<Record<string, unknown>>(
@@ -1933,14 +1948,14 @@ export async function runSmokeProbe(window: BrowserWindow): Promise<void> {
 
     probe.chromeToggles = {
       ...section(probe, 'chromeToggles'),
-      tabsHidden: tabsHidden.off === true,
+      tabsHidden: tabsHidden.off === false,
       tabsRestored: tabsHidden.on === true,
       windowSurvivesTabs:
         windowSurvivesTabs.bar === true &&
         windowSurvivesTabs.controls === true &&
         windowSurvivesTabs.toolbar === true
     };
-    if (tabsHidden.off !== true) {
+    if (tabsHidden.off !== false) {
       problems.push('View: toggling the tab bar off did not hide the document tabs');
     }
     if (tabsHidden.on !== true) {
