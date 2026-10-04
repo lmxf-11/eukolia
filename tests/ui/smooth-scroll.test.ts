@@ -105,6 +105,7 @@ beforeEach(() => {
   settingsManager.reset('scrolling.smooth');
   settingsManager.reset('scrolling.smoothDurationMs');
   settingsManager.reset('scrolling.trackpadMomentum');
+  settingsManager.reset('scrolling.smoothEditor');
 
   document.body.innerHTML = '';
   disposeEngine = installSmoothWheelScrolling();
@@ -224,6 +225,91 @@ describe('what the shell leaves to somebody else', () => {
 
     expect(planWheelScroll(new WheelEvent('wheel', { deltaY: 120, shiftKey: true, cancelable: true }), box)?.axis).toBe('x');
     expect(planWheelScroll(new WheelEvent('wheel', { deltaY: 4, deltaX: 60, cancelable: true }), box)?.axis).toBe('x');
+  });
+});
+
+/**
+ * The editor's own opt-out.
+ *
+ * `scrolling.smoothEditor` off hands the document to the browser's scrolling, which runs on
+ * the compositor; the rest of the shell keeps its glide. The distinction that has to hold is
+ * **which** notches are left alone: over the document, and nowhere else. A version that
+ * bailed out for every notch would quietly disable the feature the module exists for, and it
+ * would do so invisibly, because the editor is where the pointer usually is.
+ *
+ * The assertion that matters is `defaultPrevented`. A cancelled notch is one the browser was
+ * told not to scroll, so leaving the event uncancelled is the whole mechanism — the setting
+ * is not real unless that flips.
+ */
+describe('the editor surface, when it asks for native scrolling', () => {
+  /** A plausible `.cm-scroller`: the class is the mark `onWheel` recognises. */
+  const editor = (metrics: Metrics = {}): HTMLDivElement => {
+    const element = scroller(metrics);
+    element.className = 'cm-scroller';
+    const line = document.createElement('div');
+    line.className = 'cm-line';
+    element.appendChild(line);
+    return element;
+  };
+
+  it('cancels a notch over the document by default, and glides it', () => {
+    const element = editor({ scrollHeight: 2000 });
+    const event = wheel(element.querySelector('.cm-line') as Element);
+
+    // The shipped behaviour: the shell owns the notch, so the browser must not also scroll.
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it('leaves a notch over the document to the browser when the setting is off', () => {
+    settingsManager.setValue('scrolling.smoothEditor', false);
+    const element = editor({ scrollHeight: 2000 });
+    const event = wheel(element.querySelector('.cm-line') as Element);
+
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it('still glides a notch over the rest of the shell with the setting off', () => {
+    settingsManager.setValue('scrolling.smoothEditor', false);
+    const panel = scroller({ scrollHeight: 2000 });
+    const event = wheel(panel);
+
+    // The requirement is one notch feeling the same everywhere but the document;
+    // switching the editor off must not switch the sidebar, the palette or a list off.
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it('does not hand Ctrl+wheel over the document to the browser as a scroll', () => {
+    settingsManager.setValue('scrolling.smoothEditor', false);
+    const element = editor({ scrollHeight: 2000 });
+    const event = wheel(element.querySelector('.cm-line') as Element, { ctrlKey: true });
+
+    /*
+     * Ctrl+wheel is the browser's zoom everywhere this shell has not claimed it, and the
+     * document is not a surface that claims it. An opt-out that returned before the Ctrl
+     * check would leave the event uncancelled *and* unscrolled, which is a different
+     * behaviour from the shipped one and would not be noticed until somebody zoomed the
+     * whole application by accident.
+     */
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it('honours the mark on the scroller itself, which is what the editor sets', () => {
+    const element = editor({ scrollHeight: 2000 });
+    const line = element.querySelector('.cm-line') as Element;
+
+    expect(wheel(line).defaultPrevented).toBe(true);
+
+    /*
+     * The editor writes this attribute rather than re-creating the view, so the hand-off has
+     * to work through the *mark* as well as through the setting — `planWheelScroll`'s own
+     * `data-native-scroll` rule is the second route to the same outcome, and it is the one a
+     * live setting change takes.
+     */
+    element.setAttribute(NATIVE_SCROLL_ATTRIBUTE, 'true');
+    expect(wheel(line).defaultPrevented).toBe(false);
+
+    element.removeAttribute(NATIVE_SCROLL_ATTRIBUTE);
+    expect(wheel(line).defaultPrevented).toBe(true);
   });
 });
 

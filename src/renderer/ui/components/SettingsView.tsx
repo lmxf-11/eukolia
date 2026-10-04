@@ -263,7 +263,7 @@ const SettingRow: React.FC<{ descriptor: SettingDescriptor; onChanged(): void }>
           >
             {(descriptor.options ?? []).map((option, index) => (
               <option key={option} value={option} title={optionDescriptions[index]}>
-                {option}
+                {descriptor.optionLabels?.[option] ?? option}
               </option>
             ))}
           </select>
@@ -810,10 +810,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
               {!searching && (
                 <div className="eu-settings__note">
-                  Settings are stored for you and apply to every project (Default &lt; User &lt; Project, Instructions.md §57). The few marked
-                  &ldquo;per project&rdquo; — the build, the root document, the snippet folders a project ships — can also be set in one
-                  project&rsquo;s own <code className="eu-mono">.eukolia/settings.json</code>; everything else here is yours alone. The row marker shows
-                  which scope currently wins; the reset button removes the override so the default applies again.
+                  User settings are stored in <code className="eu-mono">&lt;Chosen_Library_by_user&gt;/.eukolia/settings.json</code>.
                 </div>
               )}
             </ScrollArea>

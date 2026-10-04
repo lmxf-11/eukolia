@@ -60,6 +60,7 @@ import {
 import { reloadSnippets } from '../../services/bootstrap';
 import { setting, settingsManager } from '../../core/settings';
 import { ScrollArea } from './ScrollArea';
+import { Deferred, LazyMathematicalSymbolsView } from '../lazySurfaces';
 import { createExplorerActions, validateExplorerName } from './explorerActions';
 import type { ProjectLibraryStatus } from '../../../shared/projectLibrary';
 import { commandRegistry, translateKeybinding, type Command } from '../../core/commands';
@@ -335,7 +336,7 @@ const IconButton: React.FC<{
  * "New File" and "Collapse all folders" are the same shape in every editor, and
  * spelling them out costs the panel a line of width it needs for file names.
  */
-const ViewHeader: React.FC<{ title: string; children?: React.ReactNode }> = ({ title, children }) => (
+export const ViewHeader: React.FC<{ title: string; children?: React.ReactNode }> = ({ title, children }) => (
   <div className="eu-sidebar-panel__header">
     <span className="eu-sidebar-panel__title eu-eyebrow eu-truncate">{title}</span>
     <span className="eu-sidebar-panel__actions">{children}</span>
@@ -346,8 +347,11 @@ const ViewHeader: React.FC<{ title: string; children?: React.ReactNode }> = ({ t
  * A panel with nothing in it. `.eu-empty` is the design system's centred block;
  * this only narrows it, because a sidebar is 260px wide and the 32px of vertical
  * padding the shared class uses is a third of a short panel.
+ *
+ * Exported because the Mathematical Symbols panel is a sidebar view too, and the
+ * empty state is part of the sidebar's visual language rather than of this file.
  */
-const EmptyHint: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+export const EmptyHint: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="eu-empty eu-sidebar-tree__empty">{children}</div>
 );
 
@@ -2302,6 +2306,15 @@ export const Sidebar: React.FC<SidebarProps> = () => {
       return <SearchView />;
     case 'symbols':
       return <SymbolsView />;
+    case 'math-symbols':
+      // The panel imports the generated catalog, so it is loaded on demand
+      // rather than with the shell: the matcher below is the only place this
+      // view is reached from, and it is behind a click.
+      return (
+        <Deferred label="Loading mathematical symbols…">
+          <LazyMathematicalSymbolsView />
+        </Deferred>
+      );
     case 'problems':
       return <ProblemsView />;
     case 'snippets':
@@ -2317,7 +2330,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
           <ViewHeader title="No view" />
           <EmptyHint>The sidebar is hidden.</EmptyHint>
           <div className="eu-sidebar-none-actions">
-            {(['menu', 'explorer', 'outline', 'search', 'symbols', 'problems', 'snippets'] as const).map((view) => (
+            {(['menu', 'explorer', 'outline', 'search', 'symbols', 'math-symbols', 'problems', 'snippets'] as const).map((view) => (
               <button key={view} type="button" className="eu-btn eu-pressable" title={`Show ${view}`} onClick={() => setSidebarView(view)}>
                 <ListTree size={12} strokeWidth={1.8} />
                 {view}

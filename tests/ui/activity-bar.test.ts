@@ -45,7 +45,7 @@ describe('activity bar contents', () => {
   it('offers every sidebar view the application has', () => {
     const views = ACTIVITY_BAR_ITEMS.map((item) => item.view).filter(Boolean);
     expect(new Set(views)).toEqual(
-      new Set(['menu', 'explorer', 'search', 'outline', 'symbols', 'snippets', 'problems'])
+      new Set(['menu', 'explorer', 'search', 'outline', 'symbols', 'math-symbols', 'snippets', 'problems'])
     );
   });
 
@@ -74,7 +74,26 @@ describe('activity bar contents', () => {
     expect(MENU_BAR_ITEM.label).toBe('Menu');
 
     const panelViews = PANEL_BUTTON_ITEMS.map((item) => item.view);
-    expect(panelViews).toEqual(['explorer', 'search', 'outline', 'symbols', 'snippets', 'problems']);
+    expect(panelViews).toEqual([
+      'explorer',
+      'search',
+      'outline',
+      'symbols',
+      'math-symbols',
+      'snippets',
+      'problems'
+    ]);
     expect(panelViews).not.toContain('menu');
+  });
+
+  it('keeps the two symbol panels distinguishable', () => {
+    // Two entries that both said "Symbols" would be a trap: one navigates the
+    // project's own labels and macros, the other inserts notation from a
+    // catalog, and the labels and icons are what tell them apart.
+    const projectSymbols = PANEL_BUTTON_ITEMS.find((item) => item.view === 'symbols');
+    const mathSymbols = PANEL_BUTTON_ITEMS.find((item) => item.view === 'math-symbols');
+    expect(projectSymbols?.label).toBe('Project Symbols');
+    expect(mathSymbols?.label).toBe('Mathematical Symbols');
+    expect(projectSymbols?.icon).not.toBe(mathSymbols?.icon);
   });
 });

@@ -1,28 +1,14 @@
 /**
- * Eukolia — light-pdf's toolbar and find bar, ported to React.
- *
- * The button row is generated from `LIGHTPDF_TOOLBAR`, the transcription of
- * `Toolbar.cpp`'s `gToolbarButtons[]`, so the order, the icon choice, the
- * tooltips and the separators are light-pdf's, not a new arrangement. Entries
- * whose command Eukolia cannot perform are dropped (see
- * `IMPLEMENTED_COMMANDS`) rather than rendered as dead controls
- * (`Instructions.md` §72): light-pdf's Print and Read Aloud have no Eukolia
- * equivalent yet.
- *
- * Visual parameters follow the ported theme and toolbar metrics:
- * - bar background `ThemeControlBackgroundColor()`, bottom edge
- *   `AccentColor(ctrlBg, 40)` — light-pdf sets `DarkMode::setEdgeColor` to
- *   exactly that in `SetThemeByIndex`;
- * - button hover `AccentColor(ctrlBg, 20)` (`DarkMode::setHotBackgroundColor`);
- * - icons rendered from `SvgIcons.cpp` at `Toolbar.cpp`'s `kDefaultIconSize`
- *   (18) inside the ~26px bar light-pdf's own toolbar screenshot measures.
- *
- * The find bar is `FindBar.cpp`'s floating `WS_POPUP | WS_BORDER` window: an
- * edit with the cue text "Find", an "n / m" status (`SearchAndDDE.cpp`,
- * `ShowMatchCount`) and the small button strip built in `FindBarWnd::Create`.
+ * PDF controls reuse light-pdf's commands and icons in a compact floating panel.
+ * Unsupported actions and redundant separators are omitted. Inputs follow the
+ * selected viewer theme; keyboard focus and checked states remain visible.
  */
 
+import './pdf-chrome.css';
+
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, FolderOpen, LayoutPanelTop, Maximize2, RotateCcw, RotateCw, ZoomIn, ZoomOut, Search, CaseSensitive, WholeWord, X, type LucideIcon } from '../ui/components/icons';
 
 import { getSvgIcon, TbIcon } from './lightpdf-icons';
 import {
@@ -48,29 +34,7 @@ import {
   type LightPdfThemeState
 } from './lightpdf-theme';
 
-/**
- * The white `FixedPageUI.BackgroundColor` input background light-pdf edits use.
- */
-const INPUT_BACKGROUND = '#ffffff';
-
-/**
- * The commands Eukolia's PDF pane actually performs. Everything outside this set
- * is hidden, exactly as `Toolbar.cpp`'s `IsCmdAvailable` hides a command with
- * `TBSTATE_HIDDEN` — and, as there, the button's *slot* and the separators around
- * it stay, so the row keeps light-pdf's grouping:
- *
- * `Open · [page box] Prev Next | Back Forward | | FitWidth FitSingle RotL RotR
- * ZoomOut ZoomIn | Find`
- *
- * Not implemented, and therefore hidden:
- * - `CmdPrint` (`Toolbar.cpp` icon `Print`) — Eukolia has no print pipeline.
- * - `CmdReadAloud` (icon `Speak`) — Eukolia has no text-to-speech.
- *
- * Hiding both is exactly what light-pdf does when those commands are
- * unavailable, and it leaves two adjacent separators where `Print` and
- * `Read Aloud` sat; collapsing them (dropping the buttons *and* their
- * separators) would be a different toolbar from the reference's.
- */
+/** Supported actions retain the reference's order and functional grouping. */
 const IMPLEMENTED_COMMANDS: ReadonlySet<string | number> = new Set<string | number>([
   LIGHTPDF_CMD.CmdOpenFile,
   PageInfoId,
@@ -135,13 +99,10 @@ export interface LightPdfToolbarProps {
 
 export const LightPdfToolbar: React.FC<LightPdfToolbarProps> = (props) => {
   const { theme } = props;
-  /**
-   * `gToolbarButtons[]` in order. A command Eukolia cannot perform keeps its
-   * slot but renders nothing, which is how `IsCmdAvailable` +
-   * `UpdateToolbarButtonStateByIdx(..., TBSTATE_HIDDEN)` behave in the
-   * reference, so the separators and the grouping do not move.
-   */
-  const entries = LIGHTPDF_TOOLBAR;
+  const available = LIGHTPDF_TOOLBAR.filter(entry => entry.command === null ||
+    (IMPLEMENTED_COMMANDS.has(entry.command) && (entry.command !== PageInfoId || props.pageInfoVisible !== false)));
+  const entries = available.filter((entry, index) => entry.command !== null ||
+    (index > 0 && index < available.length - 1 && available[index - 1].command !== null));
 
   /**
    * `ToolbarSize` sizes the icons, and the bar follows: light-pdf's rebar band is
@@ -149,7 +110,7 @@ export const LightPdfToolbar: React.FC<LightPdfToolbarProps> = (props) => {
    * `iconDy = RoundUp(DpiScale(iconSize), 4)`).
    */
   const iconSize = Math.max(8, Math.round(props.iconSize ?? LIGHTPDF_TOOLBAR_METRICS.defaultIconSize));
-  const buttonSize = iconSize + 4;
+  const buttonSize = iconSize + 10;
   const barHeight = lightPdfToolbarBarHeight(iconSize);
 
   const controlBg = themeControlBackgroundColor(theme);
@@ -237,6 +198,9 @@ export const LightPdfToolbar: React.FC<LightPdfToolbarProps> = (props) => {
 
   return (
     <div
+      className="eu-pdf-toolbar"
+      role="toolbar"
+      aria-label="PDF controls"
       data-testid="pdf-toolbar"
       data-theme={theme.theme.name}
       // The page count the pane is working from. The page box holds a local
@@ -253,13 +217,13 @@ export const LightPdfToolbar: React.FC<LightPdfToolbarProps> = (props) => {
         display: 'flex',
         alignItems: 'center',
         flexShrink: 0,
-        height: barHeight,
-        padding: '0 4px',
+        minHeight: barHeight,
+        flexWrap: 'wrap',
+        padding: '4px 6px',
         gap: LIGHTPDF_TOOLBAR_METRICS.buttonSpacingX,
         background: bgrToHex(controlBg),
         color: textColor,
-        borderTop: props.edge === 'top' ? `1px solid ${edgeColor}` : undefined,
-        borderBottom: props.edge === 'top' ? undefined : `1px solid ${edgeColor}`,
+        border: `1px solid ${edgeColor}`,
         fontFamily: 'Segoe UI, system-ui, sans-serif',
         fontSize: 12,
         userSelect: 'none'
@@ -273,10 +237,8 @@ export const LightPdfToolbar: React.FC<LightPdfToolbarProps> = (props) => {
       {entries.map((entry, index) => {
         if (entry.command === null) {
           // `Toolbar.cpp` — `BTNS_SEP`: a short vertical rule.
-          return <div key={`sep-${index}`} style={{ width: 1, height: Math.round(iconSize * 0.9), background: edgeColor, margin: '0 2px' }} />;
+          return <div key={`sep-${index}`} aria-hidden="true" style={{ width: 1, flexShrink: 0, height: Math.round(iconSize * 0.9), background: edgeColor, margin: '0 2px' }} />;
         }
-        // A command this port cannot perform is hidden, not removed: its slot
-        // stays so the separators around it keep light-pdf's grouping.
         if (!IMPLEMENTED_COMMANDS.has(entry.command)) return null;
         if (entry.command === PageInfoId) {
           // `CmdTogglePageInfo` (`Toolbar.cpp` — `I`) hides the page box; the
@@ -290,6 +252,7 @@ export const LightPdfToolbar: React.FC<LightPdfToolbarProps> = (props) => {
               pageCount={props.pageCount}
               textColor={textColor}
               edgeColor={edgeColor}
+              background={bgrToHex(controlBg)}
               onGoToPage={props.onGoToPage}
             />
           );
@@ -322,6 +285,26 @@ export const LightPdfToolbar: React.FC<LightPdfToolbarProps> = (props) => {
 // Buttons
 // ---------------------------------------------------------------------------
 
+const TOOLBAR_ICONS: Record<string, LucideIcon> = {
+  [LIGHTPDF_CMD.CmdOpenFile]: FolderOpen,
+  [LIGHTPDF_CMD.CmdGoToPrevPage]: ChevronLeft,
+  [LIGHTPDF_CMD.CmdGoToNextPage]: ChevronRight,
+  [LIGHTPDF_CMD.CmdNavigateBack]: ArrowLeft,
+  [LIGHTPDF_CMD.CmdNavigateForward]: ArrowRight,
+  [LIGHTPDF_CMD.CmdZoomFitWidthAndContinuous]: LayoutPanelTop,
+  [LIGHTPDF_CMD.CmdZoomFitPageAndSinglePage]: Maximize2,
+  [LIGHTPDF_CMD.CmdRotateLeft]: RotateCcw,
+  [LIGHTPDF_CMD.CmdRotateRight]: RotateCw,
+  [LIGHTPDF_CMD.CmdZoomOut]: ZoomOut,
+  [LIGHTPDF_CMD.CmdZoomIn]: ZoomIn,
+  [LIGHTPDF_CMD.CmdFindFirst]: Search,
+  [LIGHTPDF_CMD.CmdFindPrev]: ChevronUp,
+  [LIGHTPDF_CMD.CmdFindNext]: ChevronDown,
+  [LIGHTPDF_CMD.CmdFindToggleMatchCase]: CaseSensitive,
+  [LIGHTPDF_CMD.CmdFindToggleMatchWholeWord]: WholeWord,
+  [FindBarCloseId]: X
+};
+
 const ToolbarButton: React.FC<{
   /** light-pdf's `idCommand`, exposed so the find bar can anchor under it. */
   command?: string | number;
@@ -331,19 +314,21 @@ const ToolbarButton: React.FC<{
   checked: boolean;
   /** `ToolbarSize` — the icon box, in pixels. */
   iconSize?: number;
-  /** The button box: the icon plus its 4px padding. */
+  /** The button box includes comfortable pointer padding. */
   buttonSize?: number;
   textColor: string;
   disabledColor: string;
   hotColor: string;
   linkColor: string;
   onClick(): void;
-}> = ({ command, title, iconSvg, disabled, checked, iconSize = LIGHTPDF_TOOLBAR_METRICS.defaultIconSize, buttonSize = LIGHTPDF_TOOLBAR_METRICS.defaultIconSize + 4, textColor, disabledColor, hotColor, linkColor, onClick }) => {
+}> = ({ command, title, iconSvg, disabled, checked, iconSize = LIGHTPDF_TOOLBAR_METRICS.defaultIconSize, buttonSize = LIGHTPDF_TOOLBAR_METRICS.defaultIconSize + 10, textColor, disabledColor, hotColor, linkColor, onClick }) => {
   const [hover, setHover] = useState(false);
+  const Icon = command === undefined ? undefined : TOOLBAR_ICONS[String(command)];
   const color = disabled ? disabledColor : checked ? linkColor : textColor;
   return (
     <button
       type="button"
+      className="eu-pdf-tool-button"
       title={title}
       aria-label={title}
       aria-pressed={checked}
@@ -360,14 +345,14 @@ const ToolbarButton: React.FC<{
         height: buttonSize,
         padding: 0,
         border: 'none',
-        borderRadius: 2,
-        background: hover && !disabled ? hotColor : 'transparent',
+        borderRadius: 6,
+        background: checked || (hover && !disabled) ? hotColor : 'transparent',
         color,
         cursor: disabled ? 'default' : 'pointer',
         flexShrink: 0
       }}
     >
-      {iconSvg && (
+      {Icon ? <span style={{ display: 'block', width: iconSize, height: iconSize }}><Icon size={iconSize} strokeWidth={1.7} aria-hidden="true" /></span> : iconSvg && (
         <span
           style={{ display: 'block', width: iconSize, height: iconSize, color }}
           // The markup is `SvgIcons.cpp`'s own, verbatim; it is not user input.
@@ -389,8 +374,9 @@ const PageBox: React.FC<{
   pageCount: number;
   textColor: string;
   edgeColor: string;
+  background: string;
   onGoToPage(page: number): void;
-}> = ({ page, pageCount, textColor, edgeColor, onGoToPage }) => {
+}> = ({ page, pageCount, textColor, edgeColor, background, onGoToPage }) => {
   const [draft, setDraft] = useState(String(page));
   const editingRef = useRef(false);
 
@@ -412,8 +398,9 @@ const PageBox: React.FC<{
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: LIGHTPDF_TOOLBAR_METRICS.buttonSpacingX, flexShrink: 0 }}>
       {/* `Toolbar.cpp` — `kTextPaddingRight` sits between the label and the edit. */}
-      <span style={{ paddingRight: 2 }}>Page:</span>
+      <span style={{ paddingRight: 2 }}>Page</span>
       <input
+        className="eu-pdf-field"
         value={draft}
         aria-label="Page"
         inputMode="numeric"
@@ -433,13 +420,13 @@ const PageBox: React.FC<{
         }}
         style={{
           width: 46,
-          height: 18,
+          height: 26,
           padding: '0 4px',
           textAlign: 'right',
           fontSize: 12,
           fontFamily: 'inherit',
           color: textColor,
-          background: INPUT_BACKGROUND,
+          background,
           border: `1px solid ${edgeColor}`,
           outline: 'none'
         }}
@@ -512,22 +499,28 @@ export const LightPdfFindBar: React.FC<LightPdfFindBarProps> = (props) => {
 
   return (
     <div
+      className="eu-pdf-find-bar"
+      role="search"
+      aria-label="Find in PDF"
       data-testid="pdf-find-bar"
       data-placement={props.placement ?? 'below'}
       style={{
         position: 'absolute',
         ...(props.placement === 'above'
-          ? { bottom: props.barHeight ?? 26 }
-          : { top: props.barHeight ?? 26 }),
-        left: Math.max(4, props.anchorLeft),
+          ? { bottom: 'calc(100% + 6px)' }
+          : { top: 'calc(100% + 6px)' }),
+        right: 0,
+        maxWidth: '100%',
+        width: 'max-content',
+        flexWrap: 'wrap',
         zIndex: 20,
         display: 'flex',
         alignItems: 'center',
         gap: 4,
-        padding: 6,
+        padding: 8,
         background: bgrToHex(controlBg),
         border: `1px solid ${edgeColor}`,
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
+        boxShadow: '0 6px 24px rgba(0, 0, 0, 0.18)',
         fontFamily: 'Segoe UI, system-ui, sans-serif',
         fontSize: 12,
         color: textColor
@@ -542,25 +535,28 @@ export const LightPdfFindBar: React.FC<LightPdfFindBarProps> = (props) => {
       }}
     >
       <input
+        className="eu-pdf-field"
         ref={inputRef}
         value={props.query}
         placeholder="Find"
         aria-label="Find"
         onChange={(event) => props.onQueryChange(event.target.value)}
         style={{
-          width: 220,
-          height: 20,
+          width: 160,
+          minWidth: 70,
+          flex: '1 1 80px',
+          height: 28,
           padding: '0 4px',
           fontSize: 12,
           fontFamily: 'inherit',
           color: textColor,
-          background: INPUT_BACKGROUND,
+          background: bgrToHex(controlBg),
           border: `1px solid ${edgeColor}`,
           outline: 'none'
         }}
       />
       {/* `FindBar.cpp` — `statusDx = DpiScale(hwnd, 88)`; text is "n / m". */}
-      <span style={{ width: 88, textAlign: 'center', color: textColor }}>{props.status}</span>
+      <span style={{ minWidth: 32, textAlign: 'center', color: textColor }}>{props.status}</span>
       {buttons.map((button) => (
         <ToolbarButton
           key={button.toolTip}
@@ -585,6 +581,7 @@ export const LightPdfFindBar: React.FC<LightPdfFindBarProps> = (props) => {
         />
       ))}
       <ToolbarButton
+        command={FindBarCloseId}
         title="Close"
         iconSvg={getSvgIcon(TbIcon.Close)}
         disabled={false}

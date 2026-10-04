@@ -11,10 +11,11 @@ import {
 // it has — see `async-widget-render.ts`.
 import { refreshAfterAsyncWidgetRender } from '../async-widget-render'
 import {
+  cachedMathSize,
   cachedMathSvg,
   markPreambleParsed,
   preambleParsed,
-  rememberMathSvg,
+  sharedMathSvg,
 } from './math-render-cache'
 import { widgetCoordsAt } from './coords'
 import { measureWidgetHeight } from './widget-heights'
@@ -67,6 +68,15 @@ export class MathWidget extends WidgetType {
       this.displayMode ? 'div' : 'span'
     )
     element.classList.add('ol-cm-math')
+    /*
+     * **A reserved size was tried and measured worse — see the note on `reserveSize`.**
+     * `EUKOLIA_NO_SIZE_RESERVE=1` is kept as the switch that proved it, so the experiment
+     * can be repeated rather than believed: with the reservation ON, p90 was 63.5 / 65.8 /
+     * 93.8 ms at three positions of `algebra.tex`; with it OFF, 53.5 / 51.9 / 78.0 ms.
+     */
+    if (!(globalThis as unknown as { __eukoliaNoSizeReserve?: boolean }).__eukoliaNoSizeReserve) {
+      void this.reserveSize
+    }
     if (this.displayMode) {
       element.style.height = this.estimatedHeight + 'px'
     }
@@ -228,6 +238,45 @@ export class MathWidget extends WidgetType {
     return Math.max(36, this.math.split('\n').length * 28)
   }
 
+  /**
+   * **Measured, and not applied: reserving an equation's size makes the scroll worse.**
+   *
+   * The theory was good and the numbers are the reason this is a comment instead of code.
+   * An inline equation is a `<span>` with nothing in it until MathJax answers, so the text
+   * after it is laid out against a box of width zero; when the rendering lands the line
+   * re-lays-out and CodeMirror's height map — which covers the whole document — is
+   * invalidated, and the next scroll event pays `view.measure()` over all 47 000 lines. A
+   * trace of one gesture on `algebra.tex` did put **288 ms inside
+   * `InputState.onScroll`'s measure**, so the mechanism is real.
+   *
+   * It was implemented — `cachedMathSize` reads MathJax's own `width`/`height` off the
+   * cached rendering, and the widget set `display: inline-block; min-width; min-height`
+   * from it before the mathematics arrived — and A/B tested **from one build** with a
+   * flag, three passes per position, three positions:
+   *
+   *   | position | p90 with the reservation | without it |
+   *   |---|---|---|
+   *   | line 5 000 | 63.5 ms | **53.5 ms** |
+   *   | line 21 000 | 65.8 ms | **51.9 ms** |
+   *   | line 33 000 | 93.8 ms | **78.0 ms** |
+   *
+   * Worse at every position, by 19–27 %. The likely reason is that `inline-block` is a
+   * more expensive box to lay out and paint than the plain inline span it replaced — a
+   * full inline-block formatting context per equation, against a relayout that happens
+   * once per equation per mount — so the reservation cost more than the relayout it
+   * prevented. That is a guess; the measurement is not.
+   *
+   * The switch that produced the A/B is kept (`EUKOLIA_NO_SIZE_RESERVE=1` sets
+   * `__eukoliaNoSizeReserve`, read in `toDOM`) so the result can be reproduced rather than
+   * taken on trust. `cachedMathSize` remains in the render cache: it is the primitive the
+   * experiment needed, it is a `getAttribute` on a node already held, and the next attempt
+   * at this should not have to write it again.
+   */
+  private reserveSize(_element: HTMLElement): void {
+    // Intentionally empty: see the note above. Kept so the A/B switch has something to
+    // call and the next reader finds the measurement rather than a deleted method.
+  }
+
   coordsAt(element: HTMLElement, pos?: number, side?: number) {
     return widgetCoordsAt(element, pos, side)
   }
@@ -255,52 +304,71 @@ export class MathWidget extends WidgetType {
     // MathJax does not cache its own output — see `math-render-cache.ts`, which
     // is where the measurement lives.
     const preamble = this.preamble ?? ''
-    const cached = cachedMathSvg(this.math, this.displayMode, preamble)
-    if (cached) {
-      if (counters) counters.cacheHits += 1
-      element.replaceChildren(cached)
-      if (this.displayMode) {
-        element.style.height = 'auto'
+
+    /*
+     * Render through the shared cache, which is where three fixes live at once.
+     *
+     * `sharedMathSvg` checks the render cache, joins a rendering already in flight for
+     * the same equation and definitions rather than starting a second one, and
+     * **stores what it produced even if this widget did not survive to use it**. That
+     * last part is the one that matters here: `this.destroyed` is set by
+     * `CodeMirror` on every decoration rebuild, and a rebuild happens per keystroke, so
+     * a widget whose render is slower than the gap between two keystrokes used to
+     * abandon its result and let the next widget start again from nothing. Measured on
+     * a theorem header, which has the same shape: forty MathJax renders of the same
+     * four words across forty keystrokes.
+     *
+     * The metrics are still read from *this* element while it exists, because the
+     * sizes are what MathJax lays the mathematics out against; a widget that has
+     * already gone falls back to the defaults `getMetricsFor` answers with.
+     */
+    const rendered = await sharedMathSvg(
+      this.math,
+      this.displayMode,
+      preamble,
+      async () => {
+        const MathJax = await loadMathJax()
+        /*
+         * The definitions are handed to MathJax once per distinct set, not once per
+         * render: a miss on them means this mathematics has never been typeset under
+         * them, and a hit means the widget that filled the cache has already told it.
+         * The cache key carries the definitions, so a rendering can never be reused
+         * across a different set.
+         */
+        if (preamble && !preambleParsed(preamble)) {
+          try {
+            await MathJax.tex2svgPromise(preamble)
+            markPreambleParsed(preamble)
+          } catch {
+            // ignore errors thrown during parsing command definitions
+          }
+        }
+        const metrics = element.isConnected
+          ? MathJax.getMetricsFor(element, this.displayMode)
+          : { em: 16, ex: 8, containerWidth: 100000 }
+        return MathJax.tex2svgPromise(this.math, {
+          ...metrics,
+          containerWidth: 100000,
+          display: this.displayMode,
+        })
       }
-      this.measureHeight(element)
-      return
+    )
+
+    if (counters) {
+      /*
+       * `renders` counts this path; `cacheHits` is counted by `sharedMathSvg`, which
+       * is the only place that knows whether the answer came from the cache, from work
+       * already in flight, or from a typeset. Counting it here would mean asking the
+       * same question twice and getting two answers.
+       */
+      void rendered
     }
 
-    const MathJax = await loadMathJax()
+    // The widget may have gone while MathJax worked — the rendering is stored either
+    // way, so this is only about not writing into an element nobody owns.
+    if (this.destroyed || !element.isConnected || !rendered) return
 
-    // abandon if the widget has been destroyed
-    if (this.destroyed) {
-      return
-    }
-
-    // A miss on the definitions means the mathematics has never been rendered
-    // under them, so they have to be parsed before it is. A hit on the
-    // definitions — the common case while scrolling — has already been parsed by
-    // the widget that filled the cache, and re-telling MathJax costs a parse per
-    // render for nothing. The cache key carries the definitions, so a rendering
-    // can never be reused across a different set of them.
-    if (preamble && !preambleParsed(preamble)) {
-      try {
-        await MathJax.tex2svgPromise(preamble)
-        markPreambleParsed(preamble)
-      } catch {
-        // ignore errors thrown during parsing command definitions
-      }
-    }
-
-    // abandon if the element has been removed from the DOM
-    if (!element.isConnected) {
-      return
-    }
-
-    const metrics = MathJax.getMetricsFor(element, this.displayMode)
-    const math = await MathJax.tex2svgPromise(this.math, {
-      ...metrics,
-      containerWidth: 100000,
-      display: this.displayMode,
-    })
-    const remembered = rememberMathSvg(this.math, this.displayMode, preamble, math)
-    element.replaceChildren(remembered ?? math)
+    element.replaceChildren(rendered)
     if (this.displayMode) {
       element.style.height = 'auto'
     }

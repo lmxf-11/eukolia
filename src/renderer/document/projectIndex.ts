@@ -615,6 +615,19 @@ export class ProjectIndex extends EventEmitter {
     return [...this.externalSources.values()];
   }
 
+  /**
+   * The paths of the included source files the walk registered.
+   *
+   * Separate from `getExternalSources`, which returns their *texts* — the name
+   * says otherwise there, and it is kept as it is because it has callers. This
+   * is the accessor the Mathematical Symbols panel needs: deciding whether a
+   * macro declaration is in scope means knowing *which files* the compilation
+   * reaches, and until now nothing exposed that list.
+   */
+  public getIncludedSourcePaths(): string[] {
+    return [...this.externalSources.keys()];
+  }
+
   public getExternalSource(sourcePath: string): string | undefined {
     return this.externalSources.get(sourcePath);
   }

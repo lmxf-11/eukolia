@@ -1,3 +1,4 @@
+import { resolveAppIconPath } from './appIcon';
 /**
  * Eukolia — secondary window management.
  *
@@ -19,7 +20,7 @@ import { app, BrowserWindow, shell, nativeTheme } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { watchWindowState } from './ipc/appHandler';
+import { logToFile, watchWindowState } from './ipc/appHandler';
 import { userSettingsSearchPaths } from './library/projectLibrary';
 
 const moduleFilename = fileURLToPath(import.meta.url);
@@ -99,6 +100,52 @@ let settingsWindow: BrowserWindow | null = null;
 let snippetsWindow: BrowserWindow | null = null;
 let isClosingAuxiliary = false;
 
+/**
+ * Whether this window is being closed by the user rather than ended with the
+ * application.
+ *
+ * These windows are kept alive and reused, so an *unrequested* close used to be
+ * answered by hiding the window: the work of building a renderer is what makes
+ * reopening Settings instant, and a hide keeps it. That is the wrong trade for
+ * the close button, and it was the whole of a defect: a close the user asked for
+ * left the window merely hidden, its Close control apparently doing nothing at
+ * all — the window stayed on screen and still could not be dismissed, because
+ * every press ran the same handler again.
+ *
+ * A window is closed by the user in exactly two ways — the bar's own Close
+ * (`IPC.window.close`) and the system's close request, which is what `WM_CLOSE`
+ * and Alt+F4 are — and both should close it. Hiding is therefore kept for one
+ * case only: {@link isClosingAuxiliary}, where the whole application is going
+ * away and the window is destroyed rather than hidden anyway.
+ *
+ * A `WeakSet` rather than a boolean, because these windows are separate objects
+ * and a shared flag would make one window's close decide the other's.
+ */
+const userClosing = new WeakSet<BrowserWindow>();
+
+/**
+ * Marks a window as closing at the user's request. The close that follows is
+ * allowed through; see {@link userClosing}.
+ */
+export function closeAuxiliaryWindow(win: BrowserWindow | null): void {
+  if (!win || win.isDestroyed()) return;
+  userClosing.add(win);
+  win.close();
+}
+
+/**
+ * Closes a window outright, without giving it the chance a `close` does.
+ *
+ * The one caller is the Snippet Library's "close anyway": it has already tried
+ * to write the library, failed, said so, and been told to go ahead regardless.
+ * Re-asking it to close would offer the same objection again.
+ */
+export function discardAuxiliaryWindow(win: BrowserWindow | null): void {
+  if (!win || win.isDestroyed()) return;
+  logToFile('info', `[window] discarded at the user's request: ${win.webContents.getURL()}`);
+  destroyWindow(win);
+}
+
 function loadWindow(window: BrowserWindow, queryParams: Record<string, string>): void {
   if (process.env.VITE_DEV_SERVER_URL) {
     const devUrl = new URL(process.env.VITE_DEV_SERVER_URL);
@@ -127,6 +174,45 @@ function hideWindow(win: BrowserWindow): void {
   }
 }
 
+/**
+ * Answers a close request on an auxiliary window.
+ *
+ * These windows are frameless and draw their own bar, so there is no native
+ * caption to press: every close — the bar's own Close control through
+ * `IPC.window.close`, and the system's own request — arrives here. A close the
+ * user asked for is honoured, because that is what the control promises and
+ * because a window that cannot be dismissed is one the user has to work around.
+ * The renderer is told first, so a window with something to persist gets the
+ * message before it goes; the window is not held open for the reply, because
+ * `hide`-on-close was exactly the behaviour that read as "the button does
+ * nothing".
+ *
+ * `isClosingAuxiliary` is the application's own shutdown, where the windows are
+ * destroyed by {@link closeAuxiliaryWindows} regardless.
+ */
+function handleAuxiliaryClose(win: BrowserWindow, event: Electron.Event): void {
+  if (isClosingAuxiliary) return;
+
+  if (!win.webContents.isDestroyed()) {
+    win.webContents.send('app:beforeClose');
+  }
+
+  if (userClosing.has(win)) {
+    // Left to close. The `closed` handler below drops the reference.
+    logToFile('info', `[window] closed at the user's request: ${win.webContents.getURL()}`);
+    return;
+  }
+
+  if (event && typeof event.preventDefault === 'function') {
+    event.preventDefault();
+  }
+  logToFile(
+    'warn',
+    `[window] close request hid the ${win === settingsWindow ? 'settings' : 'snippets'} window without a user close request`
+  );
+  hideWindow(win);
+}
+
 function createSettingsBrowserWindow(initialSection?: string): BrowserWindow {
   const colours = savedThemeColours();
   const window = new BrowserWindow({
@@ -136,6 +222,7 @@ function createSettingsBrowserWindow(initialSection?: string): BrowserWindow {
     minHeight: 480,
     backgroundColor: colours.bg,
     title: 'Settings — Eukolia',
+    icon: resolveAppIconPath(),
     show: false,
     autoHideMenuBar: true,
     /**
@@ -175,15 +262,7 @@ function createSettingsBrowserWindow(initialSection?: string): BrowserWindow {
   });
 
   window.on('close', (event: any) => {
-    if (!isClosingAuxiliary) {
-      if (event && typeof event.preventDefault === 'function') {
-        event.preventDefault();
-      }
-      if (!window.webContents.isDestroyed()) {
-        window.webContents.send('app:beforeClose');
-      }
-      hideWindow(window);
-    }
+    handleAuxiliaryClose(window, event);
   });
 
   window.on('closed', () => {
@@ -209,6 +288,7 @@ function createSnippetsBrowserWindow(initialSnippetId?: string): BrowserWindow {
     minHeight: 520,
     backgroundColor: colours.bg,
     title: 'Snippet Library — Eukolia',
+    icon: resolveAppIconPath(),
     show: false,
     autoHideMenuBar: true,
     // Frameless with its own bar, like the Settings window above.
@@ -240,15 +320,7 @@ function createSnippetsBrowserWindow(initialSnippetId?: string): BrowserWindow {
   });
 
   window.on('close', (event: any) => {
-    if (!isClosingAuxiliary) {
-      if (event && typeof event.preventDefault === 'function') {
-        event.preventDefault();
-      }
-      if (!window.webContents.isDestroyed()) {
-        window.webContents.send('app:beforeClose');
-      }
-      hideWindow(window);
-    }
+    handleAuxiliaryClose(window, event);
   });
 
   window.on('closed', () => {

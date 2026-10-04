@@ -34,9 +34,6 @@ import {
 } from './lightpdf-theme';
 import type { PdfOutlineItem } from '../../shared/ipc';
 
-/** The white `FixedPageUI.BackgroundColor` input background light-pdf edits use. */
-const INPUT_BACKGROUND = '#ffffff';
-
 export interface LightPdfTocProps {
   outline: readonly PdfOutlineItem[];
   theme: LightPdfThemeState;
@@ -145,7 +142,7 @@ export const LightPdfToc: React.FC<LightPdfTocProps> = (props) => {
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 4,
-          padding: '2px 2px 2px 4px',
+          padding: '8px 10px',
           borderBottom: `1px solid ${edgeColor}`,
           fontWeight: 600
         }}
@@ -158,11 +155,11 @@ export const LightPdfToc: React.FC<LightPdfTocProps> = (props) => {
           data-testid="pdf-toc-close"
           onClick={props.onClose}
           style={{
-            width: 18,
-            height: 18,
+            width: 26,
+            height: 26,
             padding: 0,
             border: 'none',
-            borderRadius: 2,
+            borderRadius: 6,
             background: 'transparent',
             color: textColor,
             cursor: 'pointer',
@@ -175,19 +172,20 @@ export const LightPdfToc: React.FC<LightPdfTocProps> = (props) => {
 
       {/* `TableOfContents.cpp:1308-1319` — the "Search Bookmarks" filter. */}
       <input
+        className="eu-pdf-field"
         value={filter}
         placeholder="Search Bookmarks"
         aria-label="Search Bookmarks"
         data-testid="pdf-toc-filter"
         onChange={(event) => setFilter(event.target.value)}
         style={{
-          margin: 4,
-          height: 18,
-          padding: '0 4px',
+          margin: 8,
+          minHeight: 30,
+          padding: '0 8px',
           fontSize: 12,
           fontFamily: 'inherit',
           color: textColor,
-          background: INPUT_BACKGROUND,
+          background: bgrToHex(controlBg),
           border: `1px solid ${edgeColor}`,
           outline: 'none'
         }}
@@ -201,7 +199,7 @@ export const LightPdfToc: React.FC<LightPdfTocProps> = (props) => {
           event.preventDefault();
           setMenu({ x: event.clientX, y: event.clientY });
         }}
-        style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '0 2px 4px' }}
+        style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '0 6px 8px' }}
       >
         {rows.length === 0 && (
           <div style={{ padding: '4px 2px', opacity: 0.75 }}>
@@ -215,6 +213,10 @@ export const LightPdfToc: React.FC<LightPdfTocProps> = (props) => {
             <div
               key={row.id}
               role="treeitem"
+              tabIndex={0}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(row); }
+              }}
               aria-level={row.depth + 1}
               aria-selected={selected === row.id}
               aria-expanded={row.hasChildren ? row.expanded : undefined}
@@ -227,9 +229,10 @@ export const LightPdfToc: React.FC<LightPdfTocProps> = (props) => {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 2,
-                paddingLeft: 2 + row.depth * 12,
-                height: 18,
-                borderRadius: 2,
+                paddingLeft: 6 + row.depth * 14,
+                paddingRight: 6,
+                height: 28,
+                borderRadius: 6,
                 background: selected === row.id ? hotColor : 'transparent',
                 color: isCurrent ? linkColor : textColor,
                 cursor: page !== null ? 'pointer' : 'default',

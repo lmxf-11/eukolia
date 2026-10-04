@@ -197,26 +197,60 @@ export function isMathContext(
   })
 }
 
-/** The mark decorations for every mathematical region in a state. */
-export function mathSourceMarks(state: EditorState): Range<Decoration>[] {
+/**
+ * The mark decorations for every mathematical region in a state, within `ranges`.
+ *
+ * **Eukolia: bounded to the viewport, because a whole-document pass per keystroke is
+ * what made a large file unusable.** An empty `ranges` means the whole document, which
+ * is what the mount uses and what the tests use; the plugin below passes the viewport.
+ *
+ * The measurement that forced it, from `scripts/probe-keystroke.mjs` on a 14 529-line
+ * Stacks chapter: one keystroke walked **253 535 tree nodes over the whole document**
+ * in **48.9 ms**, and it was the single most expensive thing a keystroke did — larger
+ * than CodeMirror's own transaction, and about a third of the whole keystroke. This
+ * function was the caller (`mathSourceMarks` in the profile's stack). The tree is
+ * 519 286 characters and this walked all of it to collect ~400 marks, of which a
+ * viewport shows a handful.
+ *
+ * `mathNodeAt`, twenty lines above, had already been given exactly this treatment for
+ * exactly this reason — its comment says a bounded line "stays exact without either a
+ * whole-document scan or a cache that would have to be invalidated as the tree grows".
+ * The same holds here: a mark outside the viewport is not rendered, so building it is
+ * work nobody sees.
+ *
+ * A range whose ends fall inside a `Math` node still yields that node, because
+ * `iterate` visits any node that *begins* before `to` — the node is handed over and its
+ * own span, not the range, decides the mark. That is why the regions stay exact at the
+ * edges rather than being clipped to the viewport.
+ */
+export function mathSourceMarks(
+  state: EditorState,
+  ranges: readonly { from: number; to: number }[] = []
+): Range<Decoration>[] {
   const marks: Range<Decoration>[] = []
   const seen = new Set<string>()
 
-  syntaxTree(state).iterate({
-    enter(nodeRef) {
-      if (!nodeRef.type.is('Math')) return
-      const region = mathRegionOf(state, nodeRef.node)
-      if (!region || region.to <= region.from) return
+  const tree = syntaxTree(state)
+  const document = [{ from: 0, to: state.doc.length }]
+  for (const range of ranges.length > 0 ? ranges : document) {
+    tree.iterate({
+      from: range.from,
+      to: range.to,
+      enter(nodeRef) {
+        if (!nodeRef.type.is('Math')) return
+        const region = mathRegionOf(state, nodeRef.node)
+        if (!region || region.to <= region.from) return
 
-      const key = `${region.from}:${region.to}`
-      if (seen.has(key)) return
-      seen.add(key)
+        const key = `${region.from}:${region.to}`
+        if (seen.has(key)) return
+        seen.add(key)
 
-      marks.push(
-        Decoration.mark({ class: MATH_SOURCE_CLASS }).range(region.from, region.to)
-      )
-    },
-  })
+        marks.push(
+          Decoration.mark({ class: MATH_SOURCE_CLASS }).range(region.from, region.to)
+        )
+      },
+    })
+  }
 
   return marks
 }
@@ -230,39 +264,73 @@ export function mathSourceMarks(state: EditorState): Range<Decoration>[] {
  * region with a rendered widget, and a mark that overlaps a replaced range is
  * simply not rendered — so marking unconditionally keeps the rule true the
  * instant the caret arrives, with no second source of truth to keep in step.
+ *
+ * Rebuilt for the viewport as well as for the document, because the marks are now
+ * bounded to it: `atomic-decorations.ts` does the same thing for its widgets, and the
+ * two have to agree about which part of the file is "on screen" or a region could be
+ * marked here and replaced there. The rule for *when* is the one the ported pass uses —
+ * a viewport that has not moved is not a reason to walk anything.
  */
 export const mathSourceDecorations: Extension = ViewPlugin.fromClass(
   class {
     public decorations: DecorationSet
+    private lastViewport = ''
 
     constructor(view: EditorView) {
-      this.decorations = Decoration.set(mathSourceMarks(view.state), true)
+      this.decorations = Decoration.set(
+        mathSourceMarks(view.state, viewportRanges(view)),
+        true
+      )
+      this.lastViewport = viewportSignature(view)
     }
 
     update(update: ViewUpdate): void {
       /*
-       * The marks cover every mathematics region in the document, on screen or not —
-       * `mathSourceMarks` walks the whole syntax tree — so the viewport cannot change
-       * them, and a scroll is not a reason to walk that tree and allocate a decoration
-       * per equation. On the chapter this was reported from (385 equations) that was a
-       * full tree pass plus 385 objects on every scroll step, for a set that came out
-       * identical.
+       * What can change the marks: the document, the parse advancing, and the viewport
+       * moving.
        *
-       * What can change them is the document, and the parse advancing: the tree arrives
-       * in pieces, and this plugin is built against whatever had been parsed when the
-       * view mounted. The parsed region's length is the cheap signal for that, and
-       * unlike the tree's identity it does not change on every keystroke (see
-       * `atomic-decorations.ts`, where that lesson cost three measured attempts).
+       * The parse advancing is the subtle one — the tree arrives in pieces, and this
+       * plugin is built against whatever had been parsed when the view mounted. The
+       * parsed region's length is the cheap signal for that, and unlike the tree's
+       * identity it does not change on every keystroke (see `atomic-decorations.ts`,
+       * where that lesson cost three measured attempts).
+       *
+       * A scroll is not a reason unless it *leaves* what was marked, so the signature
+       * is compared rather than the flag consulted: a wheel step within the same
+       * viewport does nothing.
        */
       const parsedGrew =
         syntaxTree(update.state).length !== syntaxTree(update.startState).length
-      if (update.docChanged || parsedGrew) {
-        this.decorations = Decoration.set(mathSourceMarks(update.state), true)
-      }
+      const viewportMoved = update.viewportChanged
+      if (!update.docChanged && !parsedGrew && !viewportMoved) return
+
+      const signature = viewportSignature(update.view)
+      if (!update.docChanged && !parsedGrew && signature === this.lastViewport) return
+
+      this.lastViewport = signature
+      this.decorations = Decoration.set(
+        mathSourceMarks(update.state, viewportRanges(update.view)),
+        true
+      )
     }
   },
   { decorations: instance => instance.decorations }
 )
+
+/** The visible ranges, which is what the marks are built for. */
+const viewportRanges = (view: EditorView): { from: number; to: number }[] =>
+  view.visibleRanges.length > 0
+    ? view.visibleRanges.map(range => ({ from: range.from, to: range.to }))
+    : [{ from: 0, to: view.state.doc.length }]
+
+/**
+ * A cheap identity for "which part of the file is on screen".
+ *
+ * Length and both ends, because a signature that ignores the position would treat a
+ * scroll of a whole screen as no movement when the viewport is a fixed height.
+ */
+const viewportSignature = (view: EditorView): string =>
+  view.visibleRanges.map(range => `${range.from}:${range.to}`).join(',')
 
 /**
  * The editor attribute reporting the current context, recomputed whenever the

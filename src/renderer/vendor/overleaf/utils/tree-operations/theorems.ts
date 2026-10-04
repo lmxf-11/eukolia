@@ -364,4 +364,40 @@ export class TheoremCounterManager {
       return `${current}`
     }
   }
+
+  /**
+   * Eukolia: everything this manager counts, so a position can be returned to.
+   *
+   * The counter is *shared* between the context scan and the decoration walk — the
+   * scan counts the theorem theorems above the viewport and the walk continues from
+   * where it stopped, which is what makes a bounded build number theorems the same as
+   * a whole-document one. So a cached context is only reusable at a boundary if the
+   * counters that belong to it can be put back first, and these two methods are that:
+   * `restoreCounters(snapshotCounters())` is the identity.
+   *
+   * A snapshot of the numbering, not of the declarations — the declarations are the
+   * document's and do not move with the position.
+   */
+  snapshotCounters(): Record<string, number> {
+    return {
+      ...Object.fromEntries(this.counters),
+      // The four named indices are not in the map, and they are the ones the numbering
+      // is built from, so they travel alongside it.
+      '\u0000section': this.sectionIndex,
+      '\u0000subsection': this.subsectionIndex,
+      '\u0000subsubsection': this.subsubsectionIndex,
+      '\u0000chapter': this.chapterIndex,
+    }
+  }
+
+  restoreCounters(snapshot: Record<string, number>): void {
+    this.counters = new Map()
+    for (const [name, value] of Object.entries(snapshot)) {
+      if (name === '\u0000section') this.sectionIndex = value
+      else if (name === '\u0000subsection') this.subsectionIndex = value
+      else if (name === '\u0000subsubsection') this.subsubsectionIndex = value
+      else if (name === '\u0000chapter') this.chapterIndex = value
+      else this.counters.set(name, value)
+    }
+  }
 }

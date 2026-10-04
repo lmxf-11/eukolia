@@ -615,3 +615,34 @@ describe('the viewer keyboard', () => {
     await view.unmount();
   });
 });
+
+
+describe('floating PDF toolbar modes', () => {
+  it('keeps the same floating position in both modes and hides only on hover mode', async () => {
+    const { settingsManager } = await import('../../src/renderer/core/settings');
+    const view = await mountPdfPane();
+    try {
+      const host = view.host.querySelector('[data-testid="pdf-toolbar-host"]') as HTMLElement;
+      expect(host.style.position).toBe('absolute');
+      expect(host.style.left).toBe('50%');
+      expect(host.style.opacity).toBe('1');
+      const position = { left: host.style.left, top: host.style.top, transform: host.style.transform };
+      await act(async () => { settingsManager.setValue('pdf.toolbar', 'overlay', 'user'); });
+      expect({ left: host.style.left, top: host.style.top, transform: host.style.transform }).toEqual(position);
+      expect(host.style.opacity).toBe('0');
+      expect(host.hasAttribute('inert')).toBe(true);
+      await act(async () => { settingsManager.setValue('pdf.toolbar', 'show', 'user'); });
+      expect(host.style.opacity).toBe('1');
+      expect(host.hasAttribute('inert')).toBe(false);
+      await act(async () => { settingsManager.setValue('pdf.toolbarPosition', 'bottom', 'user'); });
+      expect(host.style.bottom).toBe('0px');
+      expect(host.style.top).toBe('');
+      await act(async () => { settingsManager.setValue('pdf.toolbar', 'hide', 'user'); });
+      expect(view.host.querySelector('[data-testid="pdf-toolbar"]')).toBeNull();
+    } finally {
+      await view.unmount();
+      settingsManager.reset('pdf.toolbar', 'user');
+      settingsManager.reset('pdf.toolbarPosition', 'user');
+    }
+  });
+});

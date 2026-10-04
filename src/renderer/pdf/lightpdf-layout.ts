@@ -717,7 +717,7 @@ export function currentPageAt(layout: LightPdfLayout, scrollTop: number, scrollL
 }
 
 /** True while any part of the page is inside the viewport at `scrollTop`. */
-export function pageVisibleAt(layout: LightPdfLayout, pageNo: number, scrollTop: number): boolean {
+export function pageVisibleAt(layout: LightPdfLayout, pageNo: number, scrollTop: number, scrollLeft = layout.viewPort.x): boolean {
   const page = layout.pages[pageNo - 1];
   if (!page) return false;
   // Numeric rather than `intersect` + `isEmpty`: this runs once per candidate page
@@ -726,8 +726,8 @@ export function pageVisibleAt(layout: LightPdfLayout, pageNo: number, scrollTop:
   return (
     y + dy > scrollTop &&
     y < scrollTop + layout.viewPort.dy &&
-    x + dx > layout.viewPort.x &&
-    x < layout.viewPort.x + layout.viewPort.dx
+    x + dx > scrollLeft &&
+    x < scrollLeft + layout.viewPort.dx
   );
 }
 
@@ -758,7 +758,7 @@ export function visibleRatioAt(layout: LightPdfLayout, pageNo: number, scrollTop
  * by extending it — which keeps the cost proportional to the pages actually near
  * the viewport rather than to the document.
  */
-export function pagesToRender(layout: LightPdfLayout, scrollTop: number, padding: number): number[] {
+export function pagesToRender(layout: LightPdfLayout, scrollTop: number, padding: number, scrollLeft = layout.viewPort.x): number[] {
   const top = scrollTop - padding;
   const bottom = scrollTop + layout.viewPort.dy + padding;
   const pages = layout.pages;
@@ -770,7 +770,7 @@ export function pagesToRender(layout: LightPdfLayout, scrollTop: number, padding
     else high = mid;
   }
   const candidates: number[] = [];
-  const viewPortX = layout.viewPort.x;
+  const viewPortX = scrollLeft;
   const viewPortDx = layout.viewPort.dx;
   for (let index = low; index < pages.length; index += 1) {
     const page = pages[index];

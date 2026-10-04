@@ -1201,6 +1201,15 @@ export interface SnippetManagerProps {
    * Registers this manager's requestClose callback with the host.
    */
   registerCloseHandler?(handler: () => Promise<boolean>): () => void;
+  /**
+   * Asks for the window to be closed with nothing saved.
+   *
+   * Only used for the window's own Close, and only as the answer to a failed
+   * write: the manager has already said why it could not save and offered to
+   * close anyway, and a window that refuses to close at all is worse than one
+   * that loses what the user has been told it will lose.
+   */
+  onDiscard?(): void;
   /** Whether to render as a full-viewport standalone window rather than inside a modal. */
   standalone?: boolean;
 }
@@ -1210,6 +1219,7 @@ export const SnippetManager: React.FC<SnippetManagerProps> = ({
   open = true,
   focusSnippetId = null,
   onClose,
+  onDiscard,
   registerCloseHandler,
   standalone = false
 }) => {
@@ -1437,6 +1447,13 @@ export const SnippetManager: React.FC<SnippetManagerProps> = ({
    * A document that cannot be written leaves the window open with the reason on
    * screen: closing it anyway would be exactly the moment the user's edits are
    * lost, and they are edits the file has never seen.
+   *
+   * The window is therefore closed by *this* side, after the write, rather than
+   * by the message that asked for the close. `window:close` takes effect the
+   * instant it arrives, so a close driven from the main process would end the
+   * renderer mid-`flush` — and take the entries the flush was writing with it.
+   * The one exception is {@link requestDiscard}, which is the user saying they
+   * accept that.
    */
   const requestClose = useCallback(async (): Promise<boolean> => {
     if (isClosingRef.current) return false;
@@ -1476,6 +1493,22 @@ export const SnippetManager: React.FC<SnippetManagerProps> = ({
     onClose?.();
     return true;
   }, [store, onClose, file, selected, query, status, contextFilter, expandFilter, boundaryFilter, tagFilter, hasScriptFilter, section, mode, filtersOpen]);
+
+  /**
+   * Closes the window without writing — the answer to "the library could not be
+   * written" when the user chooses to lose the edit rather than keep the window.
+   *
+   * When the host has no discard path (the modal in the shell) the close is
+   * simply the ordinary one: there the manager is a panel, and dismissing it
+   * does not take the document with it.
+   */
+  const requestDiscard = useCallback((): void => {
+    if (onDiscard) {
+      onDiscard();
+      return;
+    }
+    void requestClose();
+  }, [onDiscard, requestClose]);
 
   useEffect(() => {
     if (registerCloseHandler) {
@@ -1664,7 +1697,10 @@ export const SnippetManager: React.FC<SnippetManagerProps> = ({
           <StandaloneTitleBar
             title="Snippet Library"
             icon={Zap}
-            onClose={() => void requestClose()}
+            // The bar's own Close is the discard path when the write has failed:
+            // see `onDiscard`. The unloaded state has nothing to write, so this
+            // resolves to the ordinary close there.
+            onClose={() => requestDiscard()}
           />
           <div className="eu-snippets__unloaded">
             <div className="eu-snippets__actions-row">

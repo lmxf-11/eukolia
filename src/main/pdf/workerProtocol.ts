@@ -51,6 +51,14 @@ export interface WorkerReadyInfo {
   mupdfVersion: string;
   renderThreads: number;
   maxTileSize: number;
+  /**
+   * The largest tile resolution the worker's 16-bit row/column address fields carry.
+   *
+   * Added with the tile-cache fix; absent from an older worker, which is exactly the
+   * signal the capability check needs (`PDFVIEWER.md` §7, "audit representable ranges
+   * before public exposure").
+   */
+  maxTileRes?: number;
   commands: string[];
 }
 
@@ -76,6 +84,7 @@ export interface WireOutlineItem {
 }
 
 export interface WireOpenResult {
+  unchanged?: boolean;
   ok: true;
   path: string;
   pageCount: number;
@@ -303,6 +312,16 @@ export interface WireStatsResult {
   aborted: number;
   evicted: number;
   pendingTextTasks: number;
+  /** Present on a worker built with the cache fixes; see `render_cache.h`. */
+  skippedOversized?: number;
+  tileSizeReductions?: number;
+  targetTileSize?: number;
+  threadsSpawned?: number;
+  evictedUnwantedPages?: number;
+  evictedBudget?: number;
+  evictedOldGeneration?: number;
+  evictedOldVariant?: number;
+  evictedSuperseded?: number;
 }
 
 export interface WireCancelResult {
@@ -341,6 +360,7 @@ export type WorkerCommand =
   | 'viewport'
   | 'tiles'
   | 'stats'
+  | 'diagnostics'
   | 'layout'
   | 'text'
   | 'glyphs'
@@ -351,12 +371,42 @@ export type WorkerCommand =
   | 'pageContentBox'
   | 'fontList';
 
+/** One entry of a `stats` reply's optional `entries` list. */
+export interface WireCacheEntry {
+  page: number;
+  rotate: number;
+  scale: number;
+  res: number;
+  row: number;
+  col: number;
+  invert: boolean;
+  gray: boolean;
+  pageRect: WireRect;
+  bytes: number;
+  width: number;
+  height: number;
+}
+
+/** The `diagnostics` reply: text the cache and the engine raised, drained on read. */
+export interface WireDiagnosticsResult {
+  ok: true;
+  messages: string[];
+}
+
 export interface RenderRequestParams {
   page: number;
   scale: number;
   rotate?: number;
   clip?: WireRect;
   tile?: TilePosition;
+  /**
+   * Device pixels per tile side the caller's tile grid was composed against.
+   *
+   * Pins the worker's adaptive tile geometry (`RenderJob::targetTileSize`), so a
+   * memory-pressure reduction at the native end cannot silently change what the
+   * caller's tile addresses mean.
+   */
+  targetTileSize?: number;
   invert?: boolean;
   format?: 'rgba' | 'bgra' | 'gray';
   allowCache?: boolean;

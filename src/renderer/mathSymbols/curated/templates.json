@@ -1,0 +1,1140 @@
+{
+  "version": 1,
+  "templates": [
+    {
+      "id": "tpl:frac",
+      "name": "Fraction",
+      "description": "Typesets a numerator above a denominator separated by a horizontal bar at the current size.",
+      "keywords": ["fraction", "divide", "ratio", "over"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\frac{", {"slot": 1}, "}{", {"slot": 2}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "numerator"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "denominator"}
+      ],
+      "mathjaxPreview": "\\frac{a}{b}"
+    },
+    {
+      "id": "tpl:dfrac",
+      "name": "Display-style fraction",
+      "description": "Typesets a fraction in display style so that the numerator and denominator stay large in inline math.",
+      "keywords": ["fraction", "display", "large", "inline"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\dfrac{", {"slot": 1}, "}{", {"slot": 2}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "numerator"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "denominator"}
+      ],
+      "mathjaxPreview": "\\dfrac{a}{b}"
+    },
+    {
+      "id": "tpl:tfrac",
+      "name": "Text-style fraction",
+      "description": "Typesets a fraction in text style so that a nested fraction stays compact in display math.",
+      "keywords": ["fraction", "text", "small", "compact"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\tfrac{", {"slot": 1}, "}{", {"slot": 2}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "numerator"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "denominator"}
+      ],
+      "mathjaxPreview": "\\tfrac{a}{b}"
+    },
+    {
+      "id": "tpl:cfrac",
+      "name": "Continued fraction",
+      "description": "Typesets a continued fraction, laying out each nested level in display style so that it stays readable.",
+      "keywords": ["continued", "fraction", "nested", "chain"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\cfrac{", {"slot": 1}, "}{", {"slot": 2}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "numerator"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "denominator, which may itself be a continued fraction"}
+      ],
+      "mathjaxPreview": "\\cfrac{1}{1 + \\cfrac{1}{x}}"
+    },
+    {
+      "id": "tpl:binom",
+      "name": "Binomial coefficient",
+      "description": "Typesets a binomial coefficient as a stacked pair of entries inside parentheses.",
+      "keywords": ["binomial", "choose", "combination", "coefficient"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\binom{", {"slot": 1}, "}{", {"slot": 2}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "top entry, usually the total number n"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "bottom entry, usually the number chosen k"}
+      ],
+      "mathjaxPreview": "\\binom{n}{k}"
+    },
+    {
+      "id": "tpl:dbinom",
+      "name": "Display-style binomial coefficient",
+      "description": "Typesets a binomial coefficient in display style so that the stacked entries stay large in inline math.",
+      "keywords": ["binomial", "display", "choose", "large"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\dbinom{", {"slot": 1}, "}{", {"slot": 2}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "top entry, usually the total number n"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "bottom entry, usually the number chosen k"}
+      ],
+      "mathjaxPreview": "\\dbinom{n}{k}"
+    },
+    {
+      "id": "tpl:tbinom",
+      "name": "Text-style binomial coefficient",
+      "description": "Typesets a compact binomial coefficient for use inside running text.",
+      "keywords": ["binomial", "text", "choose", "compact"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\tbinom{", {"slot": 1}, "}{", {"slot": 2}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "top entry, usually the total number n"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "bottom entry, usually the number chosen k"}
+      ],
+      "mathjaxPreview": "\\tbinom{n}{k}"
+    },
+    {
+      "id": "tpl:sqrt",
+      "name": "Square root",
+      "description": "Typesets the square root of a radicand.",
+      "keywords": ["root", "radical", "square", "sqrt"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\sqrt{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "radicand"}
+      ],
+      "mathjaxPreview": "\\sqrt{x}"
+    },
+    {
+      "id": "tpl:sqrt-nth",
+      "name": "Nth root",
+      "description": "Typesets an nth root with the index in square brackets in front of a required radicand.",
+      "keywords": ["root", "radical", "index", "nth"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\sqrt[", {"slot": 1}, "]{", {"slot": 2}, "}"],
+      "slots": [
+        {"index": 1, "required": false, "default": "", "select": "none", "description": "root index such as 3"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "radicand"}
+      ],
+      "mathjaxPreview": "\\sqrt[3]{x}"
+    },
+    {
+      "id": "tpl:overline",
+      "name": "Overline",
+      "description": "Draws a horizontal line over the whole expression.",
+      "keywords": ["overline", "line", "bar", "over"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\overline{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "expression that the line spans"}
+      ],
+      "mathjaxPreview": "\\overline{z}"
+    },
+    {
+      "id": "tpl:underline",
+      "name": "Underline",
+      "description": "Draws a horizontal line under the content and works in both text and math mode.",
+      "keywords": ["underline", "line", "under", "emphasis"],
+      "aliases": [],
+      "mode": "mode-independent",
+      "requires": [],
+      "parts": ["\\underline{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "content that the line spans"}
+      ],
+      "mathjaxPreview": "\\underline{z}"
+    },
+    {
+      "id": "tpl:bar",
+      "name": "Bar accent",
+      "description": "Places a short bar accent over a single symbol, as used for a mean or a complex conjugate.",
+      "keywords": ["bar", "accent", "mean", "conjugate"],
+      "aliases": ["\\overline"],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\bar{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "symbol that receives the bar"}
+      ],
+      "mathjaxPreview": "\\bar{z}"
+    },
+    {
+      "id": "tpl:overbrace",
+      "name": "Overbrace with annotation",
+      "description": "Draws a horizontal brace above an expression and sets the annotation above the brace.",
+      "keywords": ["overbrace", "brace", "annotation", "group"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\overbrace{", {"slot": 1}, "}^{", {"slot": 2}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "expression that the brace spans"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "annotation set above the brace"}
+      ],
+      "mathjaxPreview": "\\overbrace{a+b}^{n}"
+    },
+    {
+      "id": "tpl:underbrace",
+      "name": "Underbrace with subscript annotation",
+      "description": "Draws a horizontal brace below an expression and sets the annotation below the brace as a subscript.",
+      "keywords": ["underbrace", "brace", "annotation", "subscript", "group"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\underbrace{", {"slot": 1}, "}_{", {"slot": 2}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "expression that the brace spans"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "annotation set below the brace as a subscript"}
+      ],
+      "mathjaxPreview": "\\underbrace{a+b}_{n}"
+    },
+    {
+      "id": "tpl:over-under-brace",
+      "name": "Braces above and below",
+      "description": "Brackets one expression from both sides with an annotation above the outer brace and one below the inner brace.",
+      "keywords": ["brace", "over", "under", "annotation", "both"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\overbrace{\\underbrace{", {"slot": 1}, "}_{", {"slot": 2}, "}}^{", {"slot": 3}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "expression inside both braces"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "annotation set below the inner brace"},
+        {"index": 3, "required": true, "default": "", "select": "placeholder", "description": "annotation set above the outer brace"}
+      ],
+      "mathjaxPreview": "\\overbrace{\\underbrace{a+b}_{n}}^{m}"
+    },
+    {
+      "id": "tpl:overset",
+      "name": "Overset",
+      "description": "Places a symbol or annotation directly above an arbitrary base expression.",
+      "keywords": ["overset", "above", "over", "stack", "annotate"],
+      "aliases": ["\\stackrel"],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\overset{", {"slot": 1}, "}{", {"slot": 2}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "annotation placed above"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "base expression that the annotation sits on"}
+      ],
+      "mathjaxPreview": "\\overset{!}{=}"
+    },
+    {
+      "id": "tpl:underset",
+      "name": "Underset",
+      "description": "Places a symbol or annotation directly below an arbitrary base expression.",
+      "keywords": ["underset", "below", "under", "stack", "limits"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\underset{", {"slot": 1}, "}{", {"slot": 2}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "annotation placed below"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "base expression that the annotation sits under"}
+      ],
+      "mathjaxPreview": "\\underset{n \\to \\infty}{\\lim}"
+    },
+    {
+      "id": "tpl:stackrel",
+      "name": "Stackrel",
+      "description": "Stacks a symbol above a relation using only commands of the LaTeX kernel.",
+      "keywords": ["stackrel", "above", "stack", "relation"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\stackrel{", {"slot": 1}, "}{", {"slot": 2}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "annotation placed above"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "relation symbol that the annotation sits on"}
+      ],
+      "mathjaxPreview": "\\stackrel{\\mathrm{def}}{=}"
+    },
+    {
+      "id": "tpl:hat",
+      "name": "Hat accent",
+      "description": "Places a circumflex accent over a symbol, as used for an estimator or a unit vector.",
+      "keywords": ["hat", "accent", "circumflex", "estimator"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\hat{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "symbol that receives the hat"}
+      ],
+      "mathjaxPreview": "\\hat{x}"
+    },
+    {
+      "id": "tpl:widehat",
+      "name": "Wide hat accent",
+      "description": "Places a circumflex accent that stretches over a multi-character expression.",
+      "keywords": ["widehat", "hat", "wide", "accent", "circumflex"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\widehat{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "expression that the wide hat spans"}
+      ],
+      "mathjaxPreview": "\\widehat{ABC}"
+    },
+    {
+      "id": "tpl:tilde",
+      "name": "Tilde accent",
+      "description": "Places a tilde accent over a symbol.",
+      "keywords": ["tilde", "accent", "wave"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\tilde{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "symbol that receives the tilde"}
+      ],
+      "mathjaxPreview": "\\tilde{x}"
+    },
+    {
+      "id": "tpl:widetilde",
+      "name": "Wide tilde accent",
+      "description": "Places a tilde accent that stretches over a multi-character expression.",
+      "keywords": ["widetilde", "tilde", "wide", "accent"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\widetilde{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "expression that the wide tilde spans"}
+      ],
+      "mathjaxPreview": "\\widetilde{ABC}"
+    },
+    {
+      "id": "tpl:vec",
+      "name": "Vector arrow",
+      "description": "Places a small right arrow over a symbol to denote a vector.",
+      "keywords": ["vec", "vector", "arrow", "accent"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\vec{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "symbol that receives the vector arrow"}
+      ],
+      "mathjaxPreview": "\\vec{v}"
+    },
+    {
+      "id": "tpl:dot",
+      "name": "Dot accent",
+      "description": "Places a single dot over a symbol, as used for a first derivative with respect to time.",
+      "keywords": ["dot", "accent", "derivative", "time"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\dot{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "symbol that receives the dot"}
+      ],
+      "mathjaxPreview": "\\dot{x}"
+    },
+    {
+      "id": "tpl:ddot",
+      "name": "Double dot accent",
+      "description": "Places two dots over a symbol, as used for a second derivative with respect to time.",
+      "keywords": ["ddot", "accent", "derivative", "second"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\ddot{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "symbol that receives the two dots"}
+      ],
+      "mathjaxPreview": "\\ddot{x}"
+    },
+    {
+      "id": "tpl:breve",
+      "name": "Breve accent",
+      "description": "Places a breve accent over a symbol.",
+      "keywords": ["breve", "accent", "short"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\breve{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "symbol that receives the breve"}
+      ],
+      "mathjaxPreview": "\\breve{x}"
+    },
+    {
+      "id": "tpl:check",
+      "name": "Check accent",
+      "description": "Places a caron or check accent over a symbol.",
+      "keywords": ["check", "caron", "hacek", "accent"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\check{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "symbol that receives the check"}
+      ],
+      "mathjaxPreview": "\\check{x}"
+    },
+    {
+      "id": "tpl:acute",
+      "name": "Acute accent",
+      "description": "Places an acute accent over a symbol.",
+      "keywords": ["acute", "accent", "prime"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\acute{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "symbol that receives the acute accent"}
+      ],
+      "mathjaxPreview": "\\acute{x}"
+    },
+    {
+      "id": "tpl:grave",
+      "name": "Grave accent",
+      "description": "Places a grave accent over a symbol.",
+      "keywords": ["grave", "accent"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\grave{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "symbol that receives the grave accent"}
+      ],
+      "mathjaxPreview": "\\grave{x}"
+    },
+    {
+      "id": "tpl:mathring",
+      "name": "Ring accent",
+      "description": "Places a small circle over a symbol.",
+      "keywords": ["mathring", "ring", "circle", "accent"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\mathring{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "symbol that receives the ring"}
+      ],
+      "mathjaxPreview": "\\mathring{x}"
+    },
+    {
+      "id": "tpl:parens",
+      "name": "Parentheses",
+      "description": "Delimits an expression with parentheses that grow to fit the content.",
+      "keywords": ["parentheses", "delimiters", "round", "group"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\left( ", {"slot": 1}, " \\right)"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "expression inside the parentheses"}
+      ],
+      "mathjaxPreview": "\\left( \\frac{a}{b} \\right)"
+    },
+    {
+      "id": "tpl:brackets",
+      "name": "Square brackets",
+      "description": "Delimits an expression with square brackets that grow to fit the content.",
+      "keywords": ["brackets", "delimiters", "square", "interval"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\left[ ", {"slot": 1}, " \\right]"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "expression inside the brackets"}
+      ],
+      "mathjaxPreview": "\\left[ \\frac{a}{b} \\right]"
+    },
+    {
+      "id": "tpl:braces",
+      "name": "Braces",
+      "description": "Delimits an expression with curly braces that grow to fit the content.",
+      "keywords": ["braces", "curly", "delimiters", "set"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\left\\{ ", {"slot": 1}, " \\right\\}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "expression inside the braces"}
+      ],
+      "mathjaxPreview": "\\left\\{ \\frac{a}{b} \\right\\}"
+    },
+    {
+      "id": "tpl:angle-brackets",
+      "name": "Angle brackets",
+      "description": "Delimits an expression with angle brackets that grow to fit the content.",
+      "keywords": ["angle", "brackets", "delimiters", "inner product"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\left\\langle ", {"slot": 1}, " \\right\\rangle"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "expression inside the angle brackets"}
+      ],
+      "mathjaxPreview": "\\left\\langle u, v \\right\\rangle"
+    },
+    {
+      "id": "tpl:vert-bars",
+      "name": "Vertical bars",
+      "description": "Delimits an expression with single vertical bars that grow to fit the content.",
+      "keywords": ["bars", "vertical", "delimiters", "absolute value"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\left| ", {"slot": 1}, " \\right|"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "expression between the bars"}
+      ],
+      "mathjaxPreview": "\\left| \\frac{a}{b} \\right|"
+    },
+    {
+      "id": "tpl:double-vert-bars",
+      "name": "Double vertical bars",
+      "description": "Delimits an expression with double vertical bars that grow to fit the content.",
+      "keywords": ["norm", "double bars", "vertical", "delimiters"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\left\\| ", {"slot": 1}, " \\right\\|"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "expression between the double bars"}
+      ],
+      "mathjaxPreview": "\\left\\| \\frac{a}{b} \\right\\|"
+    },
+    {
+      "id": "tpl:floor",
+      "name": "Floor",
+      "description": "Rounds an expression down inside floor brackets that grow to fit the content.",
+      "keywords": ["floor", "round down", "greatest integer", "brackets"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\left\\lfloor ", {"slot": 1}, " \\right\\rfloor"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "expression to be rounded down"}
+      ],
+      "mathjaxPreview": "\\left\\lfloor x \\right\\rfloor"
+    },
+    {
+      "id": "tpl:ceil",
+      "name": "Ceiling",
+      "description": "Rounds an expression up inside ceiling brackets that grow to fit the content.",
+      "keywords": ["ceiling", "round up", "least integer", "brackets"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\left\\lceil ", {"slot": 1}, " \\right\\rceil"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "expression to be rounded up"}
+      ],
+      "mathjaxPreview": "\\left\\lceil x \\right\\rceil"
+    },
+    {
+      "id": "tpl:abs",
+      "name": "Absolute value",
+      "description": "Delimits the absolute value of an expression with fixed-size vertical bars.",
+      "keywords": ["absolute value", "modulus", "bars", "magnitude"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\lvert ", {"slot": 1}, " \\rvert"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "expression whose absolute value is taken"}
+      ],
+      "mathjaxPreview": "\\lvert x \\rvert"
+    },
+    {
+      "id": "tpl:norm",
+      "name": "Norm",
+      "description": "Delimits the norm of an expression with fixed-size double vertical bars.",
+      "keywords": ["norm", "double bars", "length", "magnitude"],
+      "aliases": ["\\Vert", "\\|"],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\lVert ", {"slot": 1}, " \\rVert"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "expression whose norm is taken"}
+      ],
+      "mathjaxPreview": "\\lVert x \\rVert"
+    },
+    {
+      "id": "tpl:eval-bar",
+      "name": "Evaluation bar",
+      "description": "Typesets an expression followed by a vertical bar that carries the point at which the expression is evaluated.",
+      "keywords": ["evaluation", "bar", "substitution", "definite"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\left. ", {"slot": 1}, " \\right|_{", {"slot": 2}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "expression being evaluated"},
+        {"index": 2, "required": false, "default": "x=0", "select": "placeholder", "description": "point of evaluation, for example x=0"}
+      ],
+      "mathjaxPreview": "\\left. \\frac{df}{dx} \\right|_{x=0}"
+    },
+    {
+      "id": "tpl:matrix",
+      "name": "Matrix",
+      "description": "Arranges four entries in a two-by-two grid without delimiters.",
+      "keywords": ["matrix", "grid", "entries", "table"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\begin{matrix}\n  ", {"slot": 1}, " & ", {"slot": 2}, " \\\\\n  ", {"slot": 3}, " & ", {"slot": 4}, "\n\\end{matrix}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "first row, first column entry"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "first row, second column entry"},
+        {"index": 3, "required": true, "default": "", "select": "placeholder", "description": "second row, first column entry"},
+        {"index": 4, "required": true, "default": "", "select": "placeholder", "description": "second row, second column entry"}
+      ],
+      "mathjaxPreview": "\\begin{matrix}\n  a & b \\\\\n  c & d\n\\end{matrix}"
+    },
+    {
+      "id": "tpl:pmatrix",
+      "name": "Parenthesised matrix",
+      "description": "Arranges four entries in a two-by-two grid enclosed in parentheses.",
+      "keywords": ["pmatrix", "matrix", "parentheses", "grid"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\begin{pmatrix}\n  ", {"slot": 1}, " & ", {"slot": 2}, " \\\\\n  ", {"slot": 3}, " & ", {"slot": 4}, "\n\\end{pmatrix}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "first row, first column entry"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "first row, second column entry"},
+        {"index": 3, "required": true, "default": "", "select": "placeholder", "description": "second row, first column entry"},
+        {"index": 4, "required": true, "default": "", "select": "placeholder", "description": "second row, second column entry"}
+      ],
+      "mathjaxPreview": "\\begin{pmatrix}\n  a & b \\\\\n  c & d\n\\end{pmatrix}"
+    },
+    {
+      "id": "tpl:bmatrix",
+      "name": "Bracketed matrix",
+      "description": "Arranges four entries in a two-by-two grid enclosed in square brackets.",
+      "keywords": ["bmatrix", "matrix", "brackets", "grid"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\begin{bmatrix}\n  ", {"slot": 1}, " & ", {"slot": 2}, " \\\\\n  ", {"slot": 3}, " & ", {"slot": 4}, "\n\\end{bmatrix}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "first row, first column entry"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "first row, second column entry"},
+        {"index": 3, "required": true, "default": "", "select": "placeholder", "description": "second row, first column entry"},
+        {"index": 4, "required": true, "default": "", "select": "placeholder", "description": "second row, second column entry"}
+      ],
+      "mathjaxPreview": "\\begin{bmatrix}\n  a & b \\\\\n  c & d\n\\end{bmatrix}"
+    },
+    {
+      "id": "tpl:vmatrix",
+      "name": "Matrix with vertical bars",
+      "description": "Arranges four entries in a two-by-two grid enclosed in vertical bars, as used for determinants.",
+      "keywords": ["vmatrix", "determinant", "matrix", "bars"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\begin{vmatrix}\n  ", {"slot": 1}, " & ", {"slot": 2}, " \\\\\n  ", {"slot": 3}, " & ", {"slot": 4}, "\n\\end{vmatrix}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "first row, first column entry"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "first row, second column entry"},
+        {"index": 3, "required": true, "default": "", "select": "placeholder", "description": "second row, first column entry"},
+        {"index": 4, "required": true, "default": "", "select": "placeholder", "description": "second row, second column entry"}
+      ],
+      "mathjaxPreview": "\\begin{vmatrix}\n  a & b \\\\\n  c & d\n\\end{vmatrix}"
+    },
+    {
+      "id": "tpl:smallmatrix",
+      "name": "Small matrix",
+      "description": "Arranges four entries in a compact two-by-two grid sized for use inside a line of text.",
+      "keywords": ["smallmatrix", "matrix", "small", "inline"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\begin{smallmatrix}\n  ", {"slot": 1}, " & ", {"slot": 2}, " \\\\\n  ", {"slot": 3}, " & ", {"slot": 4}, "\n\\end{smallmatrix}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "first row, first column entry"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "first row, second column entry"},
+        {"index": 3, "required": true, "default": "", "select": "placeholder", "description": "second row, first column entry"},
+        {"index": 4, "required": true, "default": "", "select": "placeholder", "description": "second row, second column entry"}
+      ],
+      "mathjaxPreview": "\\begin{smallmatrix}\n  a & b \\\\\n  c & d\n\\end{smallmatrix}"
+    },
+    {
+      "id": "tpl:cases",
+      "name": "Cases",
+      "description": "Lists two labelled cases inside a left brace.",
+      "keywords": ["cases", "piecewise", "function", "brace"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\begin{cases}\n  ", {"slot": 1}, " & ", {"slot": 2}, " \\\\\n  ", {"slot": 3}, " & ", {"slot": 4}, "\n\\end{cases}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "value or expression of the first case"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "condition for the first case"},
+        {"index": 3, "required": true, "default": "", "select": "placeholder", "description": "value or expression of the second case"},
+        {"index": 4, "required": true, "default": "", "select": "placeholder", "description": "condition for the second case"}
+      ],
+      "mathjaxPreview": "\\begin{cases}\n  x^2 & x \\ge 0 \\\\\n  -x & x < 0\n\\end{cases}"
+    },
+    {
+      "id": "tpl:array",
+      "name": "Array",
+      "description": "Arranges four entries in a two-by-two array whose two columns are centred.",
+      "keywords": ["array", "table", "grid", "columns"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\begin{array}{cc}\n  ", {"slot": 1}, " & ", {"slot": 2}, " \\\\\n  ", {"slot": 3}, " & ", {"slot": 4}, "\n\\end{array}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "first row, first column entry"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "first row, second column entry"},
+        {"index": 3, "required": true, "default": "", "select": "placeholder", "description": "second row, first column entry"},
+        {"index": 4, "required": true, "default": "", "select": "placeholder", "description": "second row, second column entry"}
+      ],
+      "mathjaxPreview": "\\begin{array}{cc}\n  a & b \\\\\n  c & d\n\\end{array}"
+    },
+    {
+      "id": "tpl:aligned",
+      "name": "Aligned equations",
+      "description": "Aligns two equation lines on the ampersand markers for use inside another math environment.",
+      "keywords": ["aligned", "align", "equations", "lines"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\begin{aligned}\n  ", {"slot": 1}, " &= ", {"slot": 2}, " \\\\\n  ", {"slot": 3}, " &= ", {"slot": 4}, "\n\\end{aligned}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "left-hand side of the first line"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "right-hand side of the first line"},
+        {"index": 3, "required": true, "default": "", "select": "placeholder", "description": "left-hand side of the second line"},
+        {"index": 4, "required": true, "default": "", "select": "placeholder", "description": "right-hand side of the second line"}
+      ],
+      "mathjaxPreview": "\\begin{aligned}\n  a &= b + c \\\\\n  d &= e\n\\end{aligned}"
+    },
+    {
+      "id": "tpl:align",
+      "name": "Align environment",
+      "description": "Displays two numbered equation lines aligned on the ampersand markers.",
+      "keywords": ["align", "equations", "numbered", "display"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\begin{align}\n  ", {"slot": 1}, " &= ", {"slot": 2}, " \\\\\n  ", {"slot": 3}, " &= ", {"slot": 4}, "\n\\end{align}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "left-hand side of the first line"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "right-hand side of the first line"},
+        {"index": 3, "required": true, "default": "", "select": "placeholder", "description": "left-hand side of the second line"},
+        {"index": 4, "required": true, "default": "", "select": "placeholder", "description": "right-hand side of the second line"}
+      ],
+      "mathjaxPreview": "\\begin{align}\n  a &= b + c \\\\\n  d &= e\n\\end{align}"
+    },
+    {
+      "id": "tpl:align-star",
+      "name": "Align environment, unnumbered",
+      "description": "Displays two unnumbered equation lines aligned on the ampersand markers.",
+      "keywords": ["align", "unnumbered", "equations", "display"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\begin{align*}\n  ", {"slot": 1}, " &= ", {"slot": 2}, " \\\\\n  ", {"slot": 3}, " &= ", {"slot": 4}, "\n\\end{align*}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "left-hand side of the first line"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "right-hand side of the first line"},
+        {"index": 3, "required": true, "default": "", "select": "placeholder", "description": "left-hand side of the second line"},
+        {"index": 4, "required": true, "default": "", "select": "placeholder", "description": "right-hand side of the second line"}
+      ],
+      "mathjaxPreview": "\\begin{align*}\n  a &= b + c \\\\\n  d &= e\n\\end{align*}"
+    },
+    {
+      "id": "tpl:gather",
+      "name": "Gather environment",
+      "description": "Centres two numbered display lines without aligning them.",
+      "keywords": ["gather", "centre", "lines", "display"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\begin{gather}\n  ", {"slot": 1}, " \\\\\n  ", {"slot": 2}, "\n\\end{gather}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "first display line"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "second display line"}
+      ],
+      "mathjaxPreview": "\\begin{gather}\n  a = b \\\\\n  c = d\n\\end{gather}"
+    },
+    {
+      "id": "tpl:gather-star",
+      "name": "Gather environment, unnumbered",
+      "description": "Centres two unnumbered display lines without aligning them.",
+      "keywords": ["gather", "unnumbered", "centre", "display"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\begin{gather*}\n  ", {"slot": 1}, " \\\\\n  ", {"slot": 2}, "\n\\end{gather*}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "first display line"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "second display line"}
+      ],
+      "mathjaxPreview": "\\begin{gather*}\n  a = b \\\\\n  c = d\n\\end{gather*}"
+    },
+    {
+      "id": "tpl:equation",
+      "name": "Equation environment",
+      "description": "Displays a single numbered equation on a line of its own.",
+      "keywords": ["equation", "display", "numbered", "single"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\begin{equation}\n  ", {"slot": 1}, "\n\\end{equation}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "equation content"}
+      ],
+      "mathjaxPreview": "\\begin{equation}\n  a = b\n\\end{equation}"
+    },
+    {
+      "id": "tpl:substack",
+      "name": "Substack",
+      "description": "Stacks two lines of a subscript or limit expression vertically.",
+      "keywords": ["substack", "stack", "limits", "subscript"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\substack{", {"slot": 1}, " \\\\\n  ", {"slot": 2}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "first line of the stack"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "second line of the stack"}
+      ],
+      "mathjaxPreview": "\\substack{0 \\le i \\le m \\\\ 0 < j < n}"
+    },
+    {
+      "id": "tpl:empheq",
+      "name": "Boxed aligned equations",
+      "description": "Displays two aligned equation lines together inside a single frame.",
+      "keywords": ["empheq", "box", "frame", "align", "equations"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["empheq"],
+      "parts": ["\\begin{empheq}[box=\\fbox]{align}\n  ", {"slot": 1}, " &= ", {"slot": 2}, " \\\\\n  ", {"slot": 3}, " &= ", {"slot": 4}, "\n\\end{empheq}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "left-hand side of the first line"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "right-hand side of the first line"},
+        {"index": 3, "required": true, "default": "", "select": "placeholder", "description": "left-hand side of the second line"},
+        {"index": 4, "required": true, "default": "", "select": "placeholder", "description": "right-hand side of the second line"}
+      ],
+      "mathjaxPreview": "\\boxed{\\begin{aligned}\n  a &= b + c \\\\\n  d &= e\n\\end{aligned}}"
+    },
+    {
+      "id": "tpl:text",
+      "name": "Text in math",
+      "description": "Sets ordinary text, keeping spaces and word shapes, inside a math expression.",
+      "keywords": ["text", "upright", "words", "label"],
+      "aliases": ["\\mbox"],
+      "mode": "mode-independent",
+      "requires": ["amsmath"],
+      "parts": ["\\text{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "literal text to set in the current text font"}
+      ],
+      "mathjaxPreview": "\\text{abc}"
+    },
+    {
+      "id": "tpl:text-superscript",
+      "name": "Text superscript",
+      "description": "Raises text as a superscript in text mode, as in the ending of an ordinal number.",
+      "keywords": ["superscript", "text", "ordinal", "raise"],
+      "aliases": [],
+      "mode": "text-only",
+      "requires": [],
+      "parts": ["\\textsuperscript{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "text to be raised"}
+      ],
+      "mathjaxPreview": "\\text{1}^{\\text{st}}"
+    },
+    {
+      "id": "tpl:text-subscript",
+      "name": "Text subscript",
+      "description": "Lowers text as a subscript in text mode, as in a chemical formula.",
+      "keywords": ["subscript", "text", "chemical", "lower"],
+      "aliases": [],
+      "mode": "text-only",
+      "requires": [],
+      "parts": ["\\textsubscript{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "text to be lowered"}
+      ],
+      "mathjaxPreview": "\\text{H}_{\\text{2}}\\text{O}"
+    },
+    {
+      "id": "tpl:operatorname",
+      "name": "Operator name",
+      "description": "Typesets a multi-letter function name in upright roman with operator spacing.",
+      "keywords": ["operatorname", "operator", "function", "name", "upright"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\operatorname{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "function name such as rank or diag"}
+      ],
+      "mathjaxPreview": "\\operatorname{rank}(A)"
+    },
+    {
+      "id": "tpl:mathrm",
+      "name": "Upright Roman",
+      "description": "Sets math content in the upright roman font.",
+      "keywords": ["mathrm", "roman", "upright", "font"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\mathrm{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "content to be set in upright roman"}
+      ],
+      "mathjaxPreview": "\\mathrm{d}x"
+    },
+    {
+      "id": "tpl:mathbb",
+      "name": "Blackboard bold",
+      "description": "Sets a letter in blackboard bold, the usual font for number sets.",
+      "keywords": ["mathbb", "blackboard bold", "number set", "font"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amssymb"],
+      "parts": ["\\mathbb{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "letter or word to be set in blackboard bold"}
+      ],
+      "mathjaxPreview": "\\mathbb{R}"
+    },
+    {
+      "id": "tpl:mathbf",
+      "name": "Bold upright",
+      "description": "Sets math content in bold upright roman.",
+      "keywords": ["mathbf", "bold", "upright", "font"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\mathbf{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "content to be set in bold upright roman"}
+      ],
+      "mathjaxPreview": "\\mathbf{v}"
+    },
+    {
+      "id": "tpl:mathcal",
+      "name": "Calligraphic",
+      "description": "Sets a letter in the calligraphic script font.",
+      "keywords": ["mathcal", "calligraphic", "script", "font"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\mathcal{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "letter or word to be set in the calligraphic font"}
+      ],
+      "mathjaxPreview": "\\mathcal{F}"
+    },
+    {
+      "id": "tpl:mathfrak",
+      "name": "Fraktur",
+      "description": "Sets a letter in the Fraktur font.",
+      "keywords": ["mathfrak", "fraktur", "gothic", "font"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amssymb"],
+      "parts": ["\\mathfrak{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "letter or word to be set in the Fraktur font"}
+      ],
+      "mathjaxPreview": "\\mathfrak{g}"
+    },
+    {
+      "id": "tpl:boldsymbol",
+      "name": "Bold math symbol",
+      "description": "Makes a symbol or expression bold while keeping its math font shape.",
+      "keywords": ["boldsymbol", "bold", "vector", "greek"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\boldsymbol{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "symbol or expression to be made bold"}
+      ],
+      "mathjaxPreview": "\\boldsymbol{\\alpha}"
+    },
+    {
+      "id": "tpl:bm",
+      "name": "Bold math with bm",
+      "description": "Makes a symbol or expression bold with the bm package, which also covers Greek letters and accents.",
+      "keywords": ["bm", "bold", "vector", "greek"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["bm"],
+      "parts": ["\\bm{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "symbol or expression to be made bold"}
+      ],
+      "mathjaxPreview": "\\bm{\\alpha}"
+    },
+    {
+      "id": "tpl:boxed",
+      "name": "Boxed formula",
+      "description": "Draws a frame around a formula.",
+      "keywords": ["boxed", "box", "frame", "highlight"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\boxed{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "formula or expression to be framed"}
+      ],
+      "mathjaxPreview": "\\boxed{E = mc^2}"
+    },
+    {
+      "id": "tpl:cancel",
+      "name": "Cancellation",
+      "description": "Strikes a diagonal line through an expression to show that it cancels.",
+      "keywords": ["cancel", "strike out", "cross out", "simplify"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["cancel"],
+      "parts": ["\\cancel{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "selected-text", "description": "expression to be struck out"}
+      ],
+      "mathjaxPreview": "\\cancel{x+1}"
+    },
+    {
+      "id": "tpl:color",
+      "name": "Colour in math",
+      "description": "Colours part of a formula without changing the rest of the math.",
+      "keywords": ["colour", "color", "highlight", "textcolor"],
+      "aliases": ["\\textcolor"],
+      "mode": "math-only",
+      "requires": ["xcolor"],
+      "parts": ["{\\color{", {"slot": 1}, "} ", {"slot": 2}, "}"],
+      "slots": [
+        {"index": 1, "required": false, "default": "red", "select": "placeholder", "description": "colour name such as red or blue"},
+        {"index": 2, "required": true, "default": "", "select": "selected-text", "description": "math content to be coloured"}
+      ],
+      "mathjaxPreview": "{\\color{red} x+1}"
+    },
+    {
+      "id": "tpl:xrightarrow",
+      "name": "Labelled right arrow",
+      "description": "Draws a right arrow that stretches to fit a label placed above it.",
+      "keywords": ["xrightarrow", "arrow", "rightarrow", "label"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\xrightarrow{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "label placed above the arrow"}
+      ],
+      "mathjaxPreview": "\\xrightarrow{f}"
+    },
+    {
+      "id": "tpl:xleftarrow",
+      "name": "Labelled left arrow",
+      "description": "Draws a left arrow that stretches to fit a label placed above it.",
+      "keywords": ["xleftarrow", "arrow", "leftarrow", "label"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\xleftarrow{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "label placed above the arrow"}
+      ],
+      "mathjaxPreview": "\\xleftarrow{g}"
+    },
+    {
+      "id": "tpl:xleftrightarrow",
+      "name": "Labelled two-headed arrow",
+      "description": "Draws a two-headed arrow that stretches to fit a label placed above it.",
+      "keywords": ["xleftrightarrow", "arrow", "leftrightarrow", "equivalence"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\xleftrightarrow{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": true, "default": "", "select": "placeholder", "description": "label placed above the arrow"}
+      ],
+      "mathjaxPreview": "\\xleftrightarrow{h}"
+    },
+    {
+      "id": "tpl:xrightarrow-below",
+      "name": "Right arrow with a label below",
+      "description": "Draws a right arrow with an optional label below it and a required label above it.",
+      "keywords": ["xrightarrow", "arrow", "below", "above", "label"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["amsmath"],
+      "parts": ["\\xrightarrow[", {"slot": 1}, "]{", {"slot": 2}, "}"],
+      "slots": [
+        {"index": 1, "required": false, "default": "", "select": "none", "description": "optional label placed below the arrow"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "label placed above the arrow"}
+      ],
+      "mathjaxPreview": "\\xrightarrow[n \\to \\infty]{f_n \\to f}"
+    },
+    {
+      "id": "tpl:prescript",
+      "name": "Left prescripts",
+      "description": "Places a superscript and a subscript to the left of a symbol, as used for isotopes and tensor indices.",
+      "keywords": ["prescript", "left", "isotope", "tensor", "subscript"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": ["mathtools"],
+      "parts": ["\\prescript{", {"slot": 1}, "}{", {"slot": 2}, "}{", {"slot": 3}, "}"],
+      "slots": [
+        {"index": 1, "required": false, "default": "", "select": "none", "description": "left superscript, often left empty"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "left subscript"},
+        {"index": 3, "required": true, "default": "", "select": "selected-text", "description": "base symbol that carries the prescripts"}
+      ],
+      "mathjaxPreview": "\\prescript{14}{6}{\\mathrm{C}}"
+    },
+    {
+      "id": "tpl:pmod",
+      "name": "Modulo annotation",
+      "description": "Appends a parenthesised modulo annotation to a congruence.",
+      "keywords": ["pmod", "modulo", "mod", "congruence", "remainder"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": ["\\pmod{", {"slot": 1}, "}"],
+      "slots": [
+        {"index": 1, "required": false, "default": "n", "select": "placeholder", "description": "modulus"}
+      ],
+      "mathjaxPreview": "a \\equiv b \\pmod{n}"
+    },
+    {
+      "id": "tpl:bmod",
+      "name": "Modulo operator",
+      "description": "Typesets two operands joined by the binary modulo operator, which is spaced like a relation.",
+      "keywords": ["bmod", "modulo", "mod", "operator", "remainder"],
+      "aliases": [],
+      "mode": "math-only",
+      "requires": [],
+      "parts": [{"slot": 1}, " \\bmod ", {"slot": 2}],
+      "slots": [
+        {"index": 1, "required": false, "default": "", "select": "none", "description": "left operand, the dividend"},
+        {"index": 2, "required": true, "default": "", "select": "placeholder", "description": "modulus"}
+      ],
+      "mathjaxPreview": "m \\bmod n"
+    }
+  ]
+}

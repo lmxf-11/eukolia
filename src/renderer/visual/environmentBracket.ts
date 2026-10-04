@@ -5,10 +5,8 @@ import {
   ViewPlugin,
   type ViewUpdate,
 } from '@codemirror/view'
-import { RangeSetBuilder, type EditorState, type Extension } from '@codemirror/state'
+import { RangeSetBuilder, type Extension } from '@codemirror/state'
 import { syntaxTree } from '@codemirror/language'
-import type { SyntaxNode } from '@lezer/common'
-import { getEnvironmentName } from '@/vendor/overleaf/utils/tree-operations/environments'
 import { setting, settingsManager } from '../core/settings'
 
 const bracketStart = Decoration.line({ class: 'eu-cm-env-bracket-start' })
@@ -17,255 +15,8 @@ const bracketCusp = Decoration.line({ class: 'eu-cm-env-bracket-cusp' })
 const bracketEnd = Decoration.line({ class: 'eu-cm-env-bracket-end' })
 const bracketSingle = Decoration.line({ class: 'eu-cm-env-bracket-single' })
 
-export interface EnvironmentInfo {
-  startLine: number
-  endLine: number
-  name: string
-  beginPos: number
-  endPos: number
-  beginFrom: number
-  beginTo: number
-  endFrom: number
-  endTo: number
-  depth: number
-  treeMaxDepth: number
-}
-
-/**
- * Environments that must NOT have connecting brackets.
- * Connecting brackets belong to document/prose structural blocks (theorems,
- * proofs, definitions, lemmas, propositions, quotes, etc.), NOT math blocks
- * (equations, alignments, matrices, cases, etc.) or the outer document wrapper.
- */
-export const EXCLUDED_ENVIRONMENTS = new Set([
-  'document',
-  // Math equation and display environments
-  'equation',
-  'align',
-  'alignat',
-  'flalign',
-  'gather',
-  'gathered',
-  'multline',
-  'eqnarray',
-  'split',
-  'aligned',
-  'alignedat',
-  'math',
-  'displaymath',
-  'subequations',
-  'tikzcd',
-  // Math matrices and arrays
-  'matrix',
-  'pmatrix',
-  'bmatrix',
-  'Bmatrix',
-  'vmatrix',
-  'Vmatrix',
-  'smallmatrix',
-  'psmallmatrix',
-  'bsmallmatrix',
-  'Bsmallmatrix',
-  'vsmallmatrix',
-  'Vsmallmatrix',
-  'array',
-  'subarray',
-  // Cases environments
-  'cases',
-  'case',
-  'dcases',
-  'rcases',
-  'drcases',
-  // IEEE and custom equation variants
-  'IEEEeqnarray',
-  'IEEEeqnarraybox',
-])
-
-/**
- * Checks whether an environment should be excluded from receiving brackets.
- * Returns true if the environment is a math environment, inside a math container,
- * or the outer document environment.
- */
-export function isExcludedEnvironment(
-  name: string,
-  node?: SyntaxNode | null
-): boolean {
-  if (!name) return true
-  const baseName = name.replace(/\*$/, '').trim().toLowerCase()
-  if (EXCLUDED_ENVIRONMENTS.has(baseName)) {
-    return true
-  }
-  if (node) {
-    let p = node.parent
-    while (p) {
-      if (
-        p.type.is('$MathContainer') ||
-        p.type.is('EquationEnvironment') ||
-        p.type.is('EquationArrayEnvironment')
-      ) {
-        return true
-      }
-      p = p.parent
-    }
-  }
-  return false
-}
-
-/**
- * Finds the closest (innermost) environment containing pos.
- * Verifies that \begin and \end match, and that the environment is a valid
- * non-excluded document environment (ignoring math environments like equation, aligned, gather).
- */
-export function findClosestEnvironment(
-  state: EditorState,
-  pos: number
-): EnvironmentInfo | null {
-  const tree = syntaxTree(state)
-  let node: SyntaxNode | null = tree.resolveInner(pos, -1)
-
-  while (node) {
-    const begin = node.getChild('BeginEnv')
-    const end = node.getChild('EndEnv')
-
-    if (begin && end) {
-      const beginName = getEnvironmentName(begin, state) || ''
-      const endName = getEnvironmentName(end, state) || ''
-      if (
-        beginName &&
-        beginName === endName &&
-        !isExcludedEnvironment(beginName, node)
-      ) {
-        if (pos >= begin.from && pos <= end.to) {
-          const startLine = state.doc.lineAt(begin.from).number
-          const endLine = state.doc.lineAt(end.to).number
-          return {
-            startLine,
-            endLine,
-            name: beginName,
-            beginPos: begin.from,
-            endPos: end.to,
-            beginFrom: begin.from,
-            beginTo: begin.to,
-            endFrom: end.from,
-            endTo: end.to,
-            depth: 0,
-            treeMaxDepth: 0,
-          }
-        }
-      }
-    }
-
-    if (!node.parent) break
-    node = node.parent
-  }
-
-  return null
-}
-
-/**
- * Finds all valid closed LaTeX environments in the document (excluding math and document environments).
- * Computes nesting depth (0 for outermost) and treeMaxDepth for each environment.
- */
-export function findAllEnvironments(state: EditorState): EnvironmentInfo[] {
-  const tree = syntaxTree(state)
-  const envs: Array<Omit<EnvironmentInfo, 'depth' | 'treeMaxDepth'>> = []
-  const seenBegins = new Set<number>()
-
-  tree.iterate({
-    enter(nodeRef) {
-      const node = nodeRef.node
-      const begin = node.getChild('BeginEnv')
-      const end = node.getChild('EndEnv')
-
-      if (begin && end) {
-        if (seenBegins.has(begin.from)) return
-        const beginName = getEnvironmentName(begin, state) || ''
-        const endName = getEnvironmentName(end, state) || ''
-        if (
-          beginName &&
-          beginName === endName &&
-          !isExcludedEnvironment(beginName, node)
-        ) {
-          seenBegins.add(begin.from)
-          const startLine = state.doc.lineAt(begin.from).number
-          const endLine = state.doc.lineAt(end.to).number
-          envs.push({
-            startLine,
-            endLine,
-            name: beginName,
-            beginPos: begin.from,
-            endPos: end.to,
-            beginFrom: begin.from,
-            beginTo: begin.to,
-            endFrom: end.from,
-            endTo: end.to,
-          })
-        }
-      }
-    },
-  })
-
-  envs.sort((a, b) => a.beginPos - b.beginPos)
-
-  const fullEnvs: EnvironmentInfo[] = envs.map(e => ({
-    ...e,
-    depth: 0,
-    treeMaxDepth: 0,
-  }))
-
-  // 1. Calculate nesting depth for each environment:
-  // depth = count of strictly enclosing environments
-  for (let i = 0; i < fullEnvs.length; i++) {
-    const cur = fullEnvs[i]
-    let depth = 0
-    for (let j = 0; j < fullEnvs.length; j++) {
-      if (i === j) continue
-      const other = fullEnvs[j]
-      if (
-        other.beginPos <= cur.beginPos &&
-        cur.endPos <= other.endPos &&
-        (other.beginPos < cur.beginPos || cur.endPos < other.endPos)
-      ) {
-        depth++
-      }
-    }
-    cur.depth = depth
-  }
-
-  // 2. Calculate treeMaxDepth for each environment:
-  // Find root ancestor (enclosing environment with depth 0)
-  // and compute max depth among all environments in that tree.
-  for (let i = 0; i < fullEnvs.length; i++) {
-    const cur = fullEnvs[i]
-    let root = cur
-    if (cur.depth > 0) {
-      for (let j = 0; j < fullEnvs.length; j++) {
-        const other = fullEnvs[j]
-        if (
-          other.depth === 0 &&
-          other.beginPos <= cur.beginPos &&
-          cur.endPos <= other.endPos
-        ) {
-          root = other
-          break
-        }
-      }
-    }
-
-    let maxD = root.depth
-    for (let j = 0; j < fullEnvs.length; j++) {
-      const other = fullEnvs[j]
-      if (other.beginPos >= root.beginPos && other.endPos <= root.endPos) {
-        if (other.depth > maxD) {
-          maxD = other.depth
-        }
-      }
-    }
-    cur.treeMaxDepth = maxD
-  }
-
-  return fullEnvs
-}
+import { findClosestEnvironment, findEnvironmentsInRange, type EnvironmentInfo } from './environmentIndex'
+export { findClosestEnvironment, findAllEnvironments, isExcludedEnvironment, EXCLUDED_ENVIRONMENTS, type EnvironmentInfo } from './environmentIndex'
 
 function buildBracketDecorations(view: EditorView): DecorationSet {
   const sel = view.state.selection.main
@@ -363,14 +114,15 @@ export const environmentBracketPlugin = ViewPlugin.fromClass(
        * `\begin`/`\end`, and which of those CodeMirror has rendered depends on
        * where the viewport is.
        */
-      if (update.docChanged || update.selectionSet) {
+      if (update.docChanged || update.selectionSet || syntaxTree(update.startState) !== syntaxTree(update.state)) {
         this.decorations = buildBracketDecorations(update.view)
       }
       if (
         update.docChanged ||
         update.selectionSet ||
         update.viewportChanged ||
-        update.geometryChanged
+        update.geometryChanged ||
+        syntaxTree(update.startState) !== syntaxTree(update.state)
       ) {
         this.scheduleUpdate(update.view)
       }
@@ -378,12 +130,13 @@ export const environmentBracketPlugin = ViewPlugin.fromClass(
 
     scheduleUpdate(view: EditorView) {
       view.requestMeasure({
+        key: this,
         read: (view) => {
           const displayAll = setting.bool('visual.displayAllEnvironmentBrackets')
           let envsToRender: EnvironmentInfo[] = []
 
           if (displayAll) {
-            envsToRender = findAllEnvironments(view.state)
+            envsToRender = findEnvironmentsInRange(view.state, view.viewport.from, view.viewport.to)
           } else {
             const sel = view.state.selection.main
             const env = findClosestEnvironment(view.state, sel.head)

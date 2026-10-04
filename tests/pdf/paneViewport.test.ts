@@ -82,7 +82,10 @@ function installApi(): void {
         channels: 4,
         order: 'rgba' as const,
         pageRect: { x: 0, y: 0, width: A4.width, height: A4.height },
-        pixels: new Uint8Array(4)
+        // A complete, tightly packed payload: `stride * height` bytes. A stub that
+        // declared a page-sized bitmap and handed back four bytes was not describing a
+        // render reply, and `describePixelPayload` now says so.
+        pixels: new Uint8Array(width * height * 4)
       };
     },
     pdfCancelRender: async () => true,
@@ -102,19 +105,9 @@ function defineSize(element: HTMLElement, width: number, height: number): void {
   Object.defineProperty(element, 'clientHeight', { configurable: true, get: () => height });
 }
 
-/**
- * The height the viewer's toolbar takes out of the pane, in the harness.
- *
- * jsdom has no layout, so nothing reports it: the real viewer is a toolbar strip
- * over a scroll container, and `PdfPane` builds the bar from
- * `lightPdfToolbarBarHeight` — 26 px at the default icon size of 18. The number
- * has to be modelled because the viewer now measures the *pane* rather than the
- * scroller (`height: 100%` of the pane is not the room the pages have), and a
- * harness that ignored the strip would report a viewport 26 px taller than the
- * one the pages are laid out in.
- */
+/** Both toolbar modes float over the document without consuming viewport space. */
 function toolbarPixels(): number {
-  return 26;
+  return 0;
 }
 
 /**

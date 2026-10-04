@@ -45,6 +45,8 @@ export interface SettingDescriptor<T = unknown> {
   default: T;
   /** Allowed values for `enum`. */
   options?: readonly string[];
+  /** Display names for enum values; stored values remain stable. */
+  optionLabels?: Readonly<Record<string, string>>;
   /**
    * One sentence per entry of `options`, in the same order, for `enum` rows.
    *
@@ -140,6 +142,9 @@ export const PROJECT_SCOPED_SETTINGS: readonly string[] = [
   'compilation.extraArgs',
   'compilation.synctex',
   'compilation.autoBuild',
+  'compilation.autoBuildDelayMs',
+  'compilation.autoBuildMinIntervalMs',
+  'compilation.autoBuildIgnore',
   'compilation.cleanExtensions',
   'compilation.outputDirectory',
   'compilation.latexmk.minimumRule',
@@ -361,9 +366,65 @@ export const SETTINGS_SCHEMA: readonly SettingDescriptor[] = [
   { key: 'compilation.engine', category: 'Compilation', label: 'Default engine', type: 'enum', options: ['pdflatex', 'xelatex', 'lualatex', 'latexmk', 'tectonic'], default: 'latexmk', vscodeKey: 'latex-workshop.latex.recipe.default', projectScoped: true },
   { key: 'compilation.recipe', category: 'Compilation', label: 'Build recipe', type: 'string', default: 'latexmk', description: 'Name of the build recipe to use, or "default" for the engine above.', projectScoped: true },
   { key: 'compilation.extraArgs', category: 'Compilation', label: 'Extra compiler arguments', type: 'array', default: [], vscodeKey: 'latex-workshop.latex.args', projectScoped: true },
-  { key: 'compilation.synctex', category: 'Compilation', label: 'Generate SyncTeX data', type: 'boolean', default: true, vscodeKey: 'latex-workshop.latex.autoBuild.run', projectScoped: true },
-  { key: 'compilation.autoBuild', category: 'Compilation', label: 'Build automatically on save', type: 'enum', options: ['never', 'onSave', 'onFileChange'], default: 'never', vscodeKey: 'latex-workshop.latex.autoBuild.run', projectScoped: true },
-  { key: 'compilation.autoBuildDelayMs', category: 'Compilation', label: 'Automatic build delay (ms)', type: 'number', default: 800, min: 0, max: 20000, step: 100 },
+  { key: 'compilation.synctex', category: 'Compilation', label: 'Generate SyncTeX data', type: 'boolean', default: true, projectScoped: true },
+  {
+    key: 'compilation.autoBuild',
+    category: 'Compilation',
+    label: 'Build automatically',
+    type: 'enum',
+    options: ['never', 'onSave', 'onFileChange'],
+    // The reference's own three values and its own wording for them
+    // (`latex-workshop.latex.autoBuild.run`): `onSave` is the *stricter* of the
+    // two automatic modes, because `onFileChange` also sees a file written by
+    // anything else.
+    optionDescriptions: [
+      'Never build by itself. Only Ctrl+B builds.',
+      'Build whenever a LaTeX source file is saved.',
+      'Build whenever any file of the project changes on disk — including a change made by another application, a script or a formatter.'
+    ],
+    default: 'never',
+    description:
+      'What starts a build by itself. A build never triggers itself: the files a compile writes (.aux, .log, .pdf, .synctex.gz, …) do not count as a change.',
+    keywords: ['auto', 'automatic', 'build', 'save', 'watch', 'onFileChange', 'onSave', 'never'],
+    vscodeKey: 'latex-workshop.latex.autoBuild.run',
+    projectScoped: true
+  },
+  {
+    key: 'compilation.autoBuildDelayMs',
+    category: 'Compilation',
+    label: 'Automatic build delay (ms)',
+    type: 'number',
+    default: 800,
+    min: 0,
+    max: 20000,
+    step: 100,
+    description: 'How long a burst of saves or changes is collected before one build starts. Typing a paragraph and saving twice builds once.',
+    projectScoped: true
+  },
+  {
+    key: 'compilation.autoBuildMinIntervalMs',
+    category: 'Compilation',
+    label: 'Minimum time between automatic builds (ms)',
+    type: 'number',
+    default: 1000,
+    min: 0,
+    max: 60000,
+    step: 100,
+    description:
+      'Never start an automatic build sooner than this after the previous one, whether that one was automatic or a manual Ctrl+B. The reference recommends no less than about 500.',
+    vscodeKey: 'latex-workshop.latex.autoBuild.interval',
+    projectScoped: true
+  },
+  {
+    key: 'compilation.autoBuildIgnore',
+    category: 'Compilation',
+    label: 'Files an automatic build ignores',
+    type: 'array',
+    default: ['**/*.sty', '**/*.cls'],
+    description: 'Path patterns (for example **/*.sty) whose change never starts a build. The reference defaults to style and class files.',
+    vscodeKey: 'latex-workshop.latex.autoBuild.onSave.files.ignore',
+    projectScoped: true
+  },
   { key: 'compilation.cleanAfterFailedBuild', category: 'Compilation', label: 'Clean auxiliary files after a failed build', type: 'boolean', default: false },
   {
     key: 'compilation.cleanExtensions',
@@ -412,7 +473,7 @@ export const SETTINGS_SCHEMA: readonly SettingDescriptor[] = [
     category: 'PDF',
     label: 'Selection colour',
     type: 'color',
-    default: '#ffff00',
+    default: '#3b82f6',
     description: 'Used for text selections and for the current find result.'
   },
   {
@@ -449,10 +510,11 @@ export const SETTINGS_SCHEMA: readonly SettingDescriptor[] = [
     category: 'PDF',
     label: 'Toolbar',
     type: 'enum',
-    options: ['show', 'hide', 'overlay'],
+    options: ['show', 'overlay', 'hide'],
+    optionLabels: { show: 'Always show', overlay: 'Show on hover', hide: 'Hide' },
     default: 'show',
     description:
-      'Toolbar modes: "show" is the pinned bar, "hide" removes it, "overlay" floats it over the page and reveals it when the pointer is near. Toggle Toolbar (F8) switches between "show" and "hide".'
+      'Always show keeps the floating toolbar visible. Show on hover reveals it when the pointer is nearby or while searching. Hide removes it. Toggle Toolbar (F8) switches between Always show and Hide.'
   },
   {
     key: 'pdf.toolbarPosition',
@@ -462,7 +524,7 @@ export const SETTINGS_SCHEMA: readonly SettingDescriptor[] = [
     options: ['top', 'bottom'],
     default: 'top',
     // gen-settings.ts:715-720; `ToolbarPositionFromPrefs`, `LightPDF.cpp:1184-1190`.
-    description: 'Where the pinned or floating toolbar sits.'
+    description: 'Place the floating toolbar at the top or bottom of the viewer.'
   },
   {
     key: 'pdf.toolbarSize',
@@ -783,6 +845,28 @@ export const SETTINGS_SCHEMA: readonly SettingDescriptor[] = [
   { key: 'pdf.synctexInverseSearch', category: 'PDF', label: 'SyncTeX inverse search on Ctrl+Click', type: 'boolean', default: true },
   { key: 'pdf.highlightSyncPosition', category: 'PDF', label: 'Highlight the synced position', type: 'boolean', default: true },
   { key: 'pdf.jumpToPdfOnBuild', category: 'PDF', label: 'Reveal the PDF after a successful build', type: 'boolean', default: false },
+  {
+    key: 'pdf.autoReload',
+    category: 'PDF',
+    label: 'Live preview: update the PDF by itself',
+    type: 'boolean',
+    default: true,
+    description:
+      'Reload the document as soon as a build rewrites it, and when anything else changes the file on disk. The page and the scroll position are kept, so the reading position survives the update. Off, the viewer is only reloaded when you ask (PDF: Reload Document).',
+    keywords: ['live', 'preview', 'reload', 'refresh', 'watch', 'auto', 'synctex']
+  },
+  {
+    key: 'pdf.reloadCheckIntervalMs',
+    category: 'PDF',
+    label: 'Live preview: check the file every (ms)',
+    type: 'number',
+    default: 2000,
+    min: 250,
+    max: 30000,
+    step: 250,
+    description:
+      'How often the viewer looks for a change to the PDF on disk. A build does not wait for this: the compiler reporting that it finished checks the file at once, and this covers a build done elsewhere.'
+  },
 
   // --------------------------------------------------------------- Snippets
   { key: 'snippets.enabled', category: 'Snippets', label: 'Enable the snippet engine', type: 'boolean', default: true },
@@ -961,9 +1045,8 @@ export const SETTINGS_SCHEMA: readonly SettingDescriptor[] = [
   // switch. A setting that outlives its surface is the nonfunctional UI §72 rules out, so
   // it was removed with the surface rather than left behind reading nothing.
   //
-  // The window's own chrome follows the same rule: the tab bar carries the drag region
-  // and the caption buttons, so `view.toggleTabBar` hides the *tabs* rather than the bar,
-  // and there is no setting that can leave the window unmovable, unclosable or unbuildable.
+  // The tab-bar command hides the complete row for this session. Its status-bar
+  // button and keyboard shortcut restore it.
   { key: 'appearance.showStatusBar', category: 'Appearance', label: 'Show the status bar', type: 'boolean', default: true },
   { key: 'appearance.showActivityBar', category: 'Appearance', label: 'Show the activity bar', type: 'boolean', default: true },
   {
@@ -989,6 +1072,7 @@ export const SETTINGS_SCHEMA: readonly SettingDescriptor[] = [
   { key: 'scrolling.stickyScroll', category: 'Scrolling', label: 'Sticky scroll (show enclosing environment)', type: 'boolean', default: true },
   { key: 'scrolling.preserveScrollOnRender', category: 'Scrolling', label: 'Keep the scroll position stable during rendering', type: 'boolean', default: true, description: 'Prevents jumps caused by mathematics typesetting, PDF page rendering or image loading.' },
   { key: 'scrolling.trackpadMomentum', category: 'Scrolling', label: 'Respect trackpad momentum', type: 'boolean', default: true },
+  { key: 'scrolling.smoothEditor', category: 'Scrolling', label: 'Smooth scrolling in the editor', type: 'boolean', default: true, description: 'Off hands the document to the browser\'s own scrolling, which runs on the compositor instead of on a per-frame animation. The rest of the shell keeps its glide either way. Worth turning off for very large chapters, where the glide is measured at a p90 frame of 97.6 ms against Code Mode\'s 19.6 ms for the same gesture.' },
 
   // --------------------------------------------------------------- Keyboard
   { key: 'keyboard.paletteKey', category: 'Keyboard', label: 'Command palette shortcut', type: 'string', default: 'Ctrl+Shift+P' },
@@ -1041,7 +1125,71 @@ export const SETTINGS_SCHEMA: readonly SettingDescriptor[] = [
   { key: 'advanced.logLevel', category: 'Advanced', label: 'Log level', type: 'enum', options: ['error', 'warn', 'info', 'debug', 'trace'], default: 'info' },
   { key: 'advanced.nativePdfEngine', category: 'Advanced', label: 'Use the native PDF engine', type: 'boolean', default: true, description: 'Disable to fall back to the JavaScript PDF path.' },
   { key: 'advanced.maxProjectFileSize', category: 'Advanced', label: 'Maximum indexed file size (KB)', type: 'number', default: 2048, min: 64, max: 65536, step: 64 },
-  { key: 'advanced.telemetry', category: 'Advanced', label: 'Send anonymous usage data', type: 'boolean', default: false }
+  { key: 'advanced.telemetry', category: 'Advanced', label: 'Send anonymous usage data', type: 'boolean', default: false },
+
+  // ------------------------------------------------------ Mathematical Symbols
+  //
+  // The panel's own state. Favourites and recent history are stored here rather
+  // than in a file of their own because this *is* the user's preferences
+  // mechanism: a second JSON file for two lists would be a second thing to
+  // validate, migrate and document, and `MathematicalSymbols.md` §3 asks for the
+  // existing one.
+  //
+  // Both lists hold **stable catalog item ids**, never commands or glyphs. A
+  // symbol's spelling can change as the catalog is regenerated — a different
+  // alias can become canonical — and an id is what keeps a favourite pointing at
+  // the same *symbol* across that. The recents list is capped at 30 by the panel
+  // itself rather than by a setting, because the cap is what keeps the list a
+  // convenience rather than a second catalog.
+  {
+    key: 'mathSymbols.favorites',
+    category: 'LaTeX',
+    label: 'Mathematical Symbols: favourites',
+    type: 'array',
+    default: [],
+    description:
+      'Catalog ids of the symbols marked as favourites, in the order they were added. Written by the Mathematical Symbols panel.',
+    keywords: ['symbols', 'favourites', 'mathematics', 'notation']
+  },
+  {
+    key: 'mathSymbols.recent',
+    category: 'LaTeX',
+    label: 'Mathematical Symbols: recent',
+    type: 'array',
+    default: [],
+    description:
+      'Catalog ids of the most recently inserted symbols, newest first, capped at 30. Written by the Mathematical Symbols panel.',
+    keywords: ['symbols', 'recent', 'history', 'mathematics', 'notation']
+  },
+  {
+    key: 'mathSymbols.preferredVariants',
+    category: 'LaTeX',
+    label: 'Mathematical Symbols: preferred spellings',
+    type: 'array',
+    default: [],
+    description:
+      'Per-symbol spelling preference, one `entryId|command` per item. When a project offers two equally valid spellings, this is the one the panel inserts first.',
+    keywords: ['symbols', 'alias', 'preferred', 'spelling', 'notation']
+  },
+  {
+    key: 'mathSymbols.availability',
+    category: 'LaTeX',
+    label: 'Mathematical Symbols: show',
+    type: 'enum',
+    options: ['available', 'all'],
+    optionLabels: {
+      available: 'Available in this project',
+      all: 'All symbols in the catalog'
+    },
+    optionDescriptions: [
+      'Show only the symbols this project can compile, with core commands always included.',
+      'Show the whole catalog, marking the symbols this project cannot compile yet.'
+    ],
+    default: 'available',
+    description:
+      'Which symbols the Mathematical Symbols panel lists by default. A symbol that is missing a package stays discoverable under “All symbols”.',
+    keywords: ['symbols', 'filter', 'availability', 'packages']
+  }
 ];
 
 const schemaByKey = new Map(SETTINGS_SCHEMA.map((d) => [d.key, d]));

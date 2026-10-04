@@ -1,0 +1,1306 @@
+{
+ "version": 1,
+ "categories": [
+  "greek",
+  "arrows",
+  "relations",
+  "binary-operators",
+  "large-operators",
+  "functions",
+  "logic-sets",
+  "delimiters",
+  "accents",
+  "alphabets",
+  "miscellaneous",
+  "templates"
+ ],
+ "sources": {
+  "mathjax": {
+   "package": "mathjax-full",
+   "licence": "Apache-2.0",
+   "mapModules": [
+    "action/ActionConfiguration.js",
+    "ams/AmsConfiguration.js",
+    "ams/AmsMappings.js",
+    "amscd/AmsCdConfiguration.js",
+    "amscd/AmsCdMappings.js",
+    "autoload/AutoloadConfiguration.js",
+    "base/BaseConfiguration.js",
+    "base/BaseMappings.js",
+    "bbox/BboxConfiguration.js",
+    "boldsymbol/BoldsymbolConfiguration.js",
+    "braket/BraketConfiguration.js",
+    "braket/BraketMappings.js",
+    "bussproofs/BussproofsConfiguration.js",
+    "bussproofs/BussproofsMappings.js",
+    "cancel/CancelConfiguration.js",
+    "cases/CasesConfiguration.js",
+    "centernot/CenternotConfiguration.js",
+    "color/ColorConfiguration.js",
+    "colortbl/ColortblConfiguration.js",
+    "colorv2/ColorV2Configuration.js",
+    "configmacros/ConfigMacrosConfiguration.js",
+    "empheq/EmpheqConfiguration.js",
+    "enclose/EncloseConfiguration.js",
+    "extpfeil/ExtpfeilConfiguration.js",
+    "gensymb/GensymbConfiguration.js",
+    "html/HtmlConfiguration.js",
+    "mathtools/MathtoolsConfiguration.js",
+    "mathtools/MathtoolsMappings.js",
+    "mhchem/MhchemConfiguration.js",
+    "newcommand/NewcommandConfiguration.js",
+    "newcommand/NewcommandMappings.js",
+    "noerrors/NoErrorsConfiguration.js",
+    "noundefined/NoUndefinedConfiguration.js",
+    "physics/PhysicsConfiguration.js",
+    "physics/PhysicsMappings.js",
+    "require/RequireConfiguration.js",
+    "setoptions/SetOptionsConfiguration.js",
+    "tagformat/TagFormatConfiguration.js",
+    "textcomp/TextcompConfiguration.js",
+    "textcomp/TextcompMappings.js",
+    "textmacros/TextMacrosConfiguration.js",
+    "textmacros/TextMacrosMappings.js",
+    "unicode/UnicodeConfiguration.js",
+    "upgreek/UpgreekConfiguration.js",
+    "verb/VerbConfiguration.js"
+   ],
+   "maps": [
+    "AMSmath-delimiter",
+    "AMSmath-environment",
+    "AMSmath-macros",
+    "AMSmath-mathchar0mo",
+    "AMSmath-operatorLetter",
+    "AMSsymbols-delimiter",
+    "AMSsymbols-macros",
+    "AMSsymbols-mathchar0mi",
+    "AMSsymbols-mathchar0mo",
+    "Braket-characters",
+    "Braket-macros",
+    "Bussproofs-environments",
+    "Bussproofs-macros",
+    "Newcommand-macros",
+    "Physics-automatic-bracing-macros",
+    "Physics-aux-envs",
+    "Physics-bra-ket-macros",
+    "Physics-characters",
+    "Physics-derivative-macros",
+    "Physics-expressions-macros",
+    "Physics-matrix-macros",
+    "Physics-quick-quad-macros",
+    "Physics-vector-macros",
+    "Physics-vector-mi",
+    "Physics-vector-mo",
+    "action-macros",
+    "amscd_environment",
+    "amscd_macros",
+    "amscd_special",
+    "autoload-environments",
+    "autoload-macros",
+    "bbox",
+    "boldsymbol",
+    "cancel",
+    "cases-env",
+    "cases-macros",
+    "centernot",
+    "color",
+    "colortbl",
+    "colorv2",
+    "command",
+    "delimiter",
+    "digit",
+    "empheq-env",
+    "empheq-macros",
+    "enclose",
+    "environment",
+    "extpfeil",
+    "gensymb-symbols",
+    "html_macros",
+    "letter",
+    "macros",
+    "mathchar0mi",
+    "mathchar0mo",
+    "mathchar7",
+    "mathtools-characters",
+    "mathtools-delimiters",
+    "mathtools-environments",
+    "mathtools-macros",
+    "mhchem",
+    "not_remap",
+    "remap",
+    "require",
+    "setoptions",
+    "special",
+    "text-macros",
+    "text-special",
+    "textcomp-macros",
+    "unicode",
+    "upgreek",
+    "verb"
+   ],
+   "commands": 1294,
+   "environments": [
+    "Bmatrix",
+    "Bmatrix*",
+    "Bsmallmatrix",
+    "Bsmallmatrix*",
+    "CD",
+    "Vmatrix",
+    "Vmatrix*",
+    "Vsmallmatrix",
+    "Vsmallmatrix*",
+    "align",
+    "align*",
+    "alignat",
+    "alignat*",
+    "aligned",
+    "alignedat",
+    "array",
+    "bmatrix",
+    "bmatrix*",
+    "bsmallmatrix",
+    "bsmallmatrix*",
+    "cases",
+    "cases*",
+    "crampedsubarray",
+    "dcases",
+    "dcases*",
+    "drcases",
+    "drcases*",
+    "empheq",
+    "eqnarray",
+    "eqnarray*",
+    "equation",
+    "equation*",
+    "flalign",
+    "flalign*",
+    "gather",
+    "gather*",
+    "gathered",
+    "lgathered",
+    "matrix",
+    "matrix*",
+    "multline",
+    "multline*",
+    "multlined",
+    "numcases",
+    "pmatrix",
+    "pmatrix*",
+    "prooftree",
+    "psmallmatrix",
+    "psmallmatrix*",
+    "rcases",
+    "rcases*",
+    "rgathered",
+    "smallmatrix",
+    "smallmatrix*",
+    "split",
+    "spreadlines",
+    "subarray",
+    "subnumcases",
+    "vmatrix",
+    "vmatrix*",
+    "vsmallmatrix",
+    "vsmallmatrix*",
+    "xalignat",
+    "xalignat*",
+    "xxalignat"
+   ]
+  },
+  "unimathsymbols": {
+   "path": "src/renderer/data/latex-workshop/unimathsymbols.json",
+   "licence": "MIT (LaTeX Workshop)",
+   "records": 2415,
+   "mergedIntoMathJax": 376
+  },
+  "curated": {
+   "templates": 77,
+   "extraSymbols": 28,
+   "structuralExclusions": 181,
+   "variantSpellings": 0
+  }
+ },
+ "emitted": {
+  "entries": 3192,
+  "variants": 3235,
+  "slots": 317,
+  "byCategory": {
+   "greek": 132,
+   "arrows": 336,
+   "relations": 543,
+   "binary-operators": 375,
+   "large-operators": 26,
+   "functions": 52,
+   "logic-sets": 53,
+   "delimiters": 46,
+   "accents": 21,
+   "alphabets": 63,
+   "miscellaneous": 1718,
+   "templates": 78
+  }
+ },
+ "mergedIds": {
+  "mjs:cross": "mjs:cp",
+  "mjs:crossproduct": "mjs:cp",
+  "mjs:divsymbol": "mjs:div",
+  "mjs:doteqdot": "mjs:Doteq",
+  "mjs:dotproduct": "mjs:vdot",
+  "mjs:dotsb": "mjs:cdots",
+  "mjs:dotsi": "mjs:cdots",
+  "mjs:dotsm": "mjs:cdots",
+  "mjs:doublecap": "mjs:Cap",
+  "mjs:doublecup": "mjs:Cup",
+  "mjs:geq": "mjs:ge",
+  "mjs:gggtr": "mjs:ggg",
+  "mjs:intop": "mjs:int",
+  "mjs:leftarrow": "mjs:gets",
+  "mjs:leq": "mjs:le",
+  "mjs:llless": "mjs:lll",
+  "mjs:lnot": "mjs:neg",
+  "mjs:lozenge": "mjs:Diamond",
+  "mjs:neq": "mjs:ne",
+  "mjs:ngeqq": "mjs:ngeq",
+  "mjs:nleqq": "mjs:nleq",
+  "mjs:nsubseteqq": "mjs:nsubseteq",
+  "mjs:nsupseteqq": "mjs:nsupseteq",
+  "mjs:owns": "mjs:ni",
+  "mjs:rightarrow": "mjs:to",
+  "mjs:rightsquigarrow": "mjs:leadsto",
+  "mjs:square": "mjs:Box",
+  "mjs:trianglelefteq": "mjs:unlhd",
+  "mjs:trianglerighteq": "mjs:unrhd",
+  "mjs:upharpoonright": "mjs:restriction",
+  "mjs:varsubsetneq": "mjs:subsetneq",
+  "mjs:varsubsetneqq": "mjs:subsetneqq",
+  "mjs:varsupsetneq": "mjs:supsetneq",
+  "mjs:varsupsetneqq": "mjs:supsetneqq",
+  "mjs:vartriangleleft": "mjs:lhd",
+  "mjs:vartriangleright": "mjs:rhd",
+  "mjs:vee": "mjs:lor",
+  "mjs:wedge": "mjs:land",
+  "ums:acwopencirclearrow": "mjs:circlearrowleft",
+  "ums:cwopencirclearrow": "mjs:circlearrowright",
+  "ums:mdlgblklozenge": "mjs:blacklozenge",
+  "ums:mdlgwhtlozenge": "mjs:Diamond",
+  "ums:upvarkappa": "mjs:varkappa"
+ },
+ "excluded": [
+  {
+   "source": "mathjax",
+   "id": "above",
+   "reason": "TeX alignment primitive; use the Fraction template"
+  },
+  {
+   "source": "mathjax",
+   "id": "abovewithdelims",
+   "reason": "TeX alignment primitive; use the Bracket pair template"
+  },
+  {
+   "source": "mathjax",
+   "id": "acute",
+   "reason": "written by the \"tpl:acute\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "array",
+   "reason": "Environment; use the Array template"
+  },
+  {
+   "source": "mathjax",
+   "id": "atop",
+   "reason": "TeX alignment primitive; use the Fraction template"
+  },
+  {
+   "source": "mathjax",
+   "id": "atopwithdelims",
+   "reason": "TeX alignment primitive; use the Bracket pair template"
+  },
+  {
+   "source": "mathjax",
+   "id": "bar",
+   "reason": "written by the \"tpl:bar\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "bbox",
+   "reason": "MathJax's \"bbox\" extension has no LaTeX equivalent"
+  },
+  {
+   "source": "mathjax",
+   "id": "begin",
+   "reason": "written by the \"tpl:matrix\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "big",
+   "reason": "Delimiter sizing primitive; see the Bracket pair template"
+  },
+  {
+   "source": "mathjax",
+   "id": "Big",
+   "reason": "Delimiter sizing primitive; see the Bracket pair template"
+  },
+  {
+   "source": "mathjax",
+   "id": "bigg",
+   "reason": "Delimiter sizing primitive; see the Bracket pair template"
+  },
+  {
+   "source": "mathjax",
+   "id": "Bigg",
+   "reason": "Delimiter sizing primitive; see the Bracket pair template"
+  },
+  {
+   "source": "mathjax",
+   "id": "biggl",
+   "reason": "Delimiter sizing primitive; see the Bracket pair template"
+  },
+  {
+   "source": "mathjax",
+   "id": "Biggl",
+   "reason": "Delimiter sizing primitive; see the Bracket pair template"
+  },
+  {
+   "source": "mathjax",
+   "id": "biggm",
+   "reason": "Delimiter sizing primitive; see the Bracket pair template"
+  },
+  {
+   "source": "mathjax",
+   "id": "Biggm",
+   "reason": "Delimiter sizing primitive; see the Bracket pair template"
+  },
+  {
+   "source": "mathjax",
+   "id": "biggr",
+   "reason": "Delimiter sizing primitive; see the Bracket pair template"
+  },
+  {
+   "source": "mathjax",
+   "id": "Biggr",
+   "reason": "Delimiter sizing primitive; see the Bracket pair template"
+  },
+  {
+   "source": "mathjax",
+   "id": "bigl",
+   "reason": "Delimiter sizing primitive; see the Bracket pair template"
+  },
+  {
+   "source": "mathjax",
+   "id": "Bigl",
+   "reason": "Delimiter sizing primitive; see the Bracket pair template"
+  },
+  {
+   "source": "mathjax",
+   "id": "bigm",
+   "reason": "Delimiter sizing primitive; see the Bracket pair template"
+  },
+  {
+   "source": "mathjax",
+   "id": "Bigm",
+   "reason": "Delimiter sizing primitive; see the Bracket pair template"
+  },
+  {
+   "source": "mathjax",
+   "id": "bigr",
+   "reason": "Delimiter sizing primitive; see the Bracket pair template"
+  },
+  {
+   "source": "mathjax",
+   "id": "Bigr",
+   "reason": "Delimiter sizing primitive; see the Bracket pair template"
+  },
+  {
+   "source": "mathjax",
+   "id": "binom",
+   "reason": "written by the \"tpl:binom\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "bmod",
+   "reason": "written by the \"tpl:bmod\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "boldsymbol",
+   "reason": "written by the \"tpl:boldsymbol\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "boxed",
+   "reason": "written by the \"tpl:boxed\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "brace",
+   "reason": "TeX alignment primitive; use the Bracket pair template"
+  },
+  {
+   "source": "mathjax",
+   "id": "brack",
+   "reason": "TeX alignment primitive; use the Bracket pair template"
+  },
+  {
+   "source": "mathjax",
+   "id": "breve",
+   "reason": "written by the \"tpl:breve\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "buildrel",
+   "reason": "TeX primitive for stacked relations; use Over/Under"
+  },
+  {
+   "source": "mathjax",
+   "id": "cancel",
+   "reason": "written by the \"tpl:cancel\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "cases",
+   "reason": "Environment; use the Cases template"
+  },
+  {
+   "source": "mathjax",
+   "id": "cfrac",
+   "reason": "written by the \"tpl:cfrac\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "check",
+   "reason": "written by the \"tpl:check\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "choose",
+   "reason": "TeX alignment primitive; use the Binomial template"
+  },
+  {
+   "source": "mathjax",
+   "id": "class",
+   "reason": "MathJax HTML attribute primitive"
+  },
+  {
+   "source": "mathjax",
+   "id": "color",
+   "reason": "written by the \"tpl:color\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "colorbox",
+   "reason": "Colour command; use the Text colour template"
+  },
+  {
+   "source": "mathjax",
+   "id": "cr",
+   "reason": "Row separator inside a TeX alignment"
+  },
+  {
+   "source": "mathjax",
+   "id": "cssId",
+   "reason": "MathJax HTML attribute primitive"
+  },
+  {
+   "source": "mathjax",
+   "id": "dbinom",
+   "reason": "written by the \"tpl:dbinom\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "ddot",
+   "reason": "written by the \"tpl:ddot\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "DeclareMathOperator",
+   "reason": "A declaration, not an insertable symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "definecolor",
+   "reason": "Colour declaration, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "dfrac",
+   "reason": "written by the \"tpl:dfrac\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "displaylines",
+   "reason": "TeX alignment environment; use the Align environment template"
+  },
+  {
+   "source": "mathjax",
+   "id": "displaystyle",
+   "reason": "Math style switch, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "dot",
+   "reason": "written by the \"tpl:dot\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "end",
+   "reason": "Environment closer, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "enspace",
+   "reason": "TeX spacing, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "eqalign",
+   "reason": "TeX alignment environment; use the Align environment template"
+  },
+  {
+   "source": "mathjax",
+   "id": "eqalignno",
+   "reason": "TeX alignment environment; use the Align environment template"
+  },
+  {
+   "source": "mathjax",
+   "id": "eqref",
+   "reason": "Cross-reference command, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "fbox",
+   "reason": "Framed box primitive; use the Boxed template"
+  },
+  {
+   "source": "mathjax",
+   "id": "fcolorbox",
+   "reason": "Colour command; use the Text colour template"
+  },
+  {
+   "source": "mathjax",
+   "id": "frac",
+   "reason": "written by the \"tpl:frac\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "framebox",
+   "reason": "Framed box primitive; use the Boxed template"
+  },
+  {
+   "source": "mathjax",
+   "id": "genfrac",
+   "reason": "TeX fraction primitive; use the Fraction template"
+  },
+  {
+   "source": "mathjax",
+   "id": "grave",
+   "reason": "written by the \"tpl:grave\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "hat",
+   "reason": "written by the \"tpl:hat\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "hbox",
+   "reason": "TeX horizontal box primitive; use the Text template"
+  },
+  {
+   "source": "mathjax",
+   "id": "hdashline",
+   "reason": "Table rule, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "hfil",
+   "reason": "TeX spacing, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "hfill",
+   "reason": "TeX spacing, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "hfilll",
+   "reason": "TeX spacing, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "hline",
+   "reason": "Table rule, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "hphantom",
+   "reason": "Invisible strut, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "href",
+   "reason": "Hyperlink command, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "hskip",
+   "reason": "TeX spacing primitive, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "hspace",
+   "reason": "TeX spacing primitive, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "huge",
+   "reason": "LaTeX size command, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "Huge",
+   "reason": "LaTeX size command, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "kern",
+   "reason": "TeX spacing primitive, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "label",
+   "reason": "Cross-reference command, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "large",
+   "reason": "LaTeX size command, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "Large",
+   "reason": "LaTeX size command, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "LARGE",
+   "reason": "LaTeX size command, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "LaTeX",
+   "reason": "Text logo, not a mathematical symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "left",
+   "reason": "written by the \"tpl:parens\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "leftroot",
+   "reason": "TeX radical-index primitive; use the Root template"
+  },
+  {
+   "source": "mathjax",
+   "id": "leqalignno",
+   "reason": "TeX alignment environment; use the Align environment template"
+  },
+  {
+   "source": "mathjax",
+   "id": "limits",
+   "reason": "TeX primitive: force limits placement"
+  },
+  {
+   "source": "mathjax",
+   "id": "llap",
+   "reason": "TeX overprint primitive"
+  },
+  {
+   "source": "mathjax",
+   "id": "lower",
+   "reason": "TeX box-shifting primitive"
+  },
+  {
+   "source": "mathjax",
+   "id": "lvert",
+   "reason": "written by the \"tpl:abs\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "lVert",
+   "reason": "written by the \"tpl:norm\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "mathbb",
+   "reason": "written by the \"tpl:mathbb\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "mathbf",
+   "reason": "written by the \"tpl:mathbf\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "mathbin",
+   "reason": "TeX atom-class primitive, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "mathcal",
+   "reason": "written by the \"tpl:mathcal\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "mathchoice",
+   "reason": "TeX primitive for style-dependent content"
+  },
+  {
+   "source": "mathjax",
+   "id": "mathclose",
+   "reason": "TeX atom-class primitive, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "mathfrak",
+   "reason": "written by the \"tpl:mathfrak\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "mathinner",
+   "reason": "TeX atom-class primitive, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "mathop",
+   "reason": "TeX atom-class primitive, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "mathopen",
+   "reason": "TeX atom-class primitive, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "mathord",
+   "reason": "TeX atom-class primitive, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "mathpunct",
+   "reason": "TeX atom-class primitive, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "mathrel",
+   "reason": "TeX atom-class primitive, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "mathring",
+   "reason": "written by the \"tpl:mathring\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "mathrm",
+   "reason": "written by the \"tpl:mathrm\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "mathstrut",
+   "reason": "Invisible strut, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "mathtip",
+   "reason": "MathJax's \"action-macros\" extension has no LaTeX equivalent"
+  },
+  {
+   "source": "mathjax",
+   "id": "matrix",
+   "reason": "Environment; use the Matrix template"
+  },
+  {
+   "source": "mathjax",
+   "id": "mbox",
+   "reason": "TeX horizontal box primitive; use the Text template"
+  },
+  {
+   "source": "mathjax",
+   "id": "middle",
+   "reason": "Delimiter sizing primitive used inside \\left…\\right; see the Bracket pair template"
+  },
+  {
+   "source": "mathjax",
+   "id": "mkern",
+   "reason": "TeX spacing primitive, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "mmlToken",
+   "reason": "MathJax internal: build a raw MathML token"
+  },
+  {
+   "source": "mathjax",
+   "id": "mod",
+   "reason": "Spacing and punctuation, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "moveleft",
+   "reason": "TeX box-shifting primitive"
+  },
+  {
+   "source": "mathjax",
+   "id": "moveright",
+   "reason": "TeX box-shifting primitive"
+  },
+  {
+   "source": "mathjax",
+   "id": "mskip",
+   "reason": "TeX spacing primitive, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "mspace",
+   "reason": "TeX spacing primitive, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "negmedspace",
+   "reason": "TeX spacing, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "negthickspace",
+   "reason": "TeX spacing, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "negthinspace",
+   "reason": "TeX spacing, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "newline",
+   "reason": "Line-breaking primitive, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "nobreakspace",
+   "reason": "TeX spacing, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "nolimits",
+   "reason": "TeX primitive: suppress limits placement"
+  },
+  {
+   "source": "mathjax",
+   "id": "nonscript",
+   "reason": "TeX primitive: suppress script-size glue"
+  },
+  {
+   "source": "mathjax",
+   "id": "nonumber",
+   "reason": "amsmath equation tag control"
+  },
+  {
+   "source": "mathjax",
+   "id": "normalsize",
+   "reason": "LaTeX size command, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "notag",
+   "reason": "amsmath equation tag control"
+  },
+  {
+   "source": "mathjax",
+   "id": "oldstyle",
+   "reason": "Font feature switch, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "operatorname",
+   "reason": "written by the \"tpl:operatorname\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "over",
+   "reason": "TeX alignment primitive; use the Fraction template"
+  },
+  {
+   "source": "mathjax",
+   "id": "overbrace",
+   "reason": "written by the \"tpl:overbrace\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "overline",
+   "reason": "written by the \"tpl:overline\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "overset",
+   "reason": "written by the \"tpl:overset\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "overwithdelims",
+   "reason": "TeX alignment primitive; use the Bracket pair template"
+  },
+  {
+   "source": "mathjax",
+   "id": "phantom",
+   "reason": "Invisible strut, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "pmatrix",
+   "reason": "Environment; use the Parenthesised matrix template"
+  },
+  {
+   "source": "mathjax",
+   "id": "pmod",
+   "reason": "written by the \"tpl:pmod\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "pod",
+   "reason": "TeX primitive: to-specification delimiter"
+  },
+  {
+   "source": "mathjax",
+   "id": "prescript",
+   "reason": "written by the \"tpl:prescript\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "qquad",
+   "reason": "TeX spacing, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "quad",
+   "reason": "TeX spacing, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "raise",
+   "reason": "TeX box-shifting primitive"
+  },
+  {
+   "source": "mathjax",
+   "id": "ref",
+   "reason": "Cross-reference command, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "require",
+   "reason": "MathJax's \"require\" extension has no LaTeX equivalent"
+  },
+  {
+   "source": "mathjax",
+   "id": "right",
+   "reason": "Closing delimiter of a \\left…\\right pair; see the Bracket pair template"
+  },
+  {
+   "source": "mathjax",
+   "id": "rlap",
+   "reason": "TeX overprint primitive"
+  },
+  {
+   "source": "mathjax",
+   "id": "root",
+   "reason": "TeX radical primitive; use the Root template"
+  },
+  {
+   "source": "mathjax",
+   "id": "rule",
+   "reason": "TeX rule primitive, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "scriptscriptstyle",
+   "reason": "Math style switch, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "scriptsize",
+   "reason": "LaTeX size command, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "scriptstyle",
+   "reason": "Math style switch, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "setOptions",
+   "reason": "MathJax's \"setoptions\" extension has no LaTeX equivalent"
+  },
+  {
+   "source": "mathjax",
+   "id": "shoveleft",
+   "reason": "amsmath line-shifting primitive"
+  },
+  {
+   "source": "mathjax",
+   "id": "shoveright",
+   "reason": "amsmath line-shifting primitive"
+  },
+  {
+   "source": "mathjax",
+   "id": "sideset",
+   "reason": "amsmath index-placement primitive"
+  },
+  {
+   "source": "mathjax",
+   "id": "skew",
+   "reason": "MathJax accent-skew primitive"
+  },
+  {
+   "source": "mathjax",
+   "id": "small",
+   "reason": "LaTeX size command, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "smash",
+   "reason": "TeX vertical-overlap primitive"
+  },
+  {
+   "source": "mathjax",
+   "id": "space",
+   "reason": "TeX spacing, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "sqrt",
+   "reason": "written by the \"tpl:sqrt\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "stackrel",
+   "reason": "written by the \"tpl:stackrel\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "strut",
+   "reason": "Invisible strut, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "style",
+   "reason": "MathJax HTML attribute primitive"
+  },
+  {
+   "source": "mathjax",
+   "id": "substack",
+   "reason": "written by the \"tpl:substack\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "symbfup",
+   "reason": "Same alphabet as \\mathbf; see \\mathbf"
+  },
+  {
+   "source": "mathjax",
+   "id": "tag",
+   "reason": "amsmath equation tag, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "tbinom",
+   "reason": "written by the \"tpl:tbinom\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "TeX",
+   "reason": "Text logo, not a mathematical symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "text",
+   "reason": "written by the \"tpl:text\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "textbf",
+   "reason": "Text-mode formatting, not mathematics"
+  },
+  {
+   "source": "mathjax",
+   "id": "textcolor",
+   "reason": "Colour command; use the Text colour template"
+  },
+  {
+   "source": "mathjax",
+   "id": "textit",
+   "reason": "Text-mode formatting, not mathematics"
+  },
+  {
+   "source": "mathjax",
+   "id": "textnormal",
+   "reason": "Text-mode formatting, not mathematics"
+  },
+  {
+   "source": "mathjax",
+   "id": "textrm",
+   "reason": "Text-mode formatting, not mathematics"
+  },
+  {
+   "source": "mathjax",
+   "id": "textsf",
+   "reason": "Text-mode formatting, not mathematics"
+  },
+  {
+   "source": "mathjax",
+   "id": "textstyle",
+   "reason": "Math style switch, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "texttip",
+   "reason": "MathJax's \"action-macros\" extension has no LaTeX equivalent"
+  },
+  {
+   "source": "mathjax",
+   "id": "texttt",
+   "reason": "Text-mode formatting, not mathematics"
+  },
+  {
+   "source": "mathjax",
+   "id": "textup",
+   "reason": "Text-mode formatting, not mathematics"
+  },
+  {
+   "source": "mathjax",
+   "id": "tfrac",
+   "reason": "written by the \"tpl:tfrac\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "thinspace",
+   "reason": "TeX spacing, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "tilde",
+   "reason": "written by the \"tpl:tilde\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "tiny",
+   "reason": "LaTeX size command, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "Tiny",
+   "reason": "LaTeX size command, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "toggle",
+   "reason": "MathJax's \"action-macros\" extension has no LaTeX equivalent"
+  },
+  {
+   "source": "mathjax",
+   "id": "underbrace",
+   "reason": "written by the \"tpl:underbrace\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "underline",
+   "reason": "written by the \"tpl:underline\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "underset",
+   "reason": "written by the \"tpl:underset\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "unicode",
+   "reason": "MathJax's own Unicode escape; LaTeX differs"
+  },
+  {
+   "source": "mathjax",
+   "id": "uproot",
+   "reason": "TeX radical-index primitive; use the Root template"
+  },
+  {
+   "source": "mathjax",
+   "id": "vcenter",
+   "reason": "TeX vertical centring primitive"
+  },
+  {
+   "source": "mathjax",
+   "id": "vec",
+   "reason": "written by the \"tpl:vec\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "vphantom",
+   "reason": "Invisible strut, not a symbol"
+  },
+  {
+   "source": "mathjax",
+   "id": "widehat",
+   "reason": "written by the \"tpl:widehat\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "widetilde",
+   "reason": "written by the \"tpl:widetilde\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "xleftarrow",
+   "reason": "written by the \"tpl:xleftarrow\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "xleftrightarrow",
+   "reason": "written by the \"tpl:xleftrightarrow\" template"
+  },
+  {
+   "source": "mathjax",
+   "id": "xrightarrow",
+   "reason": "written by the \"tpl:xrightarrow\" template"
+  },
+  {
+   "source": "unimathsymbols",
+   "id": "bar",
+   "reason": "written by the \"tpl:bar\" template"
+  },
+  {
+   "source": "unimathsymbols",
+   "id": "dot",
+   "reason": "written by the \"tpl:dot\" template"
+  },
+  {
+   "source": "unimathsymbols",
+   "id": "overbrace",
+   "reason": "written by the \"tpl:overbrace\" template"
+  },
+  {
+   "source": "unimathsymbols",
+   "id": "sqrt",
+   "reason": "written by the \"tpl:sqrt\" template"
+  },
+  {
+   "source": "unimathsymbols",
+   "id": "underbrace",
+   "reason": "written by the \"tpl:underbrace\" template"
+  },
+  {
+   "source": "unimathsymbols",
+   "id": "vec",
+   "reason": "written by the \"tpl:vec\" template"
+  }
+ ],
+ "warnings": [],
+ "problems": []
+}

@@ -477,7 +477,13 @@ export function lwSettingsProvider(scope?: string, options: { force?: boolean } 
     // a name the resolver would reject — the failure the picker used to cause.
     'latex-workshop.latex.recipe.default': recipeNameFor(setting.str('compilation.recipe'), engine),
     'latex-workshop.latex.autoBuild.run': setting.str('compilation.autoBuild'),
-    'latex-workshop.latex.autoBuild.interval': setting.num('compilation.autoBuildDelayMs'),
+    // The reference has one number here — the least time between two builds.
+    // Eukolia's debounce is its own, and travels beside it under a name of its
+    // own so ported code that reads the reference's key gets the reference's
+    // meaning rather than the debounce by accident.
+    'latex-workshop.latex.autoBuild.interval': setting.num('compilation.autoBuildMinIntervalMs'),
+    'latex-workshop.latex.autoBuild.delay': setting.num('compilation.autoBuildDelayMs'),
+    'latex-workshop.latex.autoBuild.onSave.files.ignore': setting.list('compilation.autoBuildIgnore'),
     'latex-workshop.latex.clean.fileTypes': setting.list('compilation.cleanExtensions'),
     'latex-workshop.latex.args': setting.list('compilation.extraArgs'),
     'latex-workshop.latex.autoClean.onBuild': setting.bool('compilation.cleanAfterFailedBuild'),

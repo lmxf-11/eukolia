@@ -23,7 +23,7 @@ describe('when the sidebar region is on screen', () => {
   it('hides every view of it when the user collapses the region', () => {
     // The panels are views of one element, so one answer covers them all: there
     // is no state in which the explorer is collapsed but the outline is not.
-    for (const view of ['explorer', 'search', 'outline', 'symbols', 'snippets', 'problems']) {
+    for (const view of ['explorer', 'search', 'outline', 'symbols', 'math-symbols', 'snippets', 'problems']) {
       expect(sidebarShown({ visible: false, view, settingsOpen: false }), view).toBe(false);
     }
   });

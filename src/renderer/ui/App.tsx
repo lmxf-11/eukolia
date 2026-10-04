@@ -1,5 +1,5 @@
 /** * Eukolia — application shell. * * Owns the layout, the global keyboard dispatch, the command definitions, the * overlays (palette, quick open, settings, shortcuts, build picker) and the * wiring between the code editor, the visual editor and the PDF viewer. * * Layouts follow Instructions.md §42; the PDF pane is collapsible and restores * its page, scroll position, zoom and search state (§43). */ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppStateProvider, useAppState } from './state';
+import { AppStateProvider, useAppState, type AppStateValue } from './state';
 import { LibraryHome, ProjectLibraryDialog, showProjectLibrary } from './components/ProjectLibrary';
 import { sidebarShown, sidebarChromeVisible } from './sidebarRegion';
 import { Sidebar } from './components/Sidebar';
@@ -95,64 +95,110 @@ export function escapeFromSettings(state: { settingsOpen: boolean; settingsSecti
 }
 // ---------------------------------------------------------------------------
 // Commands// ---------------------------------------------------------------------------
+/**
+ * The application state, as seen through a ref that always holds the newest one.
+ *
+ * A mapped type rather than `AppStateValue` itself so that the reads stay checked:
+ * `{ readonly [K in keyof AppStateValue]: AppStateValue[K] }` has exactly the same
+ * members with exactly the same types, which is what lets four hundred lines of
+ * command handlers read `state.…` without knowing that the object underneath is a
+ * `Proxy`.
+ */
+type LiveState = { readonly [K in keyof AppStateValue]: AppStateValue[K] }
+/**
+ * The application's commands, registered **once**.
+ *
+ * They used to be registered in an effect that depended on the whole application
+ * state, and that is a keystroke-by-keystroke cost: reporting the caret
+ * (`onSelectionChange` → `setCursor`) writes application state, the effect re-runs,
+ * the disposers run — `unregister` for every command — and `registerAll` puts all
+ * eighty back, each `register` calling `reindexKeybindings`, which clears the binding
+ * map and rebuilds it from every command's keybinding.
+ *
+ * Measured in the running application (`scripts/probe-typing-profile.mjs`, a CPU
+ * profile of 40 keystrokes in an 1 877-line chapter): **`reindexKeybindings` 179 ms,
+ * `getValue` 159 ms, `register` 92 ms, `unregister` 50 ms** — about 5.4 ms of every
+ * single keystroke spent tearing down and rebuilding a table that had not changed.
+ * The same profile is what proves the table is not the only cost: dispatch itself is
+ * 20 ms and the frame after it is 33 ms.
+ *
+ * So the effect runs with `[]`, and the handlers read the *latest* state through
+ * `liveState` below rather than closing over the state they were created with. The
+ * commands are the same commands; only their lifetime changed.
+ */
 function useApplicationCommands(): void {
     const state = useAppState();
+    /*
+     * A view of `state` that is always current.
+     *
+     * The effect below must not re-run when the state changes, and the handlers must
+     * still see the state as it is now — a `Save` command that captured last
+     * keystroke's document would save the wrong text. A ref holds the newest value
+     * (assigned during render, so it is never stale) and the command list reads
+     * through it, so every read in those four hundred lines is still checked against
+     * `AppStateValue` and every one of them sees the current state.
+     */
+    const latestState = useRef(state);
+    latestState.current = state;
+    const liveState = new Proxy(latestState.current, {
+        get: (_target, property) => latestState.current[property as keyof AppStateValue],
+    }) as LiveState;
     useEffect(() => {
         const disposers = commandRegistry.registerAll([
             { id: 'file.newProject', title: 'New Project…', category: 'File', keybinding: 'Ctrl+Alt+N', handler: () => { showProjectLibrary('create'); } },
             { id: 'file.projectLibrary', title: 'Open Project Library', category: 'File', handler: () => { showProjectLibrary(); } },
             {
-                id: 'file.openFile', title: 'Open File…', category: 'File', keybinding: 'Ctrl+O', handler: () => state.openFile()
+                id: 'file.openFile', title: 'Open File…', category: 'File', keybinding: 'Ctrl+O', handler: () => liveState.openFile()
             },
             {
-                id: 'file.openFolder', title: 'Open Folder…', category: 'File', keybinding: 'Ctrl+K Ctrl+O', handler: () => state.openFolder()
+                id: 'file.openFolder', title: 'Open Folder…', category: 'File', keybinding: 'Ctrl+K Ctrl+O', handler: () => liveState.openFolder()
             },
             {
-                id: 'file.newFile', title: 'New LaTeX File', category: 'File', keybinding: 'Ctrl+N', handler: () => state.newFile()
+                id: 'file.newFile', title: 'New LaTeX File', category: 'File', keybinding: 'Ctrl+N', handler: () => liveState.newFile()
             },
             {
-                id: 'file.save', title: 'Save', category: 'File', keybinding: 'Ctrl+S', handler: () => state.save()
+                id: 'file.save', title: 'Save', category: 'File', keybinding: 'Ctrl+S', handler: () => liveState.save()
             },
             {
-                id: 'file.saveAs', title: 'Save As…', category: 'File', keybinding: 'Ctrl+Shift+S', handler: () => state.saveAs()
+                id: 'file.saveAs', title: 'Save As…', category: 'File', keybinding: 'Ctrl+Shift+S', handler: () => liveState.saveAs()
             },
             {
-                id: 'file.saveAll', title: 'Save All', category: 'File', keybinding: 'Ctrl+Alt+S', handler: () => state.saveAll()
+                id: 'file.saveAll', title: 'Save All', category: 'File', keybinding: 'Ctrl+Alt+S', handler: () => liveState.saveAll()
             },
             {
                 id: 'file.closeEditor', title: 'Close Editor', category: 'File', keybinding: 'Ctrl+W',
                 when: (context) => context.hasDocument, handler: () => {
-                    const uri = state.workspace.activeUri;
+                    const uri = liveState.workspace.activeUri;
                     if (uri)
-                        void state.closeDocument(uri);
+                        void liveState.closeDocument(uri);
                 }
             },
             {
                 id: 'workbench.action.reopenClosedEditor', title: 'Reopen Closed Editor', category: 'File',
-                keybinding: 'Ctrl+Shift+T', handler: () => void state.reopenClosedEditor()
+                keybinding: 'Ctrl+Shift+T', handler: () => void liveState.reopenClosedEditor()
             },
             {
                 id: 'file.revealInExplorer', title: 'Reveal Active File in Explorer', category: 'File',
                 when: (context) => context.hasDocument, handler: () => {
-                    if (state.activeDoc)
-                        void window.eukoliaApi.revealInExplorer(state.activeDoc.uri);
+                    if (liveState.activeDoc)
+                        void window.eukoliaApi.revealInExplorer(liveState.activeDoc.uri);
                 }
             },
             {
                 id: 'file.copyPath', title: 'Copy Path of Active File', category: 'File', when: (context) => context.hasDocument,
                 handler: async () => {
-                    if (!state.activeDoc)
+                    if (!liveState.activeDoc)
                         return;
-                    await navigator.clipboard.writeText(state.activeDoc.uri);
-                    state.setStatusMessage('Path copied');
+                    await navigator.clipboard.writeText(liveState.activeDoc.uri);
+                    liveState.setStatusMessage('Path copied');
                 }
             }, // ---------------------------------------------------------- Workspace
             {
                 id: 'workbench.commandPalette', title: 'Show All Commands', category: 'View', keybinding: 'Ctrl+Shift+P',
-                handler: () => state.setPaletteOpen(true)
+                handler: () => liveState.setPaletteOpen(true)
             },
             {
-                id: 'workbench.quickOpen', title: 'Go to File…', category: 'View', keybinding: 'Ctrl+P', handler: () => state.setQuickOpenOpen(true)
+                id: 'workbench.quickOpen', title: 'Go to File…', category: 'View', keybinding: 'Ctrl+P', handler: () => liveState.setQuickOpenOpen(true)
             },
             {
                 id: 'workbench.settings', title: 'Open Settings', category: 'Preferences', keybinding: 'Ctrl+,',
@@ -160,7 +206,7 @@ function useApplicationCommands(): void {
                     if (window.eukoliaApi?.openSettingsWindow) {
                         void window.eukoliaApi.openSettingsWindow();
                     } else {
-                        state.toggleSettings();
+                        liveState.toggleSettings();
                     }
                 }
             },
@@ -170,7 +216,7 @@ function useApplicationCommands(): void {
                     if (window.eukoliaApi?.openSnippetsWindow) {
                         void window.eukoliaApi.openSnippetsWindow();
                     } else {
-                        state.toggleSnippets();
+                        liveState.toggleSnippets();
                     }
                 }
             },
@@ -194,51 +240,72 @@ function useApplicationCommands(): void {
             },
             {
                 id: 'workbench.shortcuts', title: 'Open Keyboard Shortcuts', category: 'Preferences', keybinding: 'Ctrl+K Ctrl+S',
-                handler: () => state.setShortcutsOpen(true)
+                handler: () => liveState.setShortcutsOpen(true)
             },
             {
-                id: 'workbench.about', title: 'About Eukolia', category: 'Help', handler: () => state.setAboutOpen(true)
+                id: 'workbench.about', title: 'About Eukolia', category: 'Help', handler: () => liveState.setAboutOpen(true)
             },
             {
-                id: 'view.toggleSidebar', title: 'Toggle Sidebar', category: 'View', keybinding: 'Ctrl+B', handler: () => state.toggleSidebar()
+                id: 'view.toggleSidebar', title: 'Toggle Sidebar', category: 'View', keybinding: 'Ctrl+B', handler: () => liveState.toggleSidebar()
             },
             {
-                id: 'view.explorer', title: 'Show Explorer', category: 'View', keybinding: 'Ctrl+Shift+E', handler: () => state.setSidebarView('explorer')
+                id: 'view.explorer', title: 'Show Explorer', category: 'View', keybinding: 'Ctrl+Shift+E', handler: () => liveState.setSidebarView('explorer')
             },
             {
-                id: 'view.outline', title: 'Show Outline', category: 'View', keybinding: 'Ctrl+Shift+O', handler: () => state.setSidebarView('outline')
+                id: 'view.outline', title: 'Show Outline', category: 'View', keybinding: 'Ctrl+Shift+O', handler: () => liveState.setSidebarView('outline')
             },
             {
-                id: 'view.search', title: 'Show Search', category: 'View', keybinding: 'Ctrl+Shift+F', handler: () => state.setSidebarView('search')
+                id: 'view.search', title: 'Show Search', category: 'View', keybinding: 'Ctrl+Shift+F', handler: () => liveState.setSidebarView('search')
             },
             {
-                id: 'view.symbols', title: 'Show Project Symbols', category: 'View', handler: () => state.setSidebarView('symbols')
+                id: 'view.symbols', title: 'Show Project Symbols', category: 'View', handler: () => liveState.setSidebarView('symbols')
             },
             {
-                id: 'view.snippets', title: 'Show Snippets', category: 'View', handler: () => state.setSidebarView('snippets')
+                /**
+                 * The Mathematical Symbols catalog.
+                 *
+                 * A separate command from `view.symbols` on purpose: the palette
+                 * is where a user looks for a feature by name, and two entries
+                 * called "symbols" that open different panels would be a trap.
+                 *
+                 * `Ctrl+Alt+M` because `Ctrl+Shift+M` is taken — it is VS Code's
+                 * Problems shortcut and Eukolia already gives it to
+                 * `view.problems`. This binding's only earlier owner was the
+                 * menu-bar toggle, which was removed with the title bar, so
+                 * nothing the user can still invoke loses a key to it.
+                 */
+                id: 'view.mathSymbols',
+                title: 'Show Mathematical Symbols',
+                category: 'View',
+                keybinding: 'Ctrl+Alt+M',
+                keywords: ['symbol', 'math', 'greek', 'arrow', 'operator', 'notation', 'catalog'],
+                handler: () => liveState.setSidebarView('math-symbols')
             },
             {
-                id: 'view.togglePanel', title: 'Toggle Bottom Panel', category: 'View', keybinding: 'Ctrl+J', handler: () => state.toggleBottomPanel()
+                id: 'view.snippets', title: 'Show Snippets', category: 'View', handler: () => liveState.setSidebarView('snippets')
+            },
+            {
+                id: 'view.togglePanel', title: 'Toggle Bottom Panel', category: 'View', keybinding: 'Ctrl+J', handler: () => liveState.toggleBottomPanel()
             }, // Chrome toggles. Each has a settings key (`keybindings.*`) so the shortcut
             // is rebindable from the Settings UI without touching code.
             {
-                id: 'view.toggleTabBar', title: 'Toggle Tab Bar', category: 'View', keybinding: 'Ctrl+Alt+T', handler: () => state.toggleTabBar()
+                id: 'view.toggleTabBar', title: 'Toggle Tab Bar', category: 'View', keybinding: 'Ctrl+Alt+T', handler: () => liveState.toggleTabBar()
             },
             {
-                id: 'view.toggleStatusBar', title: 'Toggle Status Bar', category: 'View', keybinding: 'Ctrl+Alt+B', handler: () => state.toggleStatusBar()
+                id: 'view.toggleStatusBar', title: 'Toggle Status Bar', category: 'View', keybinding: 'Ctrl+Alt+B', handler: () => liveState.toggleStatusBar()
             },
             {
                 // The activity bar is the only way to switch sidebar views, so
                 // hiding it needs a command to bring it back as well as the
                 // `appearance.showActivityBar` setting that persists the choice.
-                id: 'view.toggleActivityBar', title: 'Toggle Activity Bar', category: 'View', keybinding: 'Ctrl+Alt+A', handler: () => state.toggleActivityBar()
+                id: 'view.toggleActivityBar', title: 'Toggle Activity Bar', category: 'View', keybinding: 'Ctrl+Alt+A', handler: () => liveState.toggleActivityBar()
             },
             {
-                id: 'view.menu', title: 'Show Menu', category: 'View', handler: () => state.setSidebarView('menu')
+                id: 'view.menu', title: 'Show Menu', category: 'View', handler: () => liveState.setSidebarView('menu')
             },
             {
                 id: 'view.togglePanelBar', title: 'Toggle Panel Bar', category: 'View',
-                handler: () => state.togglePanelBar()
+                handler: () => liveState.togglePanelBar()
             },
             {
                 id: 'view.toggleTerminal', title: 'Toggle Terminal', category: 'View', keybinding: 'Ctrl+`',
@@ -247,17 +314,17 @@ function useApplicationCommands(): void {
                 // terminal is the view showing; from Problems, Output, Log or
                 // Search it switches to the terminal instead of closing the panel.
                 handler: () => {
-                    if (state.bottomPanelVisible && state.bottomPanelView === 'terminal')
-                        state.toggleBottomPanel();
+                    if (liveState.bottomPanelVisible && liveState.bottomPanelView === 'terminal')
+                        liveState.toggleBottomPanel();
                     else
-                        state.toggleBottomPanel('terminal');
+                        liveState.toggleBottomPanel('terminal');
                 }
             },
             {
-                id: 'view.problems', title: 'Show Problems', category: 'View', keybinding: 'Ctrl+Shift+M', handler: () => state.toggleBottomPanel('problems')
+                id: 'view.problems', title: 'Show Problems', category: 'View', keybinding: 'Ctrl+Shift+M', handler: () => liveState.toggleBottomPanel('problems')
             },
             {
-                id: 'view.output', title: 'Show Output', category: 'View', handler: () => state.toggleBottomPanel('output')
+                id: 'view.output', title: 'Show Output', category: 'View', handler: () => liveState.toggleBottomPanel('output')
             },
             {
                 /**
@@ -279,22 +346,22 @@ function useApplicationCommands(): void {
                  * how a user leaves Focus Mode for a specific one.
                  */
                 id: 'view.focusMode', title: 'Toggle Focus Mode', category: 'View', keybinding: 'Ctrl+Alt+1',
-                handler: () => state.toggleFocusMode()
+                handler: () => liveState.toggleFocusMode()
             },
             {
-                id: 'view.sourcePdf', title: 'Source + PDF', category: 'View', keybinding: 'Ctrl+Alt+2', handler: () => state.setLayout('split')
+                id: 'view.sourcePdf', title: 'Source + PDF', category: 'View', keybinding: 'Ctrl+Alt+2', handler: () => liveState.setLayout('split')
             },
             {
-                id: 'view.visualPdf', title: 'Visual + PDF', category: 'View', keybinding: 'Ctrl+Alt+3', handler: () => state.setLayout('visual-pdf')
+                id: 'view.visualPdf', title: 'Visual + PDF', category: 'View', keybinding: 'Ctrl+Alt+3', handler: () => liveState.setLayout('visual-pdf')
             },
             {
-                id: 'view.sourceVisual', title: 'Source + Visual', category: 'View', keybinding: 'Ctrl+Alt+4', handler: () => state.setLayout('source-visual')
+                id: 'view.sourceVisual', title: 'Source + Visual', category: 'View', keybinding: 'Ctrl+Alt+4', handler: () => liveState.setLayout('source-visual')
             },
             {
-                id: 'view.pdfOnly', title: 'PDF Mode', category: 'View', keybinding: 'Ctrl+Alt+5', handler: () => state.setLayout('pdf')
+                id: 'view.pdfOnly', title: 'PDF Mode', category: 'View', keybinding: 'Ctrl+Alt+5', handler: () => liveState.setLayout('pdf')
             },
             {
-                id: 'view.threeWay', title: 'Code + Visual + PDF', category: 'View', keybinding: 'Ctrl+Alt+6', handler: () => state.setLayout('all')
+                id: 'view.threeWay', title: 'Code + Visual + PDF', category: 'View', keybinding: 'Ctrl+Alt+6', handler: () => liveState.setLayout('all')
             },
             {
                 /**
@@ -315,7 +382,7 @@ function useApplicationCommands(): void {
             {
                 id: 'view.toggleTheme', title: 'Cycle Theme', category: 'Appearance', // `Ctrl+Alt+T` belongs to the tab bar; this cycles through every theme so
                 // the ones that are not light or dark are reachable from the keyboard.
-                keybinding: 'Ctrl+Alt+Y', handler: () => state.cycleTheme()
+                keybinding: 'Ctrl+Alt+Y', handler: () => liveState.cycleTheme()
             }, // ---------------------------------------------------------------- Edit
             //
             // VS Code's Edit and Selection menus. Undo/redo go through the document
@@ -325,13 +392,13 @@ function useApplicationCommands(): void {
             // Monaco, CodeMirror and the PDF viewer's text layer alike.
             {
                 id: 'edit.undo', title: 'Undo', category: 'Edit', keybinding: 'Ctrl+Z', handler: () => {
-                    state.activeDoc?.undo();
+                    liveState.activeDoc?.undo();
                 }
             },
             {
                 id: 'edit.redo', title: 'Redo', category: 'Edit', keybinding: 'Ctrl+Y', secondaryKeybindings: ['Ctrl+Shift+Z'],
                 handler: () => {
-                    state.activeDoc?.redo();
+                    liveState.activeDoc?.redo();
                 }
             },
             {
@@ -363,66 +430,66 @@ function useApplicationCommands(): void {
                 }
             }, // ----------------------------------------------------------- Terminal
             {
-                id: 'terminal.new', title: 'New Terminal', category: 'Terminal', keybinding: 'Ctrl+Shift+`', handler: () => state.setTerminalVisible(true)
+                id: 'terminal.new', title: 'New Terminal', category: 'Terminal', keybinding: 'Ctrl+Shift+`', handler: () => liveState.setTerminalVisible(true)
             },
             {
-                id: 'terminal.kill', title: 'Kill Terminal', category: 'Terminal', handler: () => state.setTerminalVisible(false)
+                id: 'terminal.kill', title: 'Kill Terminal', category: 'Terminal', handler: () => liveState.setTerminalVisible(false)
             }, // ------------------------------------------------------------- Editor
             {
-                id: 'editor.codeMode', title: 'Code Mode', category: 'Editor', keybinding: 'Ctrl+1', handler: () => state.setEditorMode('code')
+                id: 'editor.codeMode', title: 'Code Mode', category: 'Editor', keybinding: 'Ctrl+1', handler: () => liveState.setEditorMode('code')
             },
             {
-                id: 'editor.visualMode', title: 'Visual Mode', category: 'Editor', keybinding: 'Ctrl+2', handler: () => state.setEditorMode('visual')
+                id: 'editor.visualMode', title: 'Visual Mode', category: 'Editor', keybinding: 'Ctrl+2', handler: () => liveState.setEditorMode('visual')
             },
             {
                 id: 'editor.toggleMode', title: 'Toggle Code / Visual Mode', category: 'Editor',
-                keybinding: 'Ctrl+Shift+V', handler: () => state.setEditorMode(state.editorMode === 'code' ? 'visual' : 'code')
+                keybinding: 'Ctrl+Shift+V', handler: () => liveState.setEditorMode(liveState.editorMode === 'code' ? 'visual' : 'code')
             },
             {
                 id: 'editor.formatAmpersands', title: 'Format: Align TeX Ampersands', category: 'Editor',
                 keybinding: 'Ctrl+Alt+F', when: (context) => context.hasDocument, handler: () => {
-                    const doc = state.activeDoc;
+                    const doc = liveState.activeDoc;
                     if (!doc)
                         return;
                     const formatted = formattingEngine.alignDocument(doc.getText());
                     if (formatted !== doc.getText()) {
                         doc.setText(formatted, 'format');
-                        state.setStatusMessage('Aligned ampersands');
+                        liveState.setStatusMessage('Aligned ampersands');
                     }
                     else {
-                        state.setStatusMessage('Nothing to align');
+                        liveState.setStatusMessage('Nothing to align');
                     }
                 }
             },
             {
                 id: 'editor.alignSelection', title: 'Format: Align Ampersands in Selection', category: 'Editor',
-                when: (context) => context.hasDocument, handler: () => state.editorHandleRef.current?.alignAmpersands('selection')
+                when: (context) => context.hasDocument, handler: () => liveState.editorHandleRef.current?.alignAmpersands('selection')
             }, // -------------------------------------------------------------- LaTeX
             {
-                id: 'latex.build', title: 'Build Project', category: 'LaTeX', keybinding: 'Ctrl+B', handler: () => state.buildProject()
+                id: 'latex.build', title: 'Build Project', category: 'LaTeX', keybinding: 'Ctrl+B', handler: () => liveState.buildProject()
             },
             {
                 id: 'latex.buildActiveFile', title: 'Build the Active File', category: 'LaTeX',
                 keybinding: 'Ctrl+Alt+Shift+B', when: (context) => context.hasDocument, handler: () => {
-                    const uri = state.activeDoc?.uri;
+                    const uri = liveState.activeDoc?.uri;
                     if (!uri || uri.startsWith('untitled:')) {
-                        state.setStatusMessage('Save the file before building it on its own');
+                        liveState.setStatusMessage('Save the file before building it on its own');
                         return;
                     }
-                    void state.buildProject({
+                    void liveState.buildProject({
                         rootFile: uri
                     });
                 }
             },
             {
                 id: 'latex.buildWithRecipe', title: 'Build with Recipe…', category: 'LaTeX', keybinding: 'Ctrl+Shift+B',
-                handler: () => state.setBuildPickerOpen(true)
+                handler: () => liveState.setBuildPickerOpen(true)
             },
             {
                 id: 'latex.buildAndView', title: 'Build and View', category: 'LaTeX', keybinding: 'Ctrl+Alt+B',
                 handler: async () => {
-                    await state.buildProject();
-                    state.setLayout(state.layout === 'editor' ? 'split' : state.layout);
+                    await liveState.buildProject();
+                    liveState.setLayout(liveState.layout === 'editor' ? 'split' : liveState.layout);
                 }
             },
             {
@@ -433,21 +500,21 @@ function useApplicationCommands(): void {
                 id: 'latex.rebuild', title: 'Rebuild (force every rule)', category: 'LaTeX',
                 keybinding: 'Ctrl+Alt+Shift+R',
                 when: (context) => context.hasWorkspace || context.hasDocument,
-                handler: () => state.rebuildProject()
+                handler: () => liveState.rebuildProject()
             },
             {
-                id: 'latex.stopBuild', title: 'Stop Compilation', category: 'LaTeX', when: (c) => c.isBuilding, handler: () => state.cancelBuild()
+                id: 'latex.stopBuild', title: 'Stop Compilation', category: 'LaTeX', when: (c) => c.isBuilding, handler: () => liveState.cancelBuild()
             },
             {
-                id: 'latex.clean', title: 'Clean Auxiliary Files', category: 'LaTeX', handler: () => state.cleanBuild()
+                id: 'latex.clean', title: 'Clean Auxiliary Files', category: 'LaTeX', handler: () => liveState.cleanBuild()
             },
             {
-                id: 'latex.cleanAndBuild', title: 'Clean and Build', category: 'LaTeX', handler: () => state.cleanAndBuild()
+                id: 'latex.cleanAndBuild', title: 'Clean and Build', category: 'LaTeX', handler: () => liveState.cleanAndBuild()
             },
             {
                 id: 'latex.detectTools', title: 'Detect TeX Distribution', category: 'LaTeX', handler: async () => {
-                    await state.detectRecipes();
-                    state.setStatusMessage('TeX tool detection finished');
+                    await liveState.detectRecipes();
+                    liveState.setStatusMessage('TeX tool detection finished');
                 }
             },
             {
@@ -456,49 +523,49 @@ function useApplicationCommands(): void {
             },
             {
                 id: 'navigate.goToRootDocument', title: 'Go to Root Document', category: 'Navigation',
-                keybinding: 'Ctrl+Alt+R', handler: () => void state.goToRootDocument()
+                keybinding: 'Ctrl+Alt+R', handler: () => void liveState.goToRootDocument()
             }, // ---------------------------------------------------------------- PDF
             {
-                id: 'pdf.toggleViewer', title: 'Toggle PDF Viewer', category: 'PDF', keybinding: 'Ctrl+Alt+V', handler: () => state.setPdfVisible(!state.pdf.visible)
+                id: 'pdf.toggleViewer', title: 'Toggle PDF Viewer', category: 'PDF', keybinding: 'Ctrl+Alt+V', handler: () => liveState.setPdfVisible(!liveState.pdf.visible)
             },
             {
                 id: 'pdf.fitWidth', title: 'PDF: Fit Width', category: 'PDF', when: (context) => context.hasPdf,
-                handler: () => state.setPdfState({
+                handler: () => liveState.setPdfState({
                     zoomMode: 'page-width'
                 })
             },
             {
                 id: 'pdf.fitPage', title: 'PDF: Fit Page', category: 'PDF', when: (context) => context.hasPdf,
-                handler: () => state.setPdfState({
+                handler: () => liveState.setPdfState({
                     zoomMode: 'page-fit'
                 })
             },
             {
                 id: 'pdf.actualSize', title: 'PDF: Actual Size', category: 'PDF', when: (context) => context.hasPdf,
-                handler: () => state.setPdfState({
+                handler: () => liveState.setPdfState({
                     zoomMode: 'actual'
                 })
             },
             {
                 id: 'pdf.zoomIn', title: 'PDF: Zoom In', category: 'PDF', when: (context) => context.hasPdf,
-                handler: () => state.setPdfState({
-                    zoom: Math.min(8, state.pdf.zoom * 1.15), zoomMode: 'custom'
+                handler: () => liveState.setPdfState({
+                    zoom: Math.min(8, liveState.pdf.zoom * 1.15), zoomMode: 'custom'
                 })
             },
             {
                 id: 'pdf.zoomOut', title: 'PDF: Zoom Out', category: 'PDF', when: (context) => context.hasPdf,
-                handler: () => state.setPdfState({
-                    zoom: Math.max(0.1, state.pdf.zoom / 1.15), zoomMode: 'custom'
+                handler: () => liveState.setPdfState({
+                    zoom: Math.max(0.1, liveState.pdf.zoom / 1.15), zoomMode: 'custom'
                 })
             },
             {
                 id: 'pdf.reload', title: 'PDF: Reload', category: 'PDF', when: (context) => context.hasPdf,
                 handler: () => {
-                    const path = state.pdf.path;
+                    const path = liveState.pdf.path;
                     if (!path)
                         return;
-                    state.setPdfPath(null);
-                    setTimeout(() => state.setPdfPath(path), 50);
+                    liveState.setPdfPath(null);
+                    setTimeout(() => liveState.setPdfPath(path), 50);
                 }
             },
             // The rest of light-pdf's document commands, dispatched to the pane's
@@ -535,17 +602,22 @@ function useApplicationCommands(): void {
                 handler: () => globalEvents.emit('pdf:command', command)
             })), // --------------------------------------------------------------- Help
             {
-                id: 'help.documentation', title: 'Eukolia Documentation', category: 'Help', handler: () => state.setAboutOpen(true)
+                id: 'help.documentation', title: 'Eukolia Documentation', category: 'Help', handler: () => liveState.setAboutOpen(true)
             },
             {
                 id: 'help.versions', title: 'Show Version Information', category: 'Help', handler: async () => {
                     const versions = await window.eukoliaApi.getVersions();
-                    state.setStatusMessage(`Eukolia ${versions.app} · Electron ${versions.electron} · Node ${versions.node}`);
+                    liveState.setStatusMessage(`Eukolia ${versions.app} · Electron ${versions.electron} · Node ${versions.node}`);
                 }
             }
         ]);
         return () => disposers();
-    }, [state]);
+    /*
+     * `[]`, and it is the whole of the fix: the commands are registered once for the
+     * life of the shell and read the current state through `liveState`. See the note
+     * on this function for what the re-registration cost per keystroke.
+     */
+    }, []);
 }
 // ---------------------------------------------------------------------------
 // Shell// ---------------------------------------------------------------------------
@@ -996,7 +1068,7 @@ export const AppShell: React.FC = () => {
             state.setPdfPath(files[0]);
     }, [state]);
     const pdfInvert = resolveInvert(state.themeAppearance);
-    const pdfPane = useMemo(() => (<LazyPdfPane path={state.pdf.path} appearance={state.themeAppearance} handleRef={pdfHandleRef} invertColors={pdfInvert} initialZoom={pdfZoom} initialZoomMode={pdfZoomMode} onOpenFile={() => void openPdfFile()} 
+    const pdfPane = useMemo(() => (<LazyPdfPane path={state.pdf.path} checkToken={state.pdf.checkToken} forceToken={state.pdf.forceToken} appearance={state.themeAppearance} handleRef={pdfHandleRef} invertColors={pdfInvert} initialZoom={pdfZoom} initialZoomMode={pdfZoomMode} onOpenFile={() => void openPdfFile()} 
     // light-pdf's `CmdInvertColors` (`Shift+I`): flip the setting the pane
     // already reads, so the keyboard and the setting stay one source of truth.
     onToggleInvertColors={() => settingsManager.setValue('pdf.invertColors', pdfInvert ? 'never' : 'always', 'user')} onZoomChange={(zoom, mode) => {
@@ -1015,14 +1087,10 @@ export const AppShell: React.FC = () => {
             page, x, y
         })} 
     // light-pdf's `CmdReloadDocument` (`R`), wired to the same reload the
-    // palette command performs.
-    onReload={() => {
-            const path = state.pdf.path;
-            if (!path)
-                return;
-            state.setPdfPath(null);
-            setTimeout(() => state.setPdfPath(path), 50);
-        }}/>), [state.pdf.path, state.themeAppearance, pdfInvert, pdfZoom, pdfZoomMode, openPdfFile, state.setPdfState, state.setPdfPath]);
+    // palette command performs. It used to be a remount — the path was cleared
+    // and restored a tick later — which drops the viewer's document, its render
+    // cache and its find state to achieve what `ReloadDocument` does in place.
+    onReload={() => state.reloadPdf(true)}/>), [state.pdf.path, state.pdf.checkToken, state.pdf.forceToken, state.themeAppearance, pdfInvert, pdfZoom, pdfZoomMode, openPdfFile, state.setPdfState, state.reloadPdf]);
     /**
      * The viewer's chunk is fetched when the pane is first rendered, and the pane
      * is what the boundary wraps — so a window that never shows a PDF never loads
@@ -1317,13 +1385,6 @@ export const AppShell: React.FC = () => {
             </Deferred>
           ) : (
             <>
-              {/*
-                The tab bar is drawn in every layout, including the one with no
-                tabs: it is the window's top edge — the drag region, the caption
-                buttons and the toolbar — so `view.toggleTabBar` hides the
-                *document tabs* inside it rather than the bar. Until this changed,
-                the bar disappeared entirely and took the window controls with it.
-              */}
               <TabBar panelBarShown={panelBarShown} />
 
               <div

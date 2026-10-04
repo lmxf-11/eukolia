@@ -43,6 +43,7 @@ import { TeXWidget } from './visual-widgets/tex'
 import {
   createCharacterCommand,
   hasCharacterSubstitution,
+  CharacterWidget,
 } from './visual-widgets/character'
 import { centeringNodeForEnvironment } from '../../utils/tree-operations/figure'
 import { Frame, FrameWidget } from './visual-widgets/frame'
@@ -93,6 +94,7 @@ import { DescriptionItemWidget } from './visual-widgets/description-item'
 import {
   createSpaceCommand,
   hasSpaceSubstitution,
+  SpaceWidget,
 } from '@/vendor/overleaf/extensions/visual/visual-widgets/space'
 import {
   mathAncestorNode,
@@ -416,14 +418,36 @@ const scanContextUpTo = (
     listDepth: 0,
     commandDefinitions: '',
   }
+  scanContextInto(state, tree, end, context, 0, theoremCounterManager)
+  return context
+}
 
+/**
+ * The scan itself, resumable: it accumulates into `context` from `from` to `end`.
+ *
+ * `from` is where the context was left by an earlier pass — 0 for a scan from the top
+ * of the document, or a checkpoint's boundary for a replay. Everything the walk
+ * accumulates is *monotone* in the document position except the list nesting, which is
+ * carried in the context's own stacks, so accumulating the second half on top of the
+ * first half's state gives the same answer as doing it in one pass. That equivalence is
+ * the whole reason checkpoints are sound, and `viewportBounding.test.ts` is what holds
+ * it: it compares a bounded build against a whole-document one range for range.
+ */
+const scanContextInto = (
+  state: EditorState,
+  tree: Tree,
+  end: number,
+  context: WalkContext,
+  from: number,
+  theoremCounterManager: TheoremCounterManager
+): void => {
   const isListEnvironment = (
     name: string | undefined | null
   ): name is ListEnvironmentName =>
     name === 'itemize' || name === 'enumerate' || name === 'description'
 
   tree.iterate({
-    from: 0,
+    from,
     to: end,
     enter(nodeRef) {
       /*
@@ -437,6 +461,11 @@ const scanContextUpTo = (
        * passes agree about which of them owns a straddling node.
        */
       if (nodeRef.from >= end) return false
+      /*
+       * And on a replay, the same test against the *other* end: a node that begins
+       * before the checkpoint was already counted by the pass that made it.
+       */
+      if (from > 0 && nodeRef.from < from) return undefined
 
       switch (nodeRef.name) {
         case 'BeginEnv': {
@@ -488,35 +517,180 @@ const scanContextUpTo = (
       return undefined
     },
   })
-
-  return context
 }
 
 /**
- * Memoised `scanContextUpTo`, per tree.
+ * Where the decoration walk's *starting context* comes from, cached across rebuilds.
  *
- * A tree is replaced when the parse advances and is *reused* by every transaction
- * that does not move the parse, so a rebuild caused by the selection or by the
- * viewport moving a few lines gets the previous scan's answer for nothing. The key is
- * the boundary as well as the tree, because scrolling moves it.
+ * The scan behind this reads the document above the viewport to find out what the walk
+ * should start with — which list is open, what the next `\item` ordinal is, how many
+ * theorems have been numbered, which macros are defined. It is linear in the boundary,
+ * and on `cohomology.tex` it was the second largest cost in a keystroke.
  *
- * One entry per tree, which is all that can be reused: the tree changes more often
- * than the boundary does while typing.
+ * **The tree cannot be the cache key.** That was the first attempt, and the profile
+ * said why it failed: a keystroke *replaces* the tree, because the parse advances, so a
+ * `WeakMap` keyed on the tree starts empty every time and the scan re-walked half the
+ * file per character. (A second attempt kept several boundaries per tree, which cannot
+ * help for the same reason — the boundaries arrive a character apart, each on a tree
+ * that is already gone.)
+ *
+ * What survives a keystroke is not the tree but the **text above the boundary**: a
+ * character typed at the caret cannot change what came before it. So the last context is
+ * kept per document, together with the theorem numbering that belongs to it, and a
+ * rebuild replays from it. In practice this fires about as often as it misses — the
+ * probe counts roughly 68 reuses to 70 scans over fifty keystrokes — because the
+ * boundary is derived from the viewport and so is not the same number twice in a row.
+ * It is worth keeping for the reuses, and it is *not* the reason the pass is fast; the
+ * measured wins are elsewhere (see `ARCHITECTURE.md` §3.32).
+ *
+ * The caller decides when a replay is sound and passes `changedFrom`: the lowest
+ * position the document changed at, or `undefined` when it did not change.
  */
-const contextCache = new WeakMap<Tree, { end: number; context: WalkContext }>()
+/**
+ * The carried context, **per document**.
+ *
+ * Keyed on `EditorState.doc` rather than kept in a single slot, and the measurement is
+ * why: with one slot the probe recorded **70 scans out of 70, every one reported as
+ * "different document"**. Two things evaluate the pass against two states — the editor
+ * in the window and the one behind Code Mode — so each overwrote the other's carried
+ * entry and every keystroke paid the whole prefix scan twice.
+ *
+ * `doc` identity is the key the validity rule already uses, so this is the same
+ * question asked one level earlier: which document is this about. Entries are collected
+ * with the document, and an edit replaces the document, so nothing accumulates.
+ */
+const carriedByDocument = new WeakMap<
+  EditorState['doc'],
+  {
+    end: number
+    context: WalkContext
+    counters: Record<string, number>
+  }
+>()
 
 const contextAt = (
   state: EditorState,
   tree: Tree,
   end: number,
-  theoremCounterManager: TheoremCounterManager
+  theoremCounterManager: TheoremCounterManager,
+  /**
+   * The lowest position at which the document changed, or `undefined` if it did not.
+   *
+   * The carried-over context describes the document up to `carried.end`, so it can only
+   * be used when the text before that point is still the text it was read from. An edit
+   * at or after `end` leaves that prefix alone; an edit before it does not, and the scan
+   * runs from the top.
+   */
+  changedFrom: number | undefined
 ): WalkContext => {
-  const cached = contextCache.get(tree)
-  if (cached && cached.end === end) return cached.context
+  const carried = carriedByDocument.get(state.doc)
+  /*
+   * Opt-in counters, read by `scripts/probe-keystroke.mjs`.
+   *
+   * Whether the carry-over is *used* is the whole question for this cache — it is
+   * correct either way, and the difference is a full prefix scan per keystroke. A miss
+   * reason is recorded rather than a bare count because the three ways to miss want
+   * three different fixes: a different document, an edit before the boundary, or a
+   * boundary that moved backwards past what was carried.
+   */
+  const counters = (globalThis as unknown as {
+    __eukoliaContextScan?: {
+      reused: number
+      scanned: number
+      reasons: Record<string, number>
+    }
+  }).__eukoliaContextScan
+
+  /*
+   * Whether the carried context can answer *this* question.
+   *
+   * Two conditions, and the second is the one that took a measurement to get right.
+   *
+   *  - `carried.end <= end`: the carry-over can only be replayed *forward*. A request
+   *    for a boundary *behind* what was carried needs a shorter answer than the one
+   *    here, and truncating it is the one thing this structure cannot do, so that case
+   *    scans afresh.
+   *  - `changedFrom >= end`: the text before the boundary being asked about is
+   *    unchanged. The first version tested `changedFrom >= carried.end` — "was the edit
+   *    after everything I read?" — which is far stricter than the question needs: a scan
+   *    reads through the end of the document, so `carried.end` is the file length and an
+   *    edit anywhere in the file is "before" it. The probe recorded **70 scans out of
+   *    70, every one of them "edit before the boundary"**, while the boundary actually
+   *    being asked about was thousands of characters earlier.
+   */
+  const canUse =
+    carried !== undefined &&
+    carried.end <= end &&
+    (changedFrom === undefined || changedFrom >= end)
+
+  if (counters) {
+    if (canUse) counters.reused += 1
+    else {
+      counters.scanned += 1
+      const reason =
+        carried === undefined
+          ? 'nothing carried for this document'
+          : carried.end > end
+            ? 'boundary moved back'
+            : 'edit before the boundary'
+      counters.reasons[reason] = (counters.reasons[reason] ?? 0) + 1
+    }
+  }
+
+  if (canUse && carried) {
+    /*
+     * The numbering is put back before the replay, so the walk that follows continues
+     * from the theorems above the viewport rather than renaming them from one. It is
+     * also what the caller's `theoremCounterManager` needs: the scan leaves it standing
+     * where the walk must pick up.
+     */
+    theoremCounterManager.restoreCounters(carried.counters)
+    const context = cloneContext(carried.context)
+    scanContextInto(state, tree, end, context, carried.end, theoremCounterManager)
+    carriedByDocument.set(state.doc, {
+      end,
+      context: cloneContext(context),
+      counters: theoremCounterManager.snapshotCounters(),
+    })
+    return context
+  }
+
   const context = scanContextUpTo(state, tree, end, theoremCounterManager)
-  contextCache.set(tree, { end, context })
+  /*
+   * Carried over for the next tree as well, but **only when it reaches further**.
+   *
+   * A scan that stopped short of what is already carried describes a nearer boundary,
+   * and keeping it would throw away the reach this structure depends on: the next call
+   * usually wants the *wider* boundary, and a short carry-over would send it back to a
+   * full scan. The counters are not kept either, for the same reason — they belong to
+   * `carried.end`, not to `end`.
+   */
+  if (carried === undefined || end > carried.end) {
+    carriedByDocument.set(state.doc, {
+      end,
+      context: cloneContext(context),
+      counters: theoremCounterManager.snapshotCounters(),
+    })
+  }
   return context
 }
+
+/**
+ * A copy, because a `WalkContext` carries mutable stacks that the walk *pushes to*.
+ *
+ * Handing the stored object to the caller would let one rebuild's nesting leak into the
+ * next, which is the kind of bug that shows up as an ordinal that is right the first
+ * time and wrong afterwards. The stacks are tiny — one entry per open list — so the
+ * copy is cheaper than the walk it saves by orders of magnitude.
+ */
+const cloneContext = (context: WalkContext): WalkContext => ({
+  listEnvironment: context.listEnvironment,
+  listEnvironmentStack: [...context.listEnvironmentStack],
+  ordinal: context.ordinal,
+  ordinalStack: [...context.ordinalStack],
+  listDepth: context.listDepth,
+  commandDefinitions: context.commandDefinitions,
+})
 
 /**
  * Eukolia — where the document's preamble ends.
@@ -630,7 +804,19 @@ const scanPreamble = (
 export const createDecorations = (
   state: EditorState,
   tree: Tree,
-  ranges: readonly { from: number; to: number }[]
+  ranges: readonly { from: number; to: number }[],
+  /**
+   * The lowest position at which the document changed since the last build, or
+   * `undefined` when it did not change at all.
+   *
+   * It decides whether the context scan can carry its answer over from the previous
+   * build (see `contextAt`): a character typed *after* the boundary the scan reached
+   * cannot change what the walk above that boundary starts with, and re-reading the
+   * whole prefix for it is the cost this avoids. `undefined` is the common case — a
+   * rebuild for the viewport's or the selection's sake, and the first build — and it
+   * carries over.
+   */
+  changedFrom?: number
 ): {
   decorations: DecorationSet
   atomicDecorations: DecorationSet
@@ -646,6 +832,8 @@ export const createDecorations = (
       rangeMs: number
       ranges: number
       widgets: number
+      /** Time in `Decoration.set`, which builds the tree the editor queries. */
+      setMs?: number
     }
   }).__eukoliaDecorationProfile
   const startedAt = profiling ? performance.now() : 0
@@ -718,7 +906,7 @@ export const createDecorations = (
    * force above it, which is exactly what LaTeX does.
    */
   const context: WalkContext = bounded
-    ? contextAt(state, tree, contextEnd, theoremCounterManager)
+    ? contextAt(state, tree, contextEnd, theoremCounterManager, changedFrom)
     : EMPTY_CONTEXT
 
   const listEnvironmentStack = context.listEnvironmentStack
@@ -965,6 +1153,21 @@ export const createDecorations = (
         const envName = getUnstarredEnvironmentName(nodeRef.node, state)
 
         if (envName) {
+          /*
+           * Eukolia: an environment whose `\end` is missing is not rendered.
+           *
+           * The document is being *typed into*, so every half-written
+           * `\begin{theorem}` passes through this branch before its `\end` exists.
+           * Drawing it as a header would mean the widget appears and disappears on
+           * the way to a two-line environment — and for a genuinely unclosed one it
+           * would claim a structure the document does not have. The source is shown
+           * instead, which is the honest answer, and `\end` below is governed by the
+           * same rule through `hasMatchingEnvironmentBegin`.
+           */
+          if (!hasMatchingEnvironmentEnd(nodeRef.node, state)) {
+            return false
+          }
+
           switch (envName) {
             case 'itemize':
             case 'enumerate':
@@ -1075,6 +1278,18 @@ export const createDecorations = (
         const envName = getEnvironmentName(nodeRef.node, state)
 
         if (envName) {
+          /*
+           * Eukolia: the mirror of the rule on `\begin` — an `\end` whose `\begin` is
+           * missing is not rendered either.
+           *
+           * `\end{proof}` on its own is what a document looks like mid-edit when the
+           * opening line has just been deleted, and a QED tombstone floating under
+           * prose claims a proof that is not there.
+           */
+          if (!hasMatchingEnvironmentBegin(nodeRef.node, state)) {
+            return false
+          }
+
           switch (envName) {
             case 'itemize':
             case 'enumerate':
@@ -1406,23 +1621,43 @@ export const createDecorations = (
           }
 
           if (math && math.passToMathJax) {
-            widgetCount += 1
-            decorations.push(
-              Decoration.replace({
-                widget: new MathWidget(
-                  math.content,
-                  math.displayMode,
-                  // Eukolia: the definitions Eukolia supplies, then the project’s,
-                  // then the document’s own. `composeMacroPreamble` puts the
-                  // caller’s text last so the document wins, and the built-ins go
-                  // before that: they define what MathJax does not know at all
-                  // (`\qedhere`, the `amsthm` environments), which is a different
-                  // problem from a macro the project defines.
-                  composedFor(commandDefinitions)
-                ),
-                block: math.displayMode,
-              }).range(ancestorNode.from, ancestorNode.to)
-            )
+            /*
+             * **A probe switch, and the elimination test §3.45 asks for.**
+             *
+             * The profile diff puts `updateHeight` — CodeMirror's own height map, re-measuring lines in
+             * the DOM — at **+6.04 percentage points of JavaScript per keystroke in Visual Mode and
+             * +0.49 in Code Mode**, the largest single item in the gap. The mechanism on offer is that
+             * the decoration pass rebuilds once per keystroke, so every widget is a new object at a new
+             * position and the height map cannot know its height survived.
+             *
+             * That hypothesis makes a prediction this switch can falsify in one run: if the widget
+             * decorations are not built, there is nothing for the heat map to re-measure, and both the
+             * pass's own cost *and* the height-map cost should disappear together. If latency barely
+             * moves with the widgets gone, the 40 ms is elsewhere and the mechanism is wrong.
+             *
+             * Read once, at module scope, so it cannot change mid-measurement. Absent in the
+             * application: `EUKOLIA_NO_WIDGETS` is set only by probes, and the branch below costs one
+             * boolean read when it is unset.
+             */
+            if (!probeSkipWidgets()) {
+              widgetCount += 1
+              decorations.push(
+                Decoration.replace({
+                  widget: new MathWidget(
+                    math.content,
+                    math.displayMode,
+                    // Eukolia: the definitions Eukolia supplies, then the project’s,
+                    // then the document’s own. `composeMacroPreamble` puts the
+                    // caller’s text last so the document wins, and the built-ins go
+                    // before that: they define what MathJax does not know at all
+                    // (`\qedhere`, the `amsthm` environments), which is a different
+                    // problem from a macro the project defines.
+                    composedFor(commandDefinitions)
+                  ),
+                  block: math.displayMode,
+                }).range(ancestorNode.from, ancestorNode.to)
+              )
+            }
           }
         }
 
@@ -1972,6 +2207,15 @@ export const createDecorations = (
   }
 
   const built = Decoration.set(decorations, true)
+  /*
+   * The range-set construction is timed separately, and it is the part nobody suspects.
+   *
+   * `Decoration.set(..., true)` sorts every range and builds the immutable tree the editor
+   * queries by position. A bounded rebuild produces a few hundred ranges, and this is the
+   * one step in the pass whose cost is *not* in the walk — so a budget that only counts
+   * widget construction cannot see it. The probe reads these counters.
+   */
+  const setStartedAt = profiling ? performance.now() : 0
   const atomicRanges = decorations.filter(
     range =>
       !(range.value.spec?.widget instanceof MathWidget) &&
@@ -1981,6 +2225,7 @@ export const createDecorations = (
       !(range.value.spec?.widget instanceof LabelIconWidget)
   )
   const builtAtomic = Decoration.set(atomicRanges, true)
+  const setSpent = profiling ? performance.now() - setStartedAt : 0
 
   // Eukolia: opt-in profiling, read by `scripts/probe-visual.mjs`. Nothing in the
   // application installs a profiler, so the cost of the counters when it is absent
@@ -1996,6 +2241,7 @@ export const createDecorations = (
     profiling.ranges += decorations.length
     profiling.widgets += widgetCount
     profiling.rangeMs += finishedAt - startedAt - preambleSpent
+    profiling.setMs = (profiling.setMs ?? 0) + setSpent
   }
 
   return { decorations: built, atomicDecorations: builtAtomic, preamble }
@@ -2047,15 +2293,99 @@ interface DecorationState {
  * `VIEWPORT_BOUNDED_DECORATION_LINES` gets and what a caller with no view gets. See
  * that constant for why the bound is not free and where the two costs cross.
  */
+/**
+ * How far past the viewport the widget pass builds, in half-screens.
+ *
+ * The field rebuilds when the reader scrolls out of what it built, and a rebuild re-walks
+ * the span and constructs every widget in it — measured at **27 ms each, 15 times per
+ * 60-step gesture, 405 ms** on `algebra.tex` at line 21 000, which is the largest single
+ * component of Visual Mode's cost this project has isolated. This constant is how often
+ * that is paid.
+ *
+ * Before this, the *build* and the *guard* both used `visible / 2`, so the guard demanded
+ * that the entire built span — margin included — still be on screen; any movement past half
+ * a screen rebuilt, and changing the margin in both places changed nothing (measured:
+ * 9.0 / 8.8 / 8.2 rebuilds at margins of 1, 3 and 6 screens, which is why an earlier
+ * attempt concluded the margin was not the lever and reverted it). The build and the guard
+ * now ask different questions — build wide, rebuild only when the bare viewport escapes —
+ * and the same counter moves immediately.
+ *
+ * Chosen by A/B from one build, two runs per configuration
+ * (`.scratch/ab-margin.mjs`):
+ *
+ *   | margin (half-screens) | p50 | p90 | rebuilds | widget pass |
+ *   |---|---|---|---|---|
+ *   | 1 | 9.8 ms | 73.3 ms | 6.0 | 185 ms |
+ *   | 3 | 8.5 ms | 41.9 ms | 2.8 | 89 ms |
+ *   | **6** | 10.0 ms | **40.4 ms** | 1.0 | 31 ms |
+ *   | 12 | 8.7 ms | 38.1 ms | 0.0 | 0 ms |
+ *
+ * 6 and 12 are within noise of each other on frame time, and 6 is the safe side of the
+ * trade: a rebuild still happens, so a reader who scrolls further than the margin still
+ * gets mathematics rather than raw source, at a cost of one 31 ms pass per gesture. Zero
+ * rebuilds is not the goal — *decorations for what is on screen* is.
+ *
+ * `EUKOLIA_WIDGET_MARGIN_HALVES` overrides it, which is how the A/B was run.
+ */
+const MARGIN_HALVES = 6
+
+/**
+/**
+ * A probe-only switch: build no widget decorations at all.
+ *
+ * See the call site for what it is for. It is a **build-time constant** (`vite.config.ts`, `define`),
+ * and that is not laziness: two attempts to set it at runtime both failed *silently*. Publishing it
+ * from the main process at `did-start-loading` races the renderer’s own module evaluation, so the
+ * page reported the switch as absent while the runner believed it was on — an A/B comparing two
+ * identical runs, which is precisely the mistake §3.40 made and this experiment exists to avoid
+ * repeating.
+ *
+ * A constant that can only change by rebuilding cannot lie about its own configuration. The
+ * application builds with it `false`; the declaration is in `src/renderer/env.d.ts`.
+ */
+declare const __EUKOLIA_NO_WIDGETS: boolean
+/*
+ * `typeof`, not the bare identifier: the bundler substitutes the constant, but the **test runner does
+ * not**, and a bare read of an undefined global is a `ReferenceError` at module load — which took out
+ * 53 tests the first time this was written. `typeof` on an undeclared name is defined to answer
+ * `'undefined'` instead of throwing, so the suite runs with the switch off, as it should.
+ */
+const probeSkipWidgets = (): boolean =>
+  typeof __EUKOLIA_NO_WIDGETS !== 'undefined' && __EUKOLIA_NO_WIDGETS === true
+
+
 const buildSpanFor = (
-  view: EditorView
+  view: EditorView,
+  /**
+   * How far past the viewport to build, in half-screens. `0` gives the bare viewport.
+   *
+   * The two callers want different answers, and that asymmetry is the point: the *build*
+   * wants a wide margin so a rebuild is rare, while the *guard* wants the bare viewport so
+   * a rebuild is only asked for when the reader has actually scrolled out of what was
+   * built. Asking for the same span in both places is what made the margin useless — the
+   * guard demanded the whole built span, margin included, still be on screen, so any
+   * movement past the margin rebuilt.
+   */
+  marginHalves = (globalThis as unknown as { __eukoliaMarginHalves?: number }).__eukoliaMarginHalves ?? MARGIN_HALVES
 ): { from: number; to: number }[] => {
   const viewport = view.viewport
   if (!viewport) return []
   const doc = view.state.doc
   if (doc.lines <= VIEWPORT_BOUNDED_DECORATION_LINES) return []
   const visible = viewport.to - viewport.from
-  const margin = Math.max(1, Math.ceil(visible / 2))
+  /*
+   * **Eukolia: how far past the viewport the widget pass builds.**
+   *
+   * The field rebuilds when the viewport leaves what it built, and a rebuild re-walks the
+   * span and constructs every widget in it — measured at **27 ms each, 15 times per
+   * 60-step gesture, 405 ms** on `algebra.tex` at line 21 000. That is the largest single
+   * component of Visual Mode's cost that this project has been able to isolate, and the
+   * margin is the knob for how often it is paid: a wider build is a rarer rebuild.
+   *
+   * The shipped value, the A/B that chose it and the two rejected alternatives are in the
+   * note above `MARGIN_HALVES`.
+   */
+  const margin = Math.max(1, Math.ceil((visible / 2) * Math.max(0, marginHalves)))
   const firstLine = doc.lineAt(Math.max(0, viewport.from - margin))
   const lastLine = doc.lineAt(Math.min(doc.length, viewport.to + margin))
   /*
@@ -2205,7 +2535,24 @@ export const atomicDecorations: Extension = [
           (value.builtFrom < 0
             ? []
             : [{ from: value.builtFrom, to: value.builtTo }])
-        const built = createDecorations(tr.state, tree, span)
+        /*
+         * Where the document changed, so the context scan can decide whether its
+         * previous answer still describes the text above the boundary.
+         *
+         * The *earliest* changed position, over every range the transaction carries: the
+         * carry-over is sound when the unchanged prefix still reaches past the boundary
+         * the previous scan was read to. `undefined` when nothing changed — a rebuild for
+         * the viewport's or the selection's sake — which is the case that reuses
+         * everything.
+         */
+        let changedFrom: number | undefined
+        if (tr.docChanged) {
+          tr.changes.iterChangedRanges((fromA, _toA, fromB) => {
+            const at = Math.min(fromA, fromB)
+            if (changedFrom === undefined || at < changedFrom) changedFrom = at
+          })
+        }
+        const built = createDecorations(tr.state, tree, span, changedFrom)
         value = {
           ...value,
           decorations: built.decorations,
@@ -2255,14 +2602,20 @@ export const atomicDecorations: Extension = [
 
           const askNow = (): void => {
             pending = false
+            /*
+             * Built with the margin, guarded on the bare viewport. See `MARGIN_HALVES`:
+             * asking the same question in both places is what made the margin useless,
+             * because the guard then demanded that the margin itself stay on screen.
+             */
             const span = buildSpanFor(view)
-            if (!span.length) return
+            const wanted = buildSpanFor(view, 0)
+            if (!span.length || !wanted.length) return
             const current = view.state.field(field, false)
             if (!current) return
             if (
               current.builtFrom >= 0 &&
-              span[0].from >= current.builtFrom &&
-              span[span.length - 1].to <= current.builtTo
+              wanted[0].from >= current.builtFrom &&
+              wanted[wanted.length - 1].to <= current.builtTo
             ) {
               return
             }
@@ -2297,6 +2650,29 @@ export const atomicDecorations: Extension = [
            * per viewport change, coalesced by `pending`, because a scroll redraws the
            * viewport several times per step.
            */
+
+          /*
+           * **Eukolia: a keystroke that cannot change the constructs does not rebuild them.**
+           *
+           * Measured (§3.39): typing rebuilds the whole covered span **once per keystroke** —
+           * 40 rebuilds per 40 keystrokes, ~100 `MathWidget` objects and ~137 decoration ranges
+           * each time, 11–15 ms of an ~70 ms keystroke. The profile puts 5.6 % of a typing window
+           * in `updateHeight`, which is CodeMirror's own height map re-measuring lines *because*
+           * new decorations invalidated it: `MathWidget.eq` is correct and the DOM is reused, but
+           * the height map cannot know that.
+           *
+           * The rule is that a plain edit **moves** constructs rather than creating them. When
+           * every change in the transaction lies **strictly inside** the covered span, and the
+           * viewport has not moved, the constructs in view are the same constructs, so no rebuild
+           * is asked for at all and the field keeps its decoration set; `DecorationSet.map`
+           * carries the positions across the edit, which is what a range set is for.
+           *
+           * Strictly inside, not merely inside: an insertion *at* the span's edge can extend or
+           * split the construct there, so the boundary belongs to the rebuilding case. Anything
+           * that reconfigures the editor or replaces the document invalidates positions outright
+           * and never reaches here — `docChanged` is false for a reconfigure, and a whole-document
+           * change is not interior by this test.
+           */
           const ask = (): void => {
             if (pending) return
             pending = true
@@ -2308,6 +2684,37 @@ export const atomicDecorations: Extension = [
           // range asked for is then the range built.
           ask()
 
+/**
+ * **Measured, and reverted: not rebuilding on an interior edit does not make typing faster.**
+ *
+ * The reasoning was sound and the numbers behind it were real. Typing rebuilds the whole covered
+ * span once per keystroke — 40 rebuilds per 40 keystrokes, ~100 `MathWidget` objects and ~137
+ * decoration ranges each time, **11–15 ms of an ~70 ms keystroke** — and `createDecorations` is
+ * work whose result is already known, because a plain edit *moves* constructs rather than creating
+ * them. So the field was given a rule: when every change lies strictly inside
+ * `[builtFrom, builtTo)`, and the viewport has not moved, keep the decoration set and let
+ * `DecorationSet.map` carry the positions.
+ *
+ * Two things came out of testing it, and both are the reason it is a comment.
+ *
+ * **1. It did not fire.** Both configurations reported `40 rebuilds` and identical widget counts
+ * per keystroke, so the treatment was a no-op and the timing comparison between them meant nothing.
+ * The cause was not established; the template rebuild used to set the switch before plugin
+ * construction is the first thing to suspect, since a rebuilt view re-runs the field's constructor
+ * and may leave `builtFrom` in a state this test rejects.
+ *
+ * **2. The prize is smaller than it looks, and the A/B says so.** With the switch on and off the
+ * measurement was **56.8–58.3 ms against 57.3–57.5 ms** — no difference, inside §3.38's 1–4 % noise.
+ * That is consistent with what the keystroke loop does: it `await`s a `requestAnimationFrame`, so a
+ * keystroke's CPU cost overlaps the frame's own idle time rather than adding to its interval. **17 %
+ * of CPU is not 17 % of latency**, and the decoration pass is therefore the wrong target for typing
+ * even though it is the largest thing this code does per keystroke.
+ *
+ * The lesson generalises past this change: for a measurement that waits on a frame, reducing CPU
+ * work only helps once the work is the *critical path* of the frame. The scroll path was the
+ * opposite — §3.36 found it 93 % browser paint — and between them the two paths bracket the useful
+ * question, which is not "what is expensive" but "what is the frame waiting for".
+ */
           return {
             update(update) {
               if (update.viewportChanged || update.docChanged) ask()

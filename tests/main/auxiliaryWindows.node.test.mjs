@@ -12,6 +12,7 @@ class FakeBrowserWindow {
     this._closed = false;
     this.webContents = {
       isDestroyed: () => this._destroyed,
+      getURL: () => this.loadedUrl ?? this.loadedFile ?? 'about:blank',
       setWindowOpenHandler: () => {},
       on: () => {},
       send: (channel, ...args) => {
@@ -95,9 +96,9 @@ globalThis.FakeBrowserWindow = FakeBrowserWindow;
 
 registerTypeScript({
   electron:
-    'data:text/javascript,export const app={};export const BrowserWindow=globalThis.FakeBrowserWindow;export const shell={};',
+    'data:text/javascript,export const app={};export const BrowserWindow=globalThis.FakeBrowserWindow;export const shell={};export const nativeTheme={shouldUseDarkColors:true};',
   [new URL('../../src/main/ipc/appHandler', import.meta.url).href]:
-    'data:text/javascript,export function watchWindowState(){};',
+    'data:text/javascript,export function watchWindowState(){};export function logToFile(){};',
 });
 
 const {
@@ -107,6 +108,7 @@ const {
   getSnippetsWindow,
   prewarmSettingsWindow,
   prewarmSnippetsWindow,
+  closeAuxiliaryWindow,
   closeAuxiliaryWindows
 } = await import('../../src/main/windows.ts');
 
@@ -142,7 +144,11 @@ test('openSnippetsWindow focuses existing window and sends focus event', () => {
   assert.equal(window.sent[0].args[0], 'another-snippet');
 });
 
-test('window close event hides instead of destroying window (keep-alive)', () => {
+/*
+ * A close nobody asked for still hides — that is the keep-alive the windows are
+ * built around, and it is what makes reopening Settings instant.
+ */
+test('an unrequested close hides the window instead of destroying it (keep-alive)', () => {
   const settingsWin = getSettingsWindow();
   assert.ok(settingsWin);
   settingsWin.close();
@@ -157,7 +163,39 @@ test('window close event hides instead of destroying window (keep-alive)', () =>
   assert.equal(settingsWin._focused, true);
 });
 
+/*
+ * A close the *user* asked for is honoured.
+ *
+ * The window's own Close control calls `closeAuxiliaryWindow`, and a close that
+ * only hides is what made that control read as doing nothing: the window stayed
+ * on screen, and every press ran the same handler again.
+ */
+test('closeAuxiliaryWindow really closes, so the Close control cannot be a no-op', () => {
+  const settingsWin = getSettingsWindow();
+  assert.ok(settingsWin);
+
+  closeAuxiliaryWindow(settingsWin);
+
+  assert.equal(settingsWin.isDestroyed(), true);
+  assert.equal(getSettingsWindow(), null);
+
+  // And it can be opened again afterwards, as a fresh window.
+  const reopened = openSettingsWindow('Editor');
+  assert.notEqual(reopened, settingsWin);
+  assert.equal(getSettingsWindow(), reopened);
+});
+
+test('closeAuxiliaryWindow leaves an already-destroyed window alone', () => {
+  assert.doesNotThrow(() => closeAuxiliaryWindow(null));
+  const win = openSnippetsWindow();
+  closeAuxiliaryWindow(win);
+  assert.equal(getSnippetsWindow(), null);
+  assert.doesNotThrow(() => closeAuxiliaryWindow(win));
+});
+
 test('closeAuxiliaryWindows closes both settings and snippets windows', () => {
+  openSettingsWindow();
+  openSnippetsWindow();
   assert.ok(getSettingsWindow());
   assert.ok(getSnippetsWindow());
   closeAuxiliaryWindows();

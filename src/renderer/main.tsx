@@ -10,6 +10,7 @@ import ReactDOM from 'react-dom/client';
 import { commandRegistry } from './core/commands';
 import { logRendererError } from './core/diagnostics';
 import { installSmoothWheelScrolling } from './core/smoothScroll';
+import { settingsManager } from './core/settings';
 import { installStartupReport, startupMark } from './core/startupProbe';
 import './index.css';
 // The design system, loaded immediately after the global sheet it extends: the
@@ -43,6 +44,21 @@ installStartupReport();
 // manager, with the PDF viewer and xterm keeping their own. Installed before the
 // first render so no notch is ever handled by two implementations.
 installSmoothWheelScrolling();
+
+/**
+ * The settings manager, on the window, for a probe.
+ *
+ * A probe cannot apply a setting any other way. `scripts/run-client-script.mjs` injects its
+ * script *after* the application has started, so a global the probe sets is set too late for
+ * this module to read — which is exactly the mistake the first version of this made: it
+ * looked for `__eukoliaSettingsBootstrap`, found nothing, and reported a default as if it
+ * were a treatment. Publishing the manager lets a probe set a value through the same
+ * `setValue` the Settings window uses, so the change is announced to every subscriber and the
+ * measurement is of the setting rather than of a global nothing reads.
+ *
+ * It is one property write at startup and the application never reads it back.
+ */
+;(globalThis as { __eukoliaSettings?: unknown }).__eukoliaSettings = settingsManager;
 
 // Menu items, the `eukolia://` protocol and the window-close hook all arrive as
 // bridge events; forwarding them into the command registry keeps a single

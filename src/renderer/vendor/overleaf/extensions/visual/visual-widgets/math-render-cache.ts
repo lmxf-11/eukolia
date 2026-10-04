@@ -174,6 +174,22 @@ function cloneMathSvg(template: HTMLElement, identifies: boolean): HTMLElement {
   return copy
 }
 
+/**
+ * A cheap fingerprint of a string, for comparing two preambles in a probe report.
+ *
+ * FNV-1a over the code units. Not a security hash and not used to key anything — only
+ * to say "these two definitions strings differ, and by this much" without copying
+ * kilobytes of LaTeX into a report.
+ */
+function hashString(value: string): number {
+  let hash = 0x811c9dc5
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return hash >>> 0
+}
+
 /** Cache statistics, for the probe and for tests. */
 export interface RenderCacheStats {
   entries: number
@@ -268,6 +284,35 @@ export function cachedMathSvg(
   if (!entry) {
     misses += 1
     mathCacheCounters.misses += 1
+    /*
+     * Opt-in: the probe records what a miss was *for*.
+     *
+     * A miss is only interesting when it should have been a hit, and the reason is
+     * almost always the definitions — a project's macros arrive from an `\input`ed
+     * file and can change while the document is open. Printing the key's own parts is
+     * the only way to tell "this equation has never been rendered" from "this
+     * equation's preamble changed a moment ago", and those want opposite fixes.
+     * Nothing installs this, so the cost is one property read.
+     */
+    const log = (globalThis as unknown as {
+      __eukoliaCacheMisses?: {
+        math: string
+        displayMode: boolean
+        preamble: string
+        signature: string
+      }[]
+    }).__eukoliaCacheMisses
+    if (log) {
+      log.push({
+        math: math.slice(0, 60),
+        displayMode,
+        preamble: preamble.length > 400 ? `${preamble.slice(0, 400)}…` : preamble,
+        // A cheap fingerprint of the whole string, so two misses can be compared
+        // without holding two copies of a multi-kilobyte preamble.
+        signature: `${preamble.length}:${hashString(preamble)}`,
+      })
+      if (log.length > 200) log.shift()
+    }
     return null
   }
 
@@ -279,6 +324,190 @@ export function cachedMathSvg(
   entries.set(key, entry)
   hits += 1
   return cloneMathSvg(entry.svg, entry.identifies)
+}
+
+/**
+ * The size a cached rendering occupies, or `null` if it has never been rendered.
+ *
+ * **Eukolia: the size of an equation is knowable before the equation is drawn, and that
+ * is what stops a scroll from re-laying-out the document.** An inline equation is a
+ * `<span>` with nothing in it until MathJax answers, so the text after it is measured
+ * against a box of width zero; when the rendering lands the line's width changes, the line
+ * is re-laid-out, and CodeMirror's height map — which covers the whole document — is
+ * invalidated. The next scroll event then pays `view.measure()` over all of it: a trace of
+ * one gesture on `algebra.tex` put **288 ms in `InputState.onScroll` doing exactly that**.
+ *
+ * The stored rendering already carries MathJax's own `width` and `height` attributes on
+ * its `<svg>`, so this is a `getAttribute` on a node the cache is holding anyway. It counts
+ * as a *hit* — the same rendering, being asked about rather than for — which is why it goes
+ * through the same LRU re-insertion as a mount: a size query is a use.
+ *
+ * Deliberately does not clone: the caller wants two numbers, and cloning an equation in
+ * order to read them would be the cost this exists to avoid.
+ */
+export function cachedMathSize(
+  math: string,
+  displayMode: boolean,
+  preamble: string,
+): { width: number; height: number } | null {
+  const key = cacheKey(math, displayMode, preamble)
+  const entry = entries.get(key)
+  if (!entry) return null
+
+  const svg = entry.svg.querySelector('svg')
+  if (!svg) return null
+
+  const numeric = (value: string | null): number => {
+    if (!value) return Number.NaN
+    const parsed = Number.parseFloat(value)
+    return Number.isFinite(parsed) ? parsed : Number.NaN
+  }
+  const width = numeric(svg.getAttribute('width'))
+  const height = numeric(svg.getAttribute('height'))
+  // MathJax does not always write the attributes; a `style` fallback would need a layout
+  // to resolve, so a rendering without them simply has no size to reserve.
+  if (!Number.isFinite(width) && !Number.isFinite(height)) return null
+
+  entries.delete(key)
+  entries.set(key, entry)
+  hits += 1
+  mathCacheCounters.hits += 1
+  return {
+    width: Number.isFinite(width) ? width : 0,
+    height: Number.isFinite(height) ? height : 0,
+  }
+}
+
+/**
+ * Typeset once per equation, however many widgets ask for it at once.
+ *
+ * **Eukolia, and the fix for the largest remaining cost in a keystroke.** The cache
+ * above only helps a widget that asks *after* a rendering has been stored, and a
+ * rendering is stored by the widget that produced it — so an equation whose widget is
+ * destroyed while MathJax is still working is never stored at all, and the next widget
+ * for the same equation starts from nothing. CodeMirror destroys every widget on every
+ * decoration rebuild, and a rebuild happens per keystroke, so for a widget whose
+ * rendering takes longer than the gap between two keystrokes that is *every* time.
+ *
+ * Measured, and it is not a subtle effect: a probe that types forty characters in an
+ * 1 877-line Stacks chapter recorded **80 cache misses over 19 distinct equations**,
+ * of which one — a theorem header, `\textbf{Remark 2.}` — missed **40 times in a row
+ * with byte-identical inputs**. Forty MathJax renders of the same four words, because
+ * the header widget's first render was still in flight when the next keystroke
+ * replaced it, and `rememberMathSvg` sits behind `if (!this.destroyed &&
+ * headerBox.isConnected)`.
+ *
+ * Two things follow from that, and this module owns both so no widget has to remember
+ * them:
+ *
+ *  1. **Remember the result whatever happened to the widget.** The widget is a
+ *     consumer; whether it still exists is its own business, and the rendering is
+ *     still the answer for the next one. Callers pass the output here and use what
+ *     comes back, and the copy is stored either way.
+ *  2. **Share work already in flight.** Two widgets asking for the same equation
+ *     before the first answer arrives are one question, not two — the same rule
+ *     `figurePreview`'s reads follow, and for the same reason.
+ *
+ * Bounded like everything else here, and bounded by *count* rather than by characters:
+ * an in-flight entry holds a promise and no markup, and a promise that never settles
+ * would otherwise pin its key for the life of the session.
+ */
+const MAX_IN_FLIGHT = 64
+
+interface InFlight {
+  promise: Promise<HTMLElement | null>
+  /** The copy this rendering produced, read by every waiter. */
+  result: HTMLElement | null
+}
+
+const inFlight = new Map<string, InFlight>()
+
+/** How many equations are being typeset right now, for the probe and for tests. */
+export const inFlightCount = (): number => inFlight.size
+
+/** Test seam: forget the work in flight. */
+export const clearInFlightMath = (): void => inFlight.clear()
+
+/**
+ * The rendering of `math`, typesetting it only if nothing else is already doing so.
+ *
+ * `render` is called at most once per key while its promise is outstanding. The result
+ * is remembered for the next widget *and* handed to every waiter, so the widget that
+ * asked first and the widget that asked second both get a usable node — they are
+ * different nodes, because a DOM node can only be in one place at a time, exactly as
+ * `cachedMathSvg` hands out copies.
+ */
+export function sharedMathSvg(
+  math: string,
+  displayMode: boolean,
+  preamble: string,
+  render: () => Promise<MathJaxOutput>,
+): Promise<HTMLElement | null> {
+  const cached = cachedMathSvg(math, displayMode, preamble)
+  if (cached) {
+    mathCacheCounters.hits += 1
+    return Promise.resolve(cached)
+  }
+
+  const key = cacheKey(math, displayMode, preamble)
+  const existing = inFlight.get(key)
+  if (existing) {
+    /*
+     * A *hit*, for the counter's purposes: no typesetting happens for this request.
+     *
+     * That distinction is the one the probe's `cacheHits` has always meant — "was
+     * this equation typeset again?" — and joining work in flight is the same answer
+     * as finding it stored, one moment earlier.
+     */
+    mathCacheCounters.hits += 1
+    // Re-inserted so the eviction below drops the least recently *asked for*.
+    inFlight.delete(key)
+    inFlight.set(key, existing)
+    return existing.promise.then(() =>
+      existing.result ? (existing.result.cloneNode(true) as HTMLElement) : null
+    )
+  }
+
+  const entry: InFlight = {
+    result: null,
+    promise: Promise.resolve(null),
+  }
+  entry.promise = (async () => {
+    try {
+      const output = await render()
+      /*
+       * Remembered unconditionally, and the returned copy is the one to mount.
+       *
+       * This is the half that was missing: the caller may have been destroyed while
+       * MathJax worked, and the *rendering* is still worth keeping. A widget that did
+       * survive gets a node of its own; a widget that did not has still filled the
+       * cache for the one that replaces it.
+       */
+      const remembered = rememberMathSvg(math, displayMode, preamble, output)
+      entry.result = remembered
+      return remembered
+    } catch {
+      /*
+       * A failure answers `null` to *every* waiter rather than rejecting them all.
+       *
+       * Sharing one promise across widgets means sharing its failure, and a rejected
+       * promise handed to N widgets is N unhandled rejections — the port's widgets each
+       * have their own `catch` that reveals the source and marks the element with
+       * `ol-cm-math-error`, and that is the behaviour a failure has always had.
+       * `null` is what "nothing was rendered" already means here.
+       */
+      return null
+    } finally {
+      inFlight.delete(key)
+    }
+  })()
+  inFlight.set(key, entry)
+  while (inFlight.size > MAX_IN_FLIGHT) {
+    const oldest = inFlight.keys().next().value
+    if (oldest === undefined) break
+    inFlight.delete(oldest)
+  }
+  return entry.promise
 }
 
 /**

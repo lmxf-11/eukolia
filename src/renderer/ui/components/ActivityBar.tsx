@@ -31,6 +31,7 @@ import {
   Menu,
   Search,
   Settings,
+  Sigma,
   TriangleAlert,
   Zap,
   type LucideIcon
@@ -59,12 +60,19 @@ export const MENU_BAR_ITEM: ActivityBarItem = {
  * Ordered by how often a LaTeX author reaches for them: the file tree, then
  * search, then the document's own structure, then the two reference lists, then
  * diagnostics.
+ *
+ * The two symbol entries are deliberately adjacent and deliberately distinct.
+ * **Project Symbols** navigates what this project already defines — labels,
+ * citations, macros, environments. **Mathematical Symbols** is the catalog you
+ * insert notation from. Putting them side by side is what makes the difference
+ * legible; giving them different icons and labels is what keeps it honest.
  */
 export const PANEL_BUTTON_ITEMS: readonly ActivityBarItem[] = [
   { view: 'explorer', label: 'Explorer', icon: Folder },
   { view: 'search', label: 'Search', icon: Search },
   { view: 'outline', label: 'Outline', icon: ListTree },
   { view: 'symbols', label: 'Project Symbols', icon: Boxes },
+  { view: 'math-symbols', label: 'Mathematical Symbols', icon: Sigma },
   { view: 'snippets', label: 'Snippets', icon: Zap },
   { view: 'problems', label: 'Problems', icon: TriangleAlert }
 ];

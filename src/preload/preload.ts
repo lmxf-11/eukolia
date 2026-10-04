@@ -32,6 +32,9 @@ import type {
   PdfSelectionResult,
   PdfSearchMatch,
   PdfTextBlock,
+  PdfTileCapabilities,
+  PdfViewportRequest,
+  PdfViewportResult,
   SearchOptions,
   SearchResult,
   SettingsFileDescription,
@@ -211,6 +214,24 @@ const eukoliaApi = {
   pdfClose: (path: string): Promise<boolean> => ipcRenderer.invoke(IPC.pdf.close, path),
   pdfRender: (request: PdfRenderRequest): Promise<PdfRenderResult> => ipcRenderer.invoke(IPC.pdf.render, request),
   pdfCancelRender: (requestId: number): Promise<boolean> => ipcRenderer.invoke(IPC.pdf.cancelRender, requestId),
+  /**
+   * What the installed native worker can do.
+   *
+   * `PDFVIEWER.md` §7 asks for capability negotiation rather than an assumption, so a
+   * renderer that knows how to draw tiles can still fall back to whole pages when the
+   * packaged worker beside it predates the tile route. Answered from the worker's
+   * startup handshake, so it needs no document and cannot fail.
+   */
+  pdfTileCapabilities: (): Promise<PdfTileCapabilities> => ipcRenderer.invoke(IPC.pdf.tileCapabilities),
+  /**
+   * Publishes the viewport to the native cache in one call.
+   *
+   * This is the renderer telling the engine which pages it wants; it is not a second
+   * client of the engine's tile route. See `pdfHandler.ts` for why `prefetch` default
+   * is false.
+   */
+  pdfViewport: (request: PdfViewportRequest): Promise<PdfViewportResult> =>
+    ipcRenderer.invoke(IPC.pdf.viewport, { ...request, path: assertString(request?.path, 'path') }),
   pdfText: (path: string, page: number): Promise<PdfTextBlock[]> => ipcRenderer.invoke(IPC.pdf.text, path, page),
   pdfSearch: (
     path: string,
@@ -321,6 +342,15 @@ const eukoliaApi = {
   toggleMaximizeWindow: (): Promise<boolean> => ipcRenderer.invoke(IPC.window.maximize),
   isWindowMaximized: (): Promise<boolean> => ipcRenderer.invoke(IPC.window.isMaximized),
   closeWindow: (): Promise<void> => ipcRenderer.invoke(IPC.window.close),
+  /**
+   * Closes this window at once, discarding anything the renderer holds.
+   *
+   * Only the Snippet Library needs the distinction: its close writes the library
+   * first and keeps the window open when the write fails, so the plain close —
+   * which takes effect immediately — would discard the very entries it is
+   * trying to save.
+   */
+  discardWindow: (): Promise<void> => ipcRenderer.invoke(IPC.window.discard),
   onWindowMaximizedChanged: (callback: (maximized: boolean) => void): Unsubscribe =>
     subscribe<boolean>(IPC.window.maximizedChanged, callback),
   openSettingsWindow: (section?: string): Promise<void> =>

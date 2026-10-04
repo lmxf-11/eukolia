@@ -4,7 +4,7 @@ import { EditorView } from '@codemirror/view'
 import { SyntaxNode } from '@lezer/common'
 import { typesetNodeIntoElement } from '../utils/typeset-content'
 import { loadMathJax } from '@/vendor/overleaf/eukolia/load-mathjax'
-import { cachedMathSvg, rememberMathSvg } from './math-render-cache'
+import { sharedMathSvg } from './math-render-cache'
 import { refreshAfterAsyncWidgetRender } from '../async-widget-render'
 import { widgetCoordsAt } from './coords'
 
@@ -163,37 +163,41 @@ export class BeginTheoremWidget extends BeginWidget {
       headerBox.prepend(svgEl)
     }
 
-    // Synchronous cached SVG check for instantaneous, zero-delay rendering
-    const cached = cachedMathSvg(tex, false, '')
-    if (cached) {
-      const svgEl = cached.cloneNode(true) as SVGSVGElement
-      mountSvg(svgEl)
-      return
-    }
-
-    loadMathJax()
-      .then(async MathJax => {
-        if (!this.destroyed && headerBox.isConnected) {
-          try {
-            const output = await MathJax.tex2svgPromise(tex, {
-              display: false,
-              em: 16,
-              ex: 8,
-              containerWidth: 800,
-            })
-            if (!this.destroyed && headerBox.isConnected) {
-              const svgEl = (output.querySelector('svg') || output) as SVGSVGElement
-              rememberMathSvg(tex, false, '', svgEl.cloneNode(true) as SVGSVGElement)
-              mountSvg(svgEl)
-              refreshAfterAsyncWidgetRender(view, element)
-            }
-          } catch {
-            element.classList.add('ol-cm-math-error')
-          }
-        }
+    /*
+     * A cached SVG is mounted synchronously; otherwise the rendering is shared.
+     *
+     * `sharedMathSvg` is what makes this not re-render on every keystroke. A theorem
+     * header's widget is destroyed by the decoration rebuild that follows any edit, so
+     * the `if (!this.destroyed && headerBox.isConnected)` guard this used to sit behind
+     * meant `rememberMathSvg` almost never ran: measured, `\textbf{Remark 2.}` was
+     * typeset **forty times in a row** across forty keystrokes, for the same four
+     * words. The helper remembers the result whether or not this widget survives, and
+     * a header that is on screen while its predecessor's render is still in flight
+     * waits for that one instead of starting its own.
+     */
+    sharedMathSvg(tex, false, '', () =>
+      loadMathJax().then(MathJax =>
+        MathJax.tex2svgPromise(tex, {
+          display: false,
+          em: 16,
+          ex: 8,
+          containerWidth: 800,
+        })
+      )
+    )
+      .then(rendered => {
+        if (this.destroyed || !headerBox.isConnected) return
+        const source = rendered ?? null
+        if (!source) return
+        const svgEl = (source.querySelector('svg') || source) as SVGSVGElement
+        mountSvg(svgEl)
+        refreshAfterAsyncWidgetRender(view, element)
       })
       .catch(() => {
-        // Fallback text stays
+        // The fallback text stays, which is what the unstyled header reads as.
+        if (!this.destroyed && headerBox.isConnected) {
+          element.classList.add('ol-cm-math-error')
+        }
       })
   }
 }

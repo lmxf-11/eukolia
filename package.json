@@ -1,7 +1,8 @@
 {
   "name": "eukolia",
-  "version": "0.2.0",
+  "version": "0.5.0",
   "description": "A fast, modern, extensible, and purpose-built LaTeX editing application",
+  "license": "GPL-3.0-or-later",
   "main": "dist-electron/main.js",
   "type": "module",
   "scripts": {
@@ -10,12 +11,14 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "typecheck:tests": "tsc -p tsconfig.test.json --noEmit",
     "build:grammars": "node scripts/generate-grammars.mjs",
+    "build:icon": "pwsh -NoProfile -File scripts/make-icon.ps1",
     "build:native": "node scripts/build-native-pdf.mjs",
     "build:native:force": "node scripts/build-native-pdf.mjs --force",
     "build:preload": "esbuild src/preload/preload.ts --bundle --platform=node --format=cjs --outfile=dist-electron/preload.cjs --external:electron",
     "build": "npm run typecheck && vite build && npm run build:preload",
-    "pack": "node scripts/ensure-unlocked.mjs && electron-builder --config electron-builder.json --dir && node scripts/verify-package.mjs --package release/win-unpacked",
+    "pack": "node scripts/ensure-unlocked.mjs && electron-builder --config electron-builder.json --dir && node scripts/verify-package.mjs --package release/win-unpacked && node scripts/verify-exe-icon.mjs",
     "pack:check": "node scripts/verify-package.mjs",
+    "dist:nsis": "npm run build && npm run build:native && electron-builder --config electron-builder.json --win nsis -c.directories.output=release/nsis && node scripts/verify-package.mjs --package release/nsis/win-unpacked",
     "dist": "npm run build && npm run build:native && node scripts/ensure-unlocked.mjs && electron-builder --config electron-builder.json && node scripts/verify-package.mjs --package release/win-unpacked",
     "test": "vitest run",
     "test:mathjax:renderer": "node scripts/test-mathjax-renderer.mjs",
@@ -28,7 +31,8 @@
     "profile:startup": "node scripts/profile-startup.mjs",
     "protocol": "node scripts/register-protocol.mjs",
     "protocol:register": "node scripts/register-protocol.mjs --register",
-    "protocol:unregister": "node scripts/register-protocol.mjs --unregister"
+    "protocol:unregister": "node scripts/register-protocol.mjs --unregister",
+    "build:math-symbols": "node scripts/generate-math-symbol-catalog.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.18.4",
@@ -74,16 +78,52 @@
     "vitest": "^3.0.7"
   },
   "build": {
-    "appId": "com.eukolia.app",
+    "appId": "com.eukolia.editor",
     "productName": "Eukolia",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "!node_modules/**/*",
+      "node_modules/node-pty/**/*",
+      "!node_modules/node-pty/build/**/*",
+      "!node_modules/node-pty/prebuilds/win32-arm64/**/*",
+      "!node_modules/node-pty/prebuilds/darwin-*/**/*",
+      "!node_modules/node-pty/deps/**/*",
+      "!node_modules/node-pty/src/**/*",
+      "!node_modules/node-pty/typings/**/*",
+      "!node_modules/node-pty/scripts/**/*",
+      "!node_modules/node-pty/third_party/**/*"
+    ],
     "extraResources": [
       {
-        "from": "assets/icon.ico",
+        "from": "resources/native",
+        "to": "native",
+        "filter": [
+          "eukolia-pdf.exe",
+          "libmupdf.dll",
+          "*-COPYING.txt",
+          "*-COPYING.BSD.txt",
+          "*-AUTHORS.txt",
+          "README.md"
+        ]
+      },
+      {
+        "from": "assets/icon/icon.ico",
         "to": "icon.ico"
       }
     ],
     "win": {
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
     }
   }
 }

@@ -14,6 +14,7 @@ import { workspaceService } from '../services/instance';
 import type { PdfZoomMode } from '../pdf/PdfViewer';
 import { forgetAllLightPdfStates } from '../pdf/lightpdf-viewstate';
 import { buildService, type BuildState, type RecipeOption } from '../services/build';
+import { AutoBuildScheduler, type AutoBuildDecision } from '../services/autoBuild';
 import { formatBuildFailure } from '../compiler/buildFailure';
 import { bootstrapServices, reloadSnippets } from '../services/bootstrap';
 import { projectIndex } from '../document/projectIndex';
@@ -31,7 +32,16 @@ import { sidebarShown } from './sidebarRegion';
 
 export type LayoutMode = 'editor' | 'split' | 'visual-pdf' | 'source-visual' | 'pdf' | 'all';
 export type EditorMode = 'code' | 'visual';
-export type SidebarView = 'menu' | 'explorer' | 'outline' | 'search' | 'symbols' | 'problems' | 'snippets';
+/**
+ * The sidebar's views.
+ *
+ * `symbols` is the *Project* Symbols index — labels, citations, macros and
+ * environments, used for navigation. `math-symbols` is a different panel with a
+ * different job: a searchable catalog of mathematical notation that inserts into
+ * the editor. They are two views because they are two intents, and the labels
+ * say which is which.
+ */
+export type SidebarView = 'menu' | 'explorer' | 'outline' | 'search' | 'symbols' | 'math-symbols' | 'problems' | 'snippets';
 export type BottomPanelView = 'problems' | 'output' | 'log' | 'search' | 'terminal';
 
 /**
@@ -88,6 +98,21 @@ export interface PdfState {
   searchQuery: string;
   searchMatches: number;
   outline: Array<{ title: string; page: number | null; depth: number }>;
+  /**
+   * Live preview, from the shell's side.
+   *
+   * `checkToken` is bumped by every finished build: the viewer answers it by
+   * comparing the PDF's modification time against the one it recorded, so a
+   * build that wrote nothing new costs one `stat` and no re-render. It also
+   * polls the file on its own (`pdf.reloeadCheckIntervalMs`), which is what
+   * notices a build done by another application.
+   *
+   * `forceToken` is the `PDF: Reload Document` command and light-pdf's `R`: an
+   * unconditional re-open, for the case where the file did not change but the
+   * viewer's copy of it is stale or suspected.
+   */
+  checkToken: number;
+  forceToken: number;
 }
 
 /**
@@ -284,6 +309,15 @@ export interface AppStateValue {
   setPdfVisible(visible: boolean): void;
   setPdfPath(path: string | null): void;
   setPdfState(patch: Partial<PdfState>): void;
+  /**
+   * Reloads the PDF the viewer is showing.
+   *
+   * `force` is light-pdf's `Reload Document` (`R`): re-open the file whether or
+   * not its modification time moved — the answer to "the pane is showing
+   * something that is not what is on disk". Without it the viewer simply checks,
+   * which is what a finished build asks for.
+   */
+  reloadPdf(force?: boolean): void;
 
   runSearch(): Promise<void>;
   setSearch(patch: Partial<SearchState>): void;
@@ -385,7 +419,9 @@ const INITIAL_PDF: PdfState = {
   error: null,
   searchQuery: '',
   searchMatches: 0,
-  outline: []
+  outline: [],
+  checkToken: 0,
+  forceToken: 0
 };
 
 const INITIAL_SEARCH: SearchState = {
@@ -725,20 +761,67 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (next.pdfPath) {
         setPdf((previous) => ({ ...previous, path: next.pdfPath!, error: null }));
       }
+      /*
+       * A finished build is a change to the PDF, and the viewer is told at once.
+       *
+       * The viewer also polls the file's modification time, which is what picks
+       * up a build done by something else (VS Code, a script, `latexmk` in the
+       * terminal), but a build *this* application ran does not have to wait for a
+       * poll to come round: it knows the file was just written. The signal is a
+       * *check*, not a reload — the viewer compares the modification time it
+       * recorded against the one on disk, so a build that wrote nothing new
+       * (latexmk reporting "nothing to do") costs one `stat` and no re-render.
+       *
+       * It is sent for every outcome, because a failed build still writes a PDF
+       * more often than not: a document with an undefined control sequence
+       * produces a page in nonstop mode, and leaving the pane on the previous
+       * version of it is the one thing the reader does not want.
+       */
+      if (next.status !== 'running' && (next.pdfPath || next.startedAt !== null)) {
+        setPdf((previous) => ({ ...previous, checkToken: previous.checkToken + 1 }));
+      }
     });
     const offBuildError = buildService.on('error', (message: string) => setStatusMessage(message));
 
-    // Automatic build on save (Instructions.md §32).
-    let autoBuildTimer: ReturnType<typeof setTimeout> | null = null;
-    const offSaved = workspaceService.on('saved', () => {
-      const mode = setting.str('compilation.autoBuild');
-      if (mode === 'never') return;
-      if (!projectIndex.getRootDocumentPath()) return;
-      if (autoBuildTimer) clearTimeout(autoBuildTimer);
-      autoBuildTimer = setTimeout(() => {
-        autoBuildTimer = null;
+    /*
+     * Automatic builds.
+     *
+     * One scheduler, two triggers, three modes (`services/autoBuild.ts`): a save
+     * in the editor, and a change to a watched file on disk — which includes the
+     * save, because a save *is* a change to a file. The scheduler owns the
+     * debounce, the "never two builds at once" rule and the minimum interval, and
+     * it refuses the triggers that must not build (the build's own output above
+     * all, or a compile would trigger itself forever).
+     */
+    const autoBuild = new AutoBuildScheduler({
+      build: () => {
         void buildService.build({});
-      }, Math.max(0, setting.num('compilation.autoBuildDelayMs')));
+      },
+      isRunning: () => buildService.isRunning(),
+      delayMs: () => setting.num('compilation.autoBuildDelayMs'),
+      minIntervalMs: () => setting.num('compilation.autoBuildMinIntervalMs'),
+      // A manual Ctrl+B resets the interval too: the automatic build of the same
+      // sources, a moment later, is exactly the build nobody asked for.
+      lastBuildStartedAt: () => buildService.getState().startedAt,
+      onDecision: (decision: AutoBuildDecision & { trigger: string; path: string }) => {
+        // Nothing is logged for the ordinary refusal of an artefact — a build
+        // writes a dozen of them and each one would produce a line. Everything
+        // else is worth a line in the log the support conversation reads.
+        if (decision.reason === 'ok' || decision.reason === 'build-artefact') return;
+        void window.eukoliaApi.log('info', `[autobuild] ignored ${decision.trigger} of ${decision.path}: ${decision.reason}`);
+      }
+    });
+    const autoBuildContext = () => ({
+      mode: setting.str('compilation.autoBuild'),
+      rootFile: projectIndex.getRootDocumentPath(),
+      ignore: setting.list('compilation.autoBuildIgnore')
+    });
+    const offSaved = workspaceService.on('saved', (uri: string) => {
+      autoBuild.request('save', uri, autoBuildContext());
+    });
+    const offWatch = window.eukoliaApi.onFileWatchEvent((event) => {
+      void workspaceService.handleExternalChange(event);
+      if (event.kind !== 'delete') autoBuild.request('external-change', event.path, autoBuildContext());
     });
 
     return () => {
@@ -751,17 +834,10 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       offBuild();
       offBuildError();
       offSaved();
-      if (autoBuildTimer) clearTimeout(autoBuildTimer);
+      offWatch();
+      autoBuild.dispose();
     };
   }, [refreshOutline]);
-
-  // External filesystem changes.
-  useEffect(() => {
-    const off = window.eukoliaApi.onFileWatchEvent((event) => {
-      void workspaceService.handleExternalChange(event);
-    });
-    return off;
-  }, []);
 
   /*
    * A watcher that stopped watching.
@@ -1218,6 +1294,24 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setPdf((previous) => patchPdfState(previous, patch));
   }, []);
 
+  /**
+   * Asks the viewer to look at the file again — or to re-open it outright.
+   *
+   * Two tokens rather than one because the two answers differ: a build finished
+   * and the file *may* have changed (check the modification time), or the reader
+   * pressed Reload Document and wants the bytes on disk whatever it says (re-open
+   * now). Both leave the page and the scroll position alone: the viewer restores
+   * them from the remembered per-document state, exactly as it does for the
+   * automatic reload light-pdf performs when a file changes under it.
+   */
+  const reloadPdf = useCallback((force = false) => {
+    setPdf((previous) =>
+      force
+        ? { ...previous, forceToken: previous.forceToken + 1 }
+        : { ...previous, checkToken: previous.checkToken + 1 }
+    );
+  }, []);
+
   const setPdfVisible = useCallback((visible: boolean) => {
     setPdf((previous) => ({ ...previous, visible }));
     setLayoutState((previous): LayoutMode => {
@@ -1361,6 +1455,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setPdfVisible,
       setPdfPath,
       setPdfState,
+      reloadPdf,
       runSearch,
       setSearch,
       replaceAll,
@@ -1456,6 +1551,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setPdfVisible,
       setPdfPath,
       setPdfState,
+      reloadPdf,
       runSearch,
       setSearch,
       replaceAll,

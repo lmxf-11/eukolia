@@ -1,3 +1,4 @@
+import { resolveAppIconPath } from './appIcon';
 /**
  * Eukolia — Electron main process.
  *
@@ -45,7 +46,12 @@ import {
   findProtocolUrlInCommandLine
 } from './protocol';
 import { isSmokeProbeEnabled, runSmokeProbe, seedSmokeLibrary } from './smoke';
-import { isVisualProbeEnabled, runVisualProbe, seedVisualProbeLibrary } from './visualProbe';
+import {
+  isVisualProbeEnabled,
+  publishPageGlobals,
+  runVisualProbe,
+  seedVisualProbeLibrary,
+} from './visualProbe';
 import {
   STARTUP_PROBE_QUERY,
   attachStartupProbeToRun,
@@ -92,19 +98,6 @@ function resolvePreloadPath(): string {
     path.join(moduleDirname, 'preload.mjs')
   ];
   return candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0];
-}
-
-/**
- * Resolves the application icon in both development and packaged builds.
- *
- * During development, the main process is emitted into `dist-electron`, so the
- * source asset lives one directory above it. In a packaged build, electron-builder
- * copies `assets/icon.ico` into the app's resources directory via `extraResources`.
- */
-function resolveAppIconPath(): string {
-  return app.isPackaged
-    ? path.join(process.resourcesPath, 'icon.ico')
-    : path.join(moduleDirname, '../assets/icon.ico');
 }
 
 let mainWindow: BrowserWindow | null = null;
@@ -224,6 +217,12 @@ function createWindow(): BrowserWindow {
     // measurement-only probe for the visual editor's appearance, which cannot be
     // answered outside a real layout engine.
     if (isVisualProbeEnabled()) {
+      /*
+       * Before the probe runs, and before the renderer's own modules evaluate: a probe switch read at
+       * module scope cannot be set later, and an A/B against a switch that never took effect is a
+       * comparison of two identical runs (§3.40). A no-op unless the probe sets the environment.
+       */
+      publishPageGlobals(window);
       void runVisualProbe(window);
     }
   };

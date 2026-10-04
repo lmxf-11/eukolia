@@ -128,6 +128,7 @@ int StackDepth(fz_context* ctx) {
 // so a long scan never blocks request intake or render completions
 // (Instructions.md §60/§61).
 struct TextTask {
+    uint64_t documentRevision = 0;
     enum class Kind { Text, Glyphs, Links, Outline, Select, Search, PageContentBox, FontList };
     Kind kind = Kind::Text;
     uint32_t requestId = 0;
@@ -159,6 +160,8 @@ struct Worker {
     // light-pdf's DocumentLayout, kept per worker so a `layout` request can
     // relayout the same page list instead of rebuilding it every time.
     DocumentLayout layout;
+    // Set by a `stats` request with `includeEntries: true`; see HandleStats.
+    bool statsIncludeEntries = false;
 
     void OpenAdapter() {
         adapter = std::make_unique<EngineMupdfAdapter>(engine);
@@ -209,6 +212,7 @@ struct Worker {
     }
 
     void EnqueueTask(TextTask task) {
+        task.documentRevision = cache->documentRevision.load();
         {
             std::lock_guard<std::mutex> lock(taskMutex);
             if (tasks.size() > 32) {
@@ -334,6 +338,7 @@ void WritePageText(json::Writer& w, float width, float height, Str text, const s
 // ---------------------------------------------------------------------------
 
 void HandleOpen(Worker& worker, uint32_t requestId, const json::Value& request) {
+    std::lock_guard<std::recursive_mutex> documentLock(worker.cache->documentMutex);
     const std::string path = request.GetString("path");
     const std::string password = request.GetString("password");
     if (path.empty()) {
@@ -355,15 +360,26 @@ void HandleOpen(Worker& worker, uint32_t requestId, const json::Value& request) 
         return;
     }
 
-    worker.cache->InvalidateAll();
-    // The light-pdf seam is per document: PageMediabox()/PageCount()/the page
-    // text cache all belong to the file that is open now.
-    worker.OpenAdapter();
+    /*
+     * An unchanged file means the document, its pages and every cached bitmap are
+     * still exactly what the caller is already showing. Nothing to drop and nothing
+     * to rebuild -- and this is the branch that matters, because the alternative is
+     * the ~150 ms a full re-parse plus re-rasterise costs, incurred on a build that
+     * produced identical bytes.
+     */
+    const bool unchanged = worker.engine->LastOpenWasUnchanged();
+    if (!unchanged) {
+        worker.cache->InvalidateAll();
+        // The light-pdf seam is per document: PageMediabox()/PageCount()/the page
+        // text cache all belong to the file that is open now.
+        worker.OpenAdapter();
+    }
 
     json::Writer w = BeginOk();
     w.Member("path", path);
     w.Member("pageCount", worker.engine->PageCount());
     w.Member("needsPassword", false);
+    w.Member("unchanged", unchanged);
     w.Key("pages");
     w.BeginArray();
     for (int i = 0; i < worker.engine->PageCount(); i++) {
@@ -442,6 +458,10 @@ void HandleRender(Worker& worker, uint32_t requestId, const json::Value& request
     job.allowCache = request.GetBool("allowCache", true);
     job.priority = RenderPriority::Visible;
     job.tile = TilePosition{0, 0, 0};
+    // The host composes its tile addresses from this contract; passing it through
+    // pins the cache's tile geometry to what the host actually laid out, and the
+    // cache hands the same number back in every reply.
+    job.targetTileSize = std::max(0, request.GetInt("targetTileSize", 0));
 
     if (request.Has("clip")) {
         const json::Value& clip = request["clip"];
@@ -450,25 +470,39 @@ void HandleRender(Worker& worker, uint32_t requestId, const json::Value& request
         rect.y = static_cast<float>(clip.GetNumber("y", 0));
         rect.dx = static_cast<float>(clip.GetNumber("width", 0));
         rect.dy = static_cast<float>(clip.GetNumber("height", 0));
-        if (rect.IsEmpty()) {
-            SendError(worker, requestId, "clip rectangle is empty", "invalid_argument");
+        if (!std::isfinite(rect.x) || !std::isfinite(rect.y) || !std::isfinite(rect.dx) || !std::isfinite(rect.dy) ||
+            rect.IsEmpty()) {
+            SendError(worker, requestId, "clip rectangle is empty or not finite", "invalid_argument");
             return;
         }
-        job.hasClip = true;
-        job.clip = rect;
+        job.region.set = true;
+        job.region.rect = rect;
     } else if (request.Has("tile")) {
         const json::Value& tile = request["tile"];
-        job.tile.res = static_cast<uint16_t>(std::max(0, std::min(30, tile.GetInt("res", 0))));
-        job.tile.row = static_cast<uint16_t>(std::max(0, tile.GetInt("row", 0)));
-        job.tile.col = static_cast<uint16_t>(std::max(0, tile.GetInt("col", 0)));
-        const uint16_t n = static_cast<uint16_t>(1u << job.tile.res);
-        if (job.tile.row >= n || job.tile.col >= n) {
+        /**
+         * Validate before narrowing. `TilePosition::row/col` are 16-bit, so a
+         * negative or oversized index used to be cast into a *different* valid
+         * tile instead of being rejected -- `row: -1` became row 65535, which the
+         * grid check then happened to pass for a large resolution. Each field is
+         * checked against the grid it claims to be in, in its own width.
+         */
+        const int rawRes = tile.GetInt("res", 0);
+        const int rawRow = tile.GetInt("row", 0);
+        const int rawCol = tile.GetInt("col", 0);
+        if (rawRes < 0 || rawRes > static_cast<int>(kMaxTileRes)) {
+            SendError(worker, requestId, "tile resolution is outside the representable range (0..15)", "invalid_argument");
+            return;
+        }
+        const int grid = 1 << rawRes;
+        if (rawRow < 0 || rawCol < 0 || rawRow >= grid || rawCol >= grid) {
             SendError(worker, requestId, "tile is outside its resolution's grid", "invalid_argument");
             return;
         }
-        const mupdf::PageView view = worker.engine->PageView_(page, job.scale, job.rotation);
-        job.hasClip = true;
-        job.clip = RenderCache::TileRectInPage(view.mediaBox, job.tile);
+        job.tile.res = static_cast<uint16_t>(rawRes);
+        job.tile.row = static_cast<uint16_t>(rawRow);
+        job.tile.col = static_cast<uint16_t>(rawCol);
+        // `Submit()` resolves the tile into the page-space region the cache keys
+        // on; the same resolution serves the tile and the congruent-clip route.
     }
 
     if (!worker.cache->Submit(std::move(job))) {
@@ -572,13 +606,13 @@ void HandleViewport(Worker& worker, uint32_t requestId, const json::Value& reque
 
     int queued = 0;
     if (prefetch && scale > 0 && std::isfinite(scale)) {
+        const int targetTileSize = worker.cache->TargetTileSize();
         auto queuePage = [&](int page, RenderPriority priority) {
             if (page < 0 || page >= worker.engine->PageCount()) return;
             const mupdf::PageView view = worker.engine->PageView_(page, scale, rotation);
             if (view.mediaBox.IsEmpty()) return;
-            for (TilePosition tile :
-                 RenderCache::TilesForPage(view.mediaBox.dx * scale, view.mediaBox.dy * scale,
-                                           RenderCache::kTargetTileSize)) {
+            for (TilePosition tile : RenderCache::TilesForPage(view.mediaBox.dx * scale, view.mediaBox.dy * scale,
+                                                             targetTileSize)) {
                 RenderJob job;
                 job.requestId = 0;  // internal: the result only goes to the cache
                 job.pageIndex = page;
@@ -588,8 +622,10 @@ void HandleViewport(Worker& worker, uint32_t requestId, const json::Value& reque
                 job.invert = invert;
                 job.gray = gray;
                 job.priority = priority;
-                job.hasClip = true;
-                job.clip = RenderCache::TileRectInPage(view.mediaBox, tile);
+                // The tile address is the contract; `Submit()` derives the
+                // page-space region from it, so a prefetched tile and a tile the
+                // renderer asks for later land on the same cache entry.
+                job.targetTileSize = targetTileSize;
                 if (worker.cache->Submit(std::move(job))) queued++;
             }
         };
@@ -619,7 +655,7 @@ void HandleTiles(Worker& worker, uint32_t requestId, const json::Value& request)
     }
     const float scale = static_cast<float>(request.GetNumber("scale", 1.0));
     const int rotation = NormalizeRotation(request.GetInt("rotate", 0));
-    const int target = request.GetInt("targetTileSize", RenderCache::kTargetTileSize);
+    const int target = request.GetInt("targetTileSize", worker.cache->TargetTileSize());
     const mupdf::PageView view = worker.engine->PageView_(page, scale, rotation);
     const uint16_t res = RenderCache::TileResFor(view.mediaBox.dx * scale, view.mediaBox.dy * scale, false, target);
 
@@ -746,7 +782,8 @@ void HandleLayout(Worker& worker, uint32_t requestId, const json::Value& request
     worker.writer->SendJson(proto::FrameType::Response, requestId, w);
 }
 
-void HandleStats(Worker& worker, uint32_t requestId) {    const RenderCache::Stats stats = worker.cache->GetStats();
+void HandleStats(Worker& worker, uint32_t requestId) {
+    const RenderCache::Stats stats = worker.cache->GetStats();
     json::Writer w = BeginOk();
     w.Member("cacheEntries", stats.entries);
     w.Member("cacheBytes", static_cast<uint64_t>(stats.bytes));
@@ -756,7 +793,67 @@ void HandleStats(Worker& worker, uint32_t requestId) {    const RenderCache::Sta
     w.Member("rendered", stats.rendered);
     w.Member("aborted", stats.aborted);
     w.Member("evicted", stats.evicted);
+    // Adaptive tile sizing. `tileSizeReductions` counts how often the cache made
+    // the working set smaller instead of evicting (light-pdf: ReduceTileSize),
+    // and `threadsSpawned` how many render threads the demand actually needed --
+    // the pool is spawned lazily, so this is usually far below the ceiling.
+    w.Member("tileSizeReductions", static_cast<uint64_t>(stats.tileSizeReductions));
+    w.Member("targetTileSize", stats.targetTileSize);
+    w.Member("threadsSpawned", stats.threadsSpawned);
+    // Renders whose pixels were handed back but deliberately not cached because the
+    // entry alone exceeded the byte budget (see RenderCache::Store).
+    w.Member("skippedOversized", static_cast<uint64_t>(stats.skippedOversized));
+    w.Member("evictedUnwantedPages", static_cast<uint64_t>(stats.evictedUnwantedPages));
+    w.Member("evictedBudget", static_cast<uint64_t>(stats.evictedBudget));
+    w.Member("evictedOldGeneration", static_cast<uint64_t>(stats.evictedOldGeneration));
+    w.Member("evictedOldVariant", static_cast<uint64_t>(stats.evictedOldVariant));
+    w.Member("evictedSuperseded", static_cast<uint64_t>(stats.evictedSuperseded));
     w.Member("pendingTextTasks", worker.pendingTasks.load(std::memory_order_relaxed));
+    // Full entry list only when asked: it is O(entries) and allocates, so a
+    // periodic counter poll must not carry it.
+    if (worker.statsIncludeEntries) {
+        w.Key("entries");
+        w.BeginArray();
+        for (const RenderCache::EntryInfo& info : worker.cache->DescribeEntries()) {
+            w.BeginObject();
+            w.Member("page", info.pageIndex);
+            w.Member("rotate", info.rotation);
+            w.Member("scale", info.scale);
+            w.Member("res", static_cast<int>(info.tile.res));
+            w.Member("row", static_cast<int>(info.tile.row));
+            w.Member("col", static_cast<int>(info.tile.col));
+            w.Member("invert", info.invert);
+            w.Member("gray", info.gray);
+            w.Key("pageRect");
+            WriteRect(w, info.pageRect);
+            w.Member("bytes", static_cast<uint64_t>(info.bytes));
+            w.Member("width", info.width);
+            w.Member("height", info.height);
+            w.EndObject();
+        }
+        w.EndArray();
+    }
+    w.EndObject();
+    worker.writer->SendJson(proto::FrameType::Response, requestId, w);
+}
+
+/**
+ * `diagnostics`: text the cache raised while it was working, drained on read.
+ *
+ * Separate from `stats` so a periodic poll of the counters does not have to carry
+ * prose, and so a condition that happens once (an oversized entry, say) is
+ * reported once rather than on every poll.
+ */
+void HandleDiagnostics(Worker& worker, uint32_t requestId) {
+    const std::vector<std::string> fromCache = worker.cache->TakeDiagnostics();
+    const std::vector<std::string> fromEngine = worker.engine->TakeDiagnostics();
+
+    json::Writer w = BeginOk();
+    w.Key("messages");
+    w.BeginArray();
+    for (const std::string& message : fromCache) w.Element(message);
+    for (const std::string& message : fromEngine) w.Element(message);
+    w.EndArray();
     w.EndObject();
     worker.writer->SendJson(proto::FrameType::Response, requestId, w);
 }
@@ -994,6 +1091,11 @@ void HandleSearch(Worker& worker, const TextTask& task) {
 }
 
 void Worker::HandleTask(const TextTask& task) {
+    std::lock_guard<std::recursive_mutex> documentLock(cache->documentMutex);
+    if (task.documentRevision != cache->documentRevision.load()) {
+        SendError(*this, task.requestId, "cancelled by document replacement", "cancelled");
+        return;
+    }
     if (!engine->IsOpen()) {
         SendError(*this, task.requestId, "no document is open", "not_open");
         return;
@@ -1097,6 +1199,7 @@ void HandleRequest(Worker& worker, uint32_t requestId, const json::Value& reques
         return;
     }
     if (cmd == "close") {
+        std::lock_guard<std::recursive_mutex> documentLock(worker.cache->documentMutex);
         worker.CloseAdapter();
         worker.engine->CloseDocument();
         worker.cache->InvalidateAll();
@@ -1135,7 +1238,12 @@ void HandleRequest(Worker& worker, uint32_t requestId, const json::Value& reques
         return;
     }
     if (cmd == "stats") {
+        worker.statsIncludeEntries = request.GetBool("includeEntries", false);
         HandleStats(worker, requestId);
+        return;
+    }
+    if (cmd == "diagnostics") {
+        HandleDiagnostics(worker, requestId);
         return;
     }
 
@@ -1266,9 +1374,17 @@ int Run() {
     worker.writer = &writer;
     worker.engine = &engine;
 
+    // light-pdf: RenderCache.cpp:104-110 --
+    //   maxRenderThreads = max(gMaxRenderThreads /* 8 */, numCores);
+    //   if (maxRenderThreads > kMaxRenderThreads /* 32 */) maxRenderThreads = 32;
+    // The reference then spawns them lazily, so this is a ceiling and not an
+    // allocation; RenderCache::EnsureWorker() starts a worker only when no
+    // existing one is (or is about to become) idle. The previous cap of 4 both
+    // under-used a wide machine and started all four eagerly.
     const unsigned hw = std::thread::hardware_concurrency();
-    int threads = static_cast<int>(hw == 0 ? 2 : hw);
-    threads = std::max(1, std::min(threads, 4));
+    const int cores = static_cast<int>(hw == 0 ? 2 : hw);
+    int threads = std::max(8, cores);
+    threads = std::min(threads, RenderCache::kMaxRenderThreads);
     worker.cache = std::make_unique<RenderCache>(&engine, [&worker](RenderOutcome&& outcome) {
         OnRenderComplete(worker, std::move(outcome));
     });
@@ -1283,12 +1399,18 @@ int Run() {
         w.Member("engine", "eukolia-mupdf");
         w.Member("mupdfVersion", std::string(FZ_VERSION));
         w.Member("renderThreads", threads);
-        w.Member("maxTileSize", RenderCache::kTargetTileSize);
+        w.Member("maxTileSize", worker.cache->TargetTileSize());
+        /**
+         * The largest tile resolution the 16-bit row/col address fields represent.
+         * A client that composes tile addresses from page geometry has to know
+         * this, or it will ask for a grid the protocol cannot carry.
+         */
+        w.Member("maxTileRes", static_cast<int>(kMaxTileRes));
         w.Key("commands");
         w.BeginArray();
-        for (const char* cmd : {"open", "close", "info", "render", "cancel", "viewport", "tiles", "stats", "layout",
-                                "text", "glyphs", "search", "select", "links", "outline", "pageContentBox", "fontList",
-                                "debugText", "debugErrorState"}) {
+        for (const char* cmd : {"open", "close", "info", "render", "cancel", "viewport", "tiles", "stats",
+                                "diagnostics", "layout", "text", "glyphs", "search", "select", "links", "outline",
+                                "pageContentBox", "fontList", "debugText", "debugErrorState"}) {
             w.Element(cmd);
         }
         w.EndArray();

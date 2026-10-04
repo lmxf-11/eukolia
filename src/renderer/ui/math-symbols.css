@@ -1,0 +1,406 @@
+/**
+ * Eukolia — the Mathematical Symbols panel.
+ *
+ * Scoped entirely to `.eu-math-symbols` and written in the same tokens as the
+ * rest of the sidebar, so the panel is one more view of the same surface rather
+ * than a second visual language beside it: the same `--eu-*` spacing scale, the
+ * same accent, the same hover and selected fills, the same focus ring. Nothing
+ * here invents a colour or a dimension the design system does not already name.
+ *
+ * Three deliberate properties.
+ *
+ * **The grid is a scroller with a full-height inner element.** The windowing in
+ * `MathematicalSymbolsView.tsx` needs a real scroll container whose scroll height
+ * is the whole list while only a screenful of cells is mounted; `overflow: auto`
+ * plus a positioned inner block is what gives it that, with no library and no
+ * measurement of anything the browser already knows.
+ *
+ * **Cells are at least 44px in both directions.** `MathematicalSymbols.md` §3
+ * asks for a 40–44px hit target, and `minmax(44px, 1fr)` in the grid template is
+ * where the horizontal half is enforced. The height is set inline, because the
+ * windowing arithmetic has to agree with it exactly — a height in the stylesheet
+ * that drifted from `CELL_HEIGHT` would show as gaps or overlaps at every scroll
+ * position, which is the one thing a fixed-height virtual list cannot tolerate.
+ *
+ * **Missing availability is marked, not merely tinted.** A cell whose symbol the
+ * project cannot compile carries a diagonal corner mark and a `data-unavailable`
+ * attribute as well as a dimmed glyph, because §3 forbids communicating a
+ * missing dependency by colour alone.
+ *
+ * The glyph face is a stack, not one font: ordinary symbols draw from the
+ * mathematics faces the editor already loads, and anything the stack cannot draw
+ * falls through to whatever the system has rather than to a `.notdef` box — and
+ * where there is no faithful glyph at all, the panel shows the command instead,
+ * which is why the cell's font is set per-glyph by the component rather than
+ * here.
+ */
+
+.eu-math-symbols {
+  /*
+   * The face glyphs are drawn in.
+   *
+   * Declared here rather than in the design system because it is the *only*
+   * consumer: the panel is the one surface that draws bare Unicode mathematics
+   * outside the editor's MathJax widgets. The bundled `public/mathjax/fonts` are
+   * MathJax's SVG font modules, not a Unicode face, so this is a stack of the
+   * real mathematics fonts a desktop may have, then the system's symbol
+   * coverage, then serif — and `preview.ts` measures whether the character
+   * actually drew, falling back to the command where it did not. The stack is
+   * therefore a preference, not a promise.
+   */
+  --eu-math-font: 'Cambria Math', 'STIX Two Math', 'Latin Modern Math', 'XITS Math',
+    'Asana Math', 'Noto Sans Math', 'DejaVu Sans', 'Segoe UI Symbol', 'Apple Symbols', serif;
+
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.eu-math-symbols .eu-sidebar-panel__header {
+  flex: none;
+}
+
+.eu-math-symbols__filter {
+  appearance: none;
+  border: 1px solid var(--eu-border);
+  background: var(--eu-bg-input);
+  color: var(--eu-fg-secondary);
+  border-radius: var(--eu-radius-pill);
+  font-size: var(--eu-text-2xs);
+  letter-spacing: var(--eu-tracking-label);
+  text-transform: uppercase;
+  padding: 2px var(--eu-space-2);
+  cursor: pointer;
+  transition: var(--eu-transition-control);
+}
+
+.eu-math-symbols__filter[aria-pressed='true'] {
+  border-color: var(--eu-accent);
+  color: var(--eu-accent-fg);
+  background: var(--eu-accent-muted);
+}
+
+.eu-math-symbols__search {
+  flex: none;
+  padding-bottom: var(--eu-space-1);
+}
+
+/* A wrapping selector rather than a horizontal toolbar: at a 260px sidebar the
+   categories are three or four rows of chips, and every one of them stays
+   reachable without a scroll that hides its own overflow. */
+.eu-math-symbols__categories {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--eu-space-1);
+  padding: var(--eu-space-1) var(--eu-space-3) var(--eu-space-2);
+  border-bottom: 1px solid var(--eu-hairline);
+  max-height: 132px;
+  overflow-y: auto;
+}
+
+.eu-math-symbols__category {
+  appearance: none;
+  border: 1px solid var(--eu-border);
+  background: var(--eu-bg-card);
+  color: var(--eu-fg-secondary);
+  border-radius: var(--eu-radius-sm);
+  font-size: var(--eu-text-2xs);
+  line-height: var(--eu-leading-tight);
+  padding: 1px var(--eu-space-1) 1px var(--eu-space-2);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eu-space-1);
+  cursor: pointer;
+  transition: var(--eu-transition-control);
+}
+
+.eu-math-symbols__category:hover {
+  background: var(--eu-bg-hover);
+  color: var(--eu-fg-primary);
+}
+
+.eu-math-symbols__category[data-active='true'] {
+  border-color: var(--eu-accent);
+  background: var(--eu-accent-muted);
+  color: var(--eu-accent-fg);
+}
+
+.eu-math-symbols__category-count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.66;
+  font-size: var(--eu-text-2xs);
+}
+
+.eu-math-symbols__indexing {
+  flex: none;
+  padding: var(--eu-space-1) var(--eu-space-3);
+  font-size: var(--eu-text-2xs);
+  color: var(--eu-fg-muted);
+  background: var(--eu-bg-toolbar);
+  border-bottom: 1px solid var(--eu-hairline);
+}
+
+.eu-math-symbols__grid {
+  flex: 1 1 auto;
+  min-height: 120px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  outline: none;
+  contain: layout style;
+}
+
+.eu-math-symbols__grid:focus-visible {
+  box-shadow: inset var(--eu-ring-accent);
+}
+
+.eu-math-symbols__grid-inner {
+  position: relative;
+  width: 100%;
+}
+
+/* The rows are translated as a block rather than each cell being positioned, so
+   the browser lays out one grid instead of N absolutely-positioned boxes. */
+.eu-math-symbols__grid-rows {
+  display: grid;
+  gap: 0;
+  will-change: transform;
+}
+
+.eu-math-symbols__cell {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--eu-fg-primary);
+  border-radius: var(--eu-radius-sm);
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+  font-family: var(--eu-math-font);
+  font-size: 19px;
+  line-height: 1;
+  transition: background var(--eu-dur-fast) var(--eu-ease-out),
+    border-color var(--eu-dur-fast) var(--eu-ease-out);
+}
+
+.eu-math-symbols__cell:hover {
+  background: var(--eu-bg-hover);
+}
+
+.eu-math-symbols__cell:focus-visible {
+  border-color: var(--eu-accent);
+  box-shadow: var(--eu-ring-accent);
+  outline: none;
+}
+
+/* The selected span is blue *and* carries the ring, so the state survives a
+   theme whose accent is close to its foreground. */
+.eu-math-symbols__cell[aria-selected='true'] {
+  background: var(--eu-accent-muted);
+  border-color: var(--eu-accent);
+  color: var(--eu-accent-fg);
+}
+
+.eu-math-symbols__cell[data-unavailable='true'] {
+  color: var(--eu-fg-muted);
+}
+
+.eu-math-symbols__cell[data-favorite='true']::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 4px;
+  height: 4px;
+  border-radius: var(--eu-radius-pill);
+  background: var(--eu-accent);
+}
+
+/* The missing-dependency mark: a corner triangle, not a colour. */
+.eu-math-symbols__cell-marker {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 0;
+  height: 0;
+  border-top: 6px solid var(--eu-warning);
+  border-left: 6px solid transparent;
+}
+
+.eu-math-symbols__cell-glyph {
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* A cell whose symbol has no drawable glyph shows the command, so it is set as
+   code rather than as mathematics — the same distinction the editor draws
+   between prose and a raw-LaTeX island. */
+.eu-math-symbols__cell-glyph[data-kind='command'] {
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-2xs);
+  color: var(--eu-syntax-command);
+}
+
+.eu-math-symbols__cell-glyph[data-kind='math'] {
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-2xs);
+  color: var(--eu-fg-muted);
+}
+
+.eu-math-symbols__details {
+  flex: none;
+  border-top: 1px solid var(--eu-hairline);
+  background: var(--eu-bg-sidebar);
+  padding: var(--eu-space-2) var(--eu-space-3) var(--eu-space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--eu-space-1);
+  /* A stable box: focusing a symbol must not move the grid under the pointer,
+     and a template's provenance line is longer than a glyph's. */
+  height: 176px;
+  overflow-y: auto;
+}
+
+.eu-math-symbols__details-head {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+  min-width: 0;
+}
+
+.eu-math-symbols__details-glyph {
+  font-family: var(--eu-math-font);
+  font-size: 26px;
+  line-height: 1;
+  min-width: 34px;
+  max-width: 128px;
+  text-align: center;
+  overflow: hidden;
+  flex: none;
+}
+
+/* A typeset template: the SVG carries its own metrics, so only its box is set
+   here, and it is scaled to the same optical size as a glyph. */
+.eu-math-symbols__details-glyph--math svg {
+  max-width: 100%;
+  max-height: 30px;
+  height: auto;
+  display: block;
+}
+
+.eu-math-symbols__details-glyph--command {
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-xs);
+  color: var(--eu-syntax-command);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.eu-math-symbols__details-name {
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-sm);
+  color: var(--eu-syntax-command);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.eu-math-symbols__star {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--eu-fg-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: var(--eu-radius-xs);
+  display: inline-flex;
+}
+
+.eu-math-symbols__star[aria-pressed='true'] {
+  color: var(--eu-warning);
+}
+
+.eu-math-symbols__details-code {
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-sm);
+  color: var(--eu-fg-primary);
+  background: var(--eu-bg-input);
+  border: 1px solid var(--eu-border);
+  border-radius: var(--eu-radius-sm);
+  padding: var(--eu-space-1) var(--eu-space-2);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.eu-math-symbols__details-meta,
+.eu-math-symbols__details-note,
+.eu-math-symbols__details-description,
+.eu-math-symbols__details-source {
+  font-size: var(--eu-text-2xs);
+  line-height: var(--eu-leading-snug);
+  color: var(--eu-fg-muted);
+}
+
+.eu-math-symbols__details-source {
+  opacity: 0.75;
+  border-top: 1px solid var(--eu-hairline);
+  padding-top: var(--eu-space-1);
+  margin-top: auto;
+}
+
+.eu-math-symbols__details-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--eu-space-2);
+}
+
+.eu-math-symbols__variants {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--eu-mono-font);
+  font-size: var(--eu-text-2xs);
+  background: var(--eu-bg-input);
+  color: var(--eu-fg-primary);
+  border: 1px solid var(--eu-border);
+  border-radius: var(--eu-radius-sm);
+  padding: 2px var(--eu-space-1);
+}
+
+.eu-math-symbols__status {
+  flex: none;
+  padding: var(--eu-space-1) var(--eu-space-3);
+  font-size: var(--eu-text-2xs);
+  border-top: 1px solid var(--eu-hairline);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eu-math-symbols__status[data-tone='ok'] {
+  color: var(--eu-accent-fg);
+  background: var(--eu-accent-muted);
+}
+
+.eu-math-symbols__status[data-tone='warn'] {
+  color: var(--eu-fg-primary);
+  background: var(--eu-warning-bg);
+}
+
+/* The empty state belongs to the scroller, so it is centred in it rather than
+   in the panel and does not push the details box off the bottom. */
+.eu-math-symbols__grid .eu-sidebar-tree__empty {
+  position: sticky;
+  bottom: 0;
+}

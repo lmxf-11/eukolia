@@ -39,7 +39,7 @@ import {
   watchUserSnippetsFile,
   writeUserSnippetsFile
 } from '../snippets/store';
-import { openSettingsWindow, openSnippetsWindow } from '../windows';
+import { closeAuxiliaryWindow, discardAuxiliaryWindow, openSettingsWindow, openSnippetsWindow } from '../windows';
 import {
   createTerminal,
   killTerminal,
@@ -394,8 +394,15 @@ export function registerWindowHandlers(): void {
   ipcMain.handle(IPC.window.close, async (event): Promise<void> => {
     // `close`, not `destroy`: the renderer's unsaved-changes flow runs from the
     // window's own close handler, so the custom button has to take the same path
-    // as the native one.
-    windowFor(event)?.close();
+    // as the native one. `closeAuxiliaryWindow` marks this as the user's own
+    // request, which is what decides whether the close is honoured or merely
+    // hides the window — the bug being that a close the user asked for left the
+    // window on screen, looking like a button that does nothing.
+    closeAuxiliaryWindow(windowFor(event));
+  });
+
+  ipcMain.handle(IPC.window.discard, async (event): Promise<void> => {
+    discardAuxiliaryWindow(windowFor(event));
   });
 
   ipcMain.handle(IPC.window.openSettings, async (_event, section?: string): Promise<void> => {

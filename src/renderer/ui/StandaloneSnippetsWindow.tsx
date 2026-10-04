@@ -59,8 +59,21 @@ export const StandaloneSnippetsWindow: React.FC<StandaloneSnippetsWindowProps> =
       standalone
       open
       focusSnippetId={focusSnippetId}
+      /*
+       * The two closes are different, and the difference is the library.
+       *
+       * The manager writes `snippets.json` *as it closes* and stays open with the
+       * reason when the write fails, so the window must not be closed from under
+       * it: `closeWindow` takes effect the moment it arrives, which would end
+       * the renderer in the middle of its own save. It is therefore called by
+       * the manager once the write has succeeded, and `discardWindow` is the
+       * answer for the close the user insists on after a failed one.
+       */
       onClose={() => {
         void window.eukoliaApi?.closeWindow?.();
+      }}
+      onDiscard={() => {
+        void window.eukoliaApi?.discardWindow?.();
       }}
     />
   );

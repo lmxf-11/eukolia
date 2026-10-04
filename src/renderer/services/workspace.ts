@@ -372,6 +372,17 @@ export class WorkspaceService extends EventEmitter {
     // what refreshes the outline, the breadcrumbs and the symbol index.
     doc.on('analysis-change', () => this.notify());
     doc.on('dirty-change', () => this.notify());
+    /*
+     * A write to disk.
+     *
+     * `DocumentModel` has emitted this all along — the status bar reads it to
+     * know that the file's line endings are worth re-reading — but the workspace
+     * service never passed it on, and the shell's automatic build listened for it
+     * *here*: `workspaceService.on('saved')` therefore never fired, which is why
+     * `compilation.autoBuild` did nothing at all, in any of its three modes.
+     * Forwarding it is what the event was always for.
+     */
+    doc.on('saved', () => this.emit('saved', doc.uri));
   }
 
   // ----------------------------------------------------------------- opening

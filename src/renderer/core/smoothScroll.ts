@@ -94,6 +94,43 @@ export function smoothScrollingEnabled(): boolean {
   return Boolean(settingsManager.getValue('scrolling.smooth'));
 }
 
+/**
+ * Whether the **document editor** glides, as opposed to the rest of the shell.
+ *
+ * This exists because the editor is the one surface where the glide can cost more than it
+ * gives. Every historical scroll measurement in this repository is a measurement of this
+ * module rather than of the browser: `probe-scroll.mjs` dispatches a synthetic `WheelEvent`,
+ * which reaches this handler, so the frames it reports are frames in which a
+ * `requestAnimationFrame` loop read `scrollTop`, wrote `scrollTop`, and ran a style and
+ * layout pass. That is why the long frames carry `script 0 ms` and 91–113 ms of
+ * `style+layout` — the work is in the frame, it is simply not attributed to a script span.
+ *
+ * The numbers that say it is worth offering the choice, on `algebra.tex` (47 886 lines, 60
+ * wheel steps, the same gesture both ways):
+ *
+ * - **p90 frame 97.6 ms** against Code Mode's 19.6 ms on the same document and the same
+ *   gesture (`ARCHITECTURE.md` §3.33.2), and **21 of 60 frames over 33 ms** where Code Mode
+ *   drops none;
+ * - **35–102 ms of render-blocking time per gesture**, and the blocking duration is the
+ *   longest span in which the main thread does not yield to input — a notch that arrives
+ *   inside one waits for it;
+ * - an exponential approach covers `1 - exp(-t/tau)` of a notch in its first frame, so the
+ *   response to a wheel is spread over 180 ms by design.
+ *
+ * Native scrolling moves the whole notch on the compositor, is not blocked by main-thread
+ * layout, and needs no code in the frame at all. What it gives up is the uniformity this
+ * module exists for, which is why the choice is per-surface and defaults to the shipped
+ * behaviour: the requirement (`Instructions.md` §35) is about one notch feeling the same
+ * across the shell, and it is the editor — the one surface big enough to stutter — that is
+ * allowed to differ.
+ *
+ * Surfaces already marked `data-native-scroll` (the PDF viewer, the terminal) never reach
+ * this path and are unaffected either way.
+ */
+export function editorSmoothScrollingEnabled(): boolean {
+  return Boolean(settingsManager.getValue('scrolling.smoothEditor'));
+}
+
 /** Whether trackpad momentum should be left to the platform. */
 export function trackpadMomentumEnabled(): boolean {
   return Boolean(settingsManager.getValue('scrolling.trackpadMomentum'));
@@ -403,6 +440,20 @@ export function installSmoothWheelScrolling(): () => void {
   const onWheel = (event: WheelEvent): void => {
     if (!smoothScrollingEnabled()) return;
 
+    /*
+     * The editor's own opt-out: one `closest`, then the setting. Cheap, and deliberately the
+     * first thing after the global gate — everything below it is the search for a scroller,
+     * which resolves a computed style per ancestor on the way up.
+     *
+     * It cannot be an outright early return, though. Ctrl+wheel is the browser's zoom
+     * everywhere this shell has not claimed it, and the document is not one of the surfaces
+     * that claims it, so a Ctrl+notch over the editor has to keep reaching the rest of this
+     * handler rather than being handed to the browser as a scroll.
+     */
+    const overEditor =
+      event.target instanceof Element && event.target.closest('.cm-scroller') !== null;
+    if (overEditor && !editorSmoothScrollingEnabled() && !event.ctrlKey) return;
+
     const plan = planWheelScroll(event, event.target);
     if (!plan) return;
 
@@ -412,6 +463,13 @@ export function installSmoothWheelScrolling(): () => void {
       if (plan.claimsCtrlWheel) event.preventDefault();
       return;
     }
+
+    /*
+     * The document is handed to the browser's own scrolling. `scrollElementBy` is what puts
+     * the offset under a `requestAnimationFrame` loop, so returning here is the whole
+     * mechanism.
+     */
+    if (overEditor && !editorSmoothScrollingEnabled()) return;
 
     const { element, axis } = plan;
 

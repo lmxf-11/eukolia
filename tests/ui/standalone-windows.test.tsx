@@ -40,7 +40,7 @@ describe('StandaloneTitleBar', () => {
       );
     });
 
-    expect(container.textContent).toContain('Eu');
+    expect(container.querySelector('header img')).toBeNull();
     expect(container.textContent).toContain('Settings');
     expect(container.textContent).toContain('Editor');
   });

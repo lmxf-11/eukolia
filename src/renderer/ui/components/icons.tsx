@@ -11,6 +11,9 @@
  */
 
 export {
+  ArrowLeft,
+  ChevronUp,
+  ZoomOut,
   ArrowRight,
   // Build / diagnostics status
   CircleAlert,
@@ -38,7 +41,11 @@ export {
   Library,
   ListTree,
   Quote,
+  Radical,
+  Sigma,
   SquareFunction,
+  Star,
+  StarOff,
   Tag,
   // Search
   CaseSensitive,

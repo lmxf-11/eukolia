@@ -272,6 +272,22 @@ describe('document opening', () => {
 });
 
 describe('page rendering', () => {
+  it('renders an integer device-space tile like the matching whole-page region at fractional scale', async () => {
+    const scale = 2.125;
+    const full = await engine.renderPage(91001, { page: 2, scale, format: 'rgba' });
+    const x = 128, y = 240, width = 384, height = 384;
+    const tile = await engine.renderPage(91002, { page: 2, scale, format: 'rgba',
+      clip: { x: x / scale, y: y / scale, width: width / scale, height: height / scale } });
+    expect([tile.width, tile.height]).toEqual([width, height]);
+    let differences = 0;
+    for (let row = 0; row < height; row++) {
+      for (let col = 0; col < width * 4; col++) {
+        if (tile.pixels[row * tile.stride + col] !== full.pixels[(y + row) * full.stride + x * 4 + col]) differences++;
+      }
+    }
+    expect(differences).toBe(0);
+  });
+
   it('renders a page with the expected pixel dimensions and real content', async () => {
     const scale = 1.5;
     const result = await engine.renderPage(1001, { page: 2, scale, format: 'rgba' });
@@ -909,6 +925,40 @@ describe('SyncTeX', () => {
 });
 
 describe('document lifecycle', () => {
+  it('retains immutable old pages through a truncated rewrite and a failed reload', async () => {
+    const directory = fs.mkdtempSync(path.join(REPO_ROOT, '.scratch', 'pdf-swap-'));
+    const file = path.join(directory, 'live.pdf');
+    const bytes = fs.readFileSync(FIXTURE_PDF);
+    fs.writeFileSync(file, bytes);
+    const preview = new NativePdfEngine({ workerPath, autoBuild: false, maxRestarts: 0 });
+    try {
+      const original = await preview.openDocument(file);
+      // No page has been decoded in this engine yet. Restoring pointers to an
+      // open file handle cannot make this work after truncation; a snapshot can.
+      fs.writeFileSync(file, bytes.subarray(0, Math.floor(bytes.length / 3)));
+      await expect(preview.reloadDocument()).rejects.toThrow();
+      expect(preview.getOpenDocument()?.docId).toBe(original.docId);
+      expect((await preview.getPageText(LAST_PAGE)).text).toContain(MARKER.zebrafish);
+      const raster = await preview.renderPage(90001, { page: BODY_PAGE, scale: 1, format: 'rgba', allowCache: false });
+      expect(whiteFraction(raster.pixels, raster.channels)).toBeLessThan(1);
+      fs.writeFileSync(file, bytes);
+      const identical = await preview.openDocument(file, undefined, true);
+      expect(identical.open.unchanged).toBe(true);
+      expect(identical.docId).toBe(original.docId);
+      // Repeated successful commits exercise the old page/list/document drop
+      // order after those resources have actually been used.
+      for (let i = 0; i < 4; i++) {
+        fs.writeFileSync(file, Buffer.concat([bytes, Buffer.from(`\n% revision ${i}\n`)]));
+        const next = await preview.openDocument(file, undefined, true);
+        expect(next.docId).not.toBe(original.docId);
+        expect((await preview.getPageText(BODY_PAGE)).text).toContain(MARKER.aardvark);
+        await preview.renderPage(90002 + i, { page: BODY_PAGE, scale: 1, format: 'rgba', allowCache: false });
+      }
+    } finally {
+      await preview.dispose();
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
   it('reports cache statistics and then closes the document', async () => {
     const stats = await engine.getStats();
     expect(stats.ok).toBe(true);

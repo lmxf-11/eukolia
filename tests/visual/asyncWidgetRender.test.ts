@@ -149,4 +149,88 @@ describe('refreshing after an asynchronous widget render', () => {
     // And it is not rescued by the frame callback either.
     expect(() => refreshAfterAsyncWidgetRender(mounted, element)).not.toThrow()
   })
+
+  it('coalesces every widget that becomes measurable together into one transaction', async () => {
+    const mounted = mount()
+    let dispatches = 0
+    const listener = EditorView.updateListener.of(update => {
+      for (const transaction of update.transactions) {
+        if (transaction.effects.some(effect => effect.is(asyncWidgetRenderEffect))) {
+          dispatches += 1
+        }
+      }
+    })
+    mounted.dispatch({ effects: StateEffect.appendConfig.of(listener) })
+
+    const elements = Array.from({ length: 25 }, () => document.createElement('span'))
+    for (const element of elements) host?.appendChild(element)
+
+    // Twenty-five equations finishing in the same frame, which is what a scroll into a
+    // dense passage does.
+    for (const element of elements) refreshAfterAsyncWidgetRender(mounted, element)
+    await flushFrames(30)
+
+    expect(dispatches).toBe(1)
+
+    // And a later batch is a second transaction, not a lost one: the coalescing is per
+    // frame, not once for the life of the view.
+    const later = document.createElement('span')
+    host?.appendChild(later)
+    refreshAfterAsyncWidgetRender(mounted, later)
+    await flushFrames(30)
+
+    expect(dispatches).toBe(2)
+  })
+
+  it('defers the redraw while the editor is being scrolled, and answers once it stops', async () => {
+    /*
+     * The fix for the scroll stutter, and the measurement that decided it — from
+     * `scripts/probe-scroll.mjs` on `algebra.tex` (47 886 lines), dropping the refresh
+     * transactions between two identical gestures and restoring them as a control:
+     *
+     *   | | p50 frame | blocking time in long frames |
+     *   |---|---|---|
+     *   | refreshes kept | 36.1 ms | 211 ms |
+     *   | refreshes dropped | 12.1 ms | 22 ms |
+     *   | kept again (control for order) | 14.4 ms | — |
+     *
+     * Ten times less render-blocking work. The same probe had already ruled out the
+     * mathematics itself — removing every rendered equation from the DOM moves p50 by
+     * 3 ms *in the wrong direction* — and the browser attributes `script 0 ms` to every
+     * long frame. So the cost was this loop: ~90 whole view updates per gesture, one per
+     * widget, for a caret nobody looks at while the page is moving.
+     *
+     * Two properties are load-bearing and both fail silently: a redraw must **not**
+     * happen while the page is moving, and one must **still** happen after it stops —
+     * otherwise the caret stays beside the gap an unrendered widget left, which is the
+     * bug this whole file exists to prevent.
+     */
+    const mounted = mount()
+    let dispatches = 0
+    const listener = EditorView.updateListener.of(update => {
+      for (const transaction of update.transactions) {
+        if (transaction.effects.some(effect => effect.is(asyncWidgetRenderEffect))) {
+          dispatches += 1
+        }
+      }
+    })
+    mounted.dispatch({ effects: StateEffect.appendConfig.of(listener) })
+
+    const elements = Array.from({ length: 12 }, () => document.createElement('span'))
+    for (const element of elements) host?.appendChild(element)
+
+    // A wheel gesture, then the widgets finishing underneath it.
+    mounted.scrollDOM.dispatchEvent(new WheelEvent('wheel', { deltaY: 120, bubbles: true }))
+    for (const element of elements) refreshAfterAsyncWidgetRender(mounted, element)
+    await flushFrames(2)
+
+    expect(dispatches, 'a redraw ran while the page was being scrolled').toBe(0)
+
+    // The gesture stops. The requests made during it are still owed one redraw, and
+    // nothing else will wake them.
+    await new Promise(resolve => setTimeout(resolve, 220))
+    await flushFrames(4)
+
+    expect(dispatches, 'the deferred redraw never arrived, so the caret stays stale').toBe(1)
+  })
 })

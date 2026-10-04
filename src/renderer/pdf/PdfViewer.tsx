@@ -34,7 +34,7 @@
  * underneath the viewport.
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { PdfLink, PdfOpenResult, PdfRect, PdfRenderResult, PdfSearchMatch, PdfTextBlock } from '../../shared/ipc';
 import { settingsManager, setting } from '../core/settings';
 import { globalEvents } from '../core/events';
@@ -107,6 +107,10 @@ import {
   readLightPdfViewerSettings
 } from './lightpdf-settings';
 import { canvasDisplayBox, pdfRenderScale, renderScaleConstrained, textLayerRuns, type RunMeasurement } from './pdf-text-layer';
+import { describePixelPayload, toImageData } from './pdf-image';
+import { PdfRenderMetrics, PdfTilePipeline, installPdfMetrics, pageBoxFromSheet, type PipelinePage, type PipelineStatus } from './rendering';
+import { nextPdfRequestId } from './rendering/requestId';
+import { tileResForDeviceBox } from './rendering/PdfTileGeometry';
 
 export interface PdfViewerHandle {
   /** 1-based page navigation. */
@@ -201,6 +205,18 @@ export interface PdfViewerProps {
   onNavigationStateChange?(canBack: boolean, canForward: boolean): void;
   /** The scale actually in use — `GetZoomVirtual(true)`. */
   onEffectiveScaleChange?(scale: number): void;
+  /**
+   * Live preview. `checkToken` is bumped by a finished build: the viewer compares
+   * the file's modification time against the one it recorded and re-opens the
+   * document only if it moved. `forceToken` is `Reload Document` — re-open
+   * whatever the timestamp says.
+   *
+   * Both are counters rather than callbacks because the viewer owns the
+   * document: a request is a fact ("something may have changed"), and the
+   * decision to re-read the file belongs where the file's state is kept.
+   */
+  checkToken?: number;
+  forceToken?: number;
 }
 
 /** One laid-out page, in the terms the DOM needs. */
@@ -388,9 +404,29 @@ function unrotatePoint(
   }
 }
 
+/**
+ * Whether a re-read of the file describes a different page *layout*.
+ *
+ * A reload keeps the pixels, the page and the scroll offset; what it cannot keep
+ * is the shape of the document. Comparing the page boxes is what decides whether
+ * the layout has to be rebuilt — and being wrong in the cheap direction (rebuilding
+ * a layout that did not change) costs the reader their scroll offset on every
+ * build, which is the complaint this whole path exists to answer.
+ */
+function layoutOfDocumentsDiffers(previous: PdfOpenResult | null, next: PdfOpenResult): boolean {
+  if (!previous) return true;
+  if (previous.pageCount !== next.pageCount || previous.pages.length !== next.pages.length) return true;
+  for (let index = 0; index < previous.pages.length; index += 1) {
+    const before = previous.pages[index];
+    const after = next.pages[index];
+    if (!after) return true;
+    if (before.width !== after.width || before.height !== after.height) return true;
+  }
+  return false;
+}
+
 /** Union of a page's text boxes: Eukolia's content box for `kZoomFitContent`. */
-function contentBoxOf(blocks: readonly PdfTextBlock[]): PdfRect | null {
-  let minX = Number.POSITIVE_INFINITY;
+function contentBoxOf(blocks: readonly PdfTextBlock[]): PdfRect | null {  let minX = Number.POSITIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
   let maxX = Number.NEGATIVE_INFINITY;
   let maxY = Number.NEGATIVE_INFINITY;
@@ -427,7 +463,9 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
   handleRef,
   onSearchStateChange,
   onNavigationStateChange,
-  onEffectiveScaleChange
+  onEffectiveScaleChange,
+  checkToken = 0,
+  forceToken = 0
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   /** The viewer's own box, which is what owns the wheel for the whole subtree. */
@@ -448,6 +486,16 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
   }, []);
 
   const [pdfDoc, setPdfDoc] = useState<PdfOpenResult | null>(null);
+  /**
+   * The document as it is *right now*, for the open effect.
+   *
+   * The effect must not depend on `pdfDoc`: a reload would then re-run twice, and
+   * the second run would decide it had nothing to do. It needs the previous read
+   * only to answer one question — did the page layout change? — so the value is
+   * kept here, assigned during render exactly as `renderPageRef` is.
+   */
+  const pdfDocRef = useRef<PdfOpenResult | null>(null);
+  pdfDocRef.current = pdfDoc;
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -1006,7 +1054,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
 
   const pageBoxes = useMemo<ReadonlyArray<LightPdfPageBox | undefined>>(
     () => (pdfDoc ? pdfDoc.pages.map((page) => ({ width: page.width, height: page.height })) : []),
-    [pdfDoc]
+    [pdfDoc?.pages]
   );
 
   const contentBoxes = useMemo<ReadonlyArray<LightPdfRect | undefined>>(() => {
@@ -1072,6 +1120,15 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
   const layoutCurrentPage =
     zoomVirtual === LIGHTPDF_ZOOM_VIRTUAL.fitContent ? currentPage : 1;
 
+  const layoutControls = [zoomVirtual, zoom, zoomMode, rotation, resolvedDisplayMode,
+    containerSize.width, containerSize.height, startPage, layoutCurrentPage];
+  const liveZoomRef = useRef<{ controls: unknown[]; scale: number; layout: LightPdfLayout } | null>(null);
+  const latestLayoutRef = useRef<{ controls: unknown[]; scale: number; layout: LightPdfLayout } | null>(null);
+  const retainedZoom = liveZoomRef.current;
+  const liveZoom = retainedZoom && retainedZoom.controls.every((value, index) => value === layoutControls[index])
+    ? lightPdfZoomPercentFromScale(retainedZoom.scale) : zoomVirtual;
+  if (retainedZoom && liveZoom === zoomVirtual) liveZoomRef.current = null;
+
   const layout: LightPdfLayout = useMemo(() => {
     const params: LightPdfLayoutParams = {
       pageCount: Math.max(1, pageCount),
@@ -1088,14 +1145,26 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
       // computed from the live offset on demand (`currentPageAt`,
       // `pagesToRender`), so scrolling never rebuilds the layout.
       viewPortOffset: { x: 0, y: 0 },
-      zoomVirtual,
+      zoomVirtual: liveZoom,
       previousZoomReal: previousZoomRef.current,
       currentPage: layoutCurrentPage,
       windowMargin,
       pageSpacing
     };
-    return lightPdfLayout(pageCount > 0 ? params : { ...params, pageCount: 1, pageBoxes: [] });
-  }, [pageCount, pageBoxes, contentBoxes, resolvedDisplayMode, startPage, rotation, containerSize, zoomVirtual, layoutCurrentPage, windowMargin, pageSpacing]);
+    const next = lightPdfLayout(pageCount > 0 ? params : { ...params, pageCount: 1, pageBoxes: [] });
+    const previous = liveZoomRef.current?.layout;
+    // Appending a wider sheet must not recenter all existing sheets. Keep their
+    // column positions until an explicit zoom, resize or display-mode change.
+    if (previous && previous.pages.length <= next.pages.length && previous.pages.every((page, index) =>
+      page.size.dx === next.pages[index].size.dx && page.size.dy === next.pages[index].size.dy)) {
+      for (let index = 0; index < previous.pages.length; index++) {
+        if (previous.pages[index].isShown && next.pages[index].isShown)
+          next.pages[index].pos.x = previous.pages[index].pos.x;
+      }
+    }
+    return next;
+  }, [pageCount, pageBoxes, contentBoxes, resolvedDisplayMode, startPage, rotation, containerSize, liveZoom, layoutCurrentPage, windowMargin, pageSpacing]);
+  latestLayoutRef.current = { controls: layoutControls, scale: layout.zoomReal, layout };
 
   /** The scale in use (`GetZoomVirtual(true)`, as a CSS-pixels-per-point scale). */
   const effectiveScale = layout.zoomReal || zoom;
@@ -1118,6 +1187,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
    */
   const [reloadToken, setReloadToken] = useState(0);
   const diskMtimeRef = useRef<number | null>(null);
+  const diskSizeRef = useRef<number | null>(null);
   /**
    * True while a re-open is in flight.
    *
@@ -1127,15 +1197,46 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
    * rebuild — two open/render passes where one is correct.
    */
   const reloadingRef = useRef(false);
+  const pendingReloadRef = useRef(false);
+  const liveScrollRef = useRef<{ x: number; y: number } | null>(null);
+  const livePathRef = useRef(path);
+  livePathRef.current = path;
   /** A view restored from `lightpdf-viewstate`, applied once the layout exists. */
   const restoreStateRef = useRef<LightPdfScrollState | null>(null);
+  /**
+   * The path whose document is on screen, and which read of it the cached pixels
+   * came from.
+   *
+   * `openPathRef` is what tells a *reload* (a build rewrote the file this viewer
+   * already has) from an *open* (a different document). The two are deliberately
+   * different code paths: light-pdf's `ReloadDocument` saves the display state and
+   * calls `ReplaceDocumentInCurrentTab`, and a viewer that instead throws the
+   * document away and starts again blanks every page and re-renders the whole
+   * viewport — on every save, for anyone building automatically.
+   *
+   * `generationRef` is carried by the render key, so one increment marks every
+   * cached bitmap as belonging to the previous read: the pages in the render
+   * window ask for their new pixels at once, and a page outside it keeps the
+   * pixels it has (they are still what the file looked like) until the reader
+   * scrolls to it. That is the whole of "do not reload the document on a build".
+   */
+  const openPathRef = useRef<string | null>(null);
+  const generationRef = useRef(0);
 
   useEffect(() => {
     diskMtimeRef.current = null;
+    diskSizeRef.current = null;
+    pendingReloadRef.current = false;
+    liveScrollRef.current = null;
   }, [path]);
 
   useEffect(() => {
     if (!path) {
+      // The pane was given no document: the engine's copy is of a file nothing is
+      // showing any more.
+      const open = openPathRef.current;
+      openPathRef.current = null;
+      if (open) void window.eukoliaApi.pdfClose(open).catch(() => undefined);
       setPdfDoc(null);
       setError(null);
       renderedRef.current.clear();
@@ -1148,8 +1249,19 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
 
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    /**
+     * `ReloadDocument` rather than an open: this is a re-read of the document the
+     * pane is already showing.
+     *
+     * The distinction decides the "Opening PDF…" sheet below. A first open has
+     * nothing to show, so the sheet is the honest thing to draw; a rebuild has the
+     * whole document on screen already, and covering it for the length of a re-read
+     * is precisely the full reload a build must not cause. light-pdf keeps the
+     * previous rendering up until the new engine is ready, and so does this.
+     */
+    const inPlace = openPathRef.current === path;
     reloadingRef.current = true;
-    setLoading(true);
+    if (!inPlace) setLoading(true);
     setError(null);
 
     void (async () => {
@@ -1162,18 +1274,73 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
         // the two reads is what detects "the file changed while we were opening
         // it", and the reload below is the one re-open that catches up.
         const before = await window.eukoliaApi.stat(path).catch(() => null);
+        if (cancelled) return;
         const info = await window.eukoliaApi.pdfOpen(path);
         if (cancelled) return;
 
         const stat = await window.eukoliaApi.stat(path);
+        if (cancelled) return;
         diskMtimeRef.current = stat.exists ? stat.mtimeMs : null;
+        diskSizeRef.current = stat.exists ? stat.size : null;
 
         // The document was replaced underneath the read: open it again, once, now
         // that the file has settled. Reported so a persistent failure is visible
         // rather than showing a document that is quietly the wrong one.
-        if (before?.exists && stat.exists && before.mtimeMs !== stat.mtimeMs) {
+        if (before?.exists && stat.exists && (before.mtimeMs !== stat.mtimeMs || before.size !== stat.size)) {
           setRenderStatus('reopening after the file changed mid-read');
-          setReloadToken((value) => value + 1);
+          pendingReloadRef.current = true;
+        }
+
+        /**
+         * The document this viewer already has, re-read: `ReloadDocument`.
+         *
+         * Every page keeps the pixels it has — they are what the file looked like
+         * a moment ago, which is what light-pdf leaves on screen until the new
+         * tiles are ready — and the increment below is what makes the pages in the
+         * render window ask for their replacements. The page, the scroll offset and
+         * the zoom are untouched, so a rebuild does not move the reader; the text
+         * layer is dropped, because the runs on screen describe words that may no
+         * longer be there.
+         *
+         * What is deliberately *kept* is the search result, which light-pdf's own
+         * viewer keeps across a reload as well: the query and its hits are the
+         * reader's context, and with automatic building on, a save happens every
+         * few seconds — a pane that emptied the find bar on each one would be
+         * unusable. The rectangles may be a line out of date until the query is run
+         * again; the alternative is losing the search.
+         */
+        if (inPlace) {
+          if (info.unchanged && (!info.docId || info.docId === pdfDocRef.current?.docId)) {
+            setRenderStatus('unchanged');
+            return;
+          }
+          generationRef.current += 1;
+          liveZoomRef.current = latestLayoutRef.current;
+          textCacheRef.current.clear();
+          textLayerScaleRef.current.clear();
+          // Keep layout measurements until replacement text supplies new ones.
+          // Emptying them here changes fit-content zoom during every rebuild.
+          measureCacheRef.current.clear();
+          for (const request of inFlightRef.current.values())
+            void window.eukoliaApi.pdfCancelRender(request.requestId).catch(() => undefined);
+          inFlightRef.current.clear();
+          // The outline, the metadata and the page count belong to the shell, and
+          // the new read is what it should see. The page *layout* is only replaced
+          // when it actually differs: a document that gained a page has to be laid
+          // out again, and one whose pages are the same size must not be, or the
+          // scroll offset would be recomputed for nothing.
+          const previous = pdfDocRef.current;
+          const changedLayout = layoutOfDocumentsDiffers(previous, info);
+          const container = containerRef.current;
+          if (changedLayout && container) liveScrollRef.current = { x: container.scrollLeft, y: container.scrollTop };
+          // Refresh metadata too, but retain the page-array identity when its
+          // geometry did not change, so React does not relayout every page.
+          setPdfDoc(changedLayout ? info : { ...info, pages: previous?.pages ?? info.pages });
+          setCurrentPage((page) => Math.min(Math.max(1, page), Math.max(1, info.pageCount)));
+          setStartPage((page) => Math.min(Math.max(1, page), Math.max(1, info.pageCount)));
+          setRenderStatus('updated in place');
+          setVersion((value) => value + 1);
+          onDocumentLoadedRef.current?.(info);
           return;
         }
 
@@ -1182,6 +1349,9 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
         const saved = recallLightPdfState(path);
         const restored = saved ? clampRestoredState(saved, info.pageCount) : null;
 
+        openPathRef.current = path;
+        liveZoomRef.current = null;
+        generationRef.current += 1;
         setPdfDoc(info);
         setCurrentPage(restored ? restored.pageNo : 1);
         setStartPage(restored ? restored.pageNo : 1);
@@ -1189,6 +1359,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
         restoreStateRef.current = restored
           ? { page: restored.pageNo, x: restored.scrollPos.x, y: restored.scrollPos.y }
           : null;
+        // A different document: nothing on screen belongs to it.
         renderedRef.current.clear();
         textCacheRef.current.clear();
         textLayerScaleRef.current.clear();
@@ -1206,12 +1377,16 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
       } catch (err) {
         if (cancelled) return;
         const message = err instanceof Error ? err.message : String(err);
-        setError(message);
-        onErrorRef.current?.(message);
+        if (!inPlace) {
+          setError(message);
+          onErrorRef.current?.(message);
+        } else {
+          setRenderStatus(`keeping previous preview: ${message}`);
+        }
 
         // A PDF that does not exist yet is the normal state while a build is
         // running, so the open is retried rather than left as a dead end.
-        if (/not found|no such file|does not exist/i.test(message)) {
+        if (inPlace || /not found|no such file|does not exist/i.test(message)) {
           retryTimer = setTimeout(() => {
             if (!cancelled) setReloadToken((value) => value + 1);
           }, 1500);
@@ -1220,6 +1395,10 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
         if (!cancelled) {
           reloadingRef.current = false;
           setLoading(false);
+          if (pendingReloadRef.current) {
+            pendingReloadRef.current = false;
+            setReloadToken((value) => value + 1);
+          }
         }
       }
     })();
@@ -1227,43 +1406,128 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
     return () => {
       cancelled = true;
       if (retryTimer) clearTimeout(retryTimer);
-      void window.eukoliaApi.pdfClose(path).catch(() => undefined);
+      /**
+       * Deliberately *not* closing the document here.
+       *
+       * React runs this cleanup before every re-run of the effect, and a re-run is
+       * usually a reload of the same file: closing would drop the engine's document
+       * between the old read and the new one, which is the gap a rebuild would show
+       * as an empty pane — and it would force the main process to re-open through a
+       * path that has no document to reuse. The worker holds one document at a
+       * time, so opening a *different* file already replaces this one; the close
+       * that matters is the last one, below.
+       */
     };
   }, [path, reloadToken]);
+
+  // A changed page count/size can trigger browser anchoring or scroll clamping.
+  // Restore the latest user position in the layout phase, before painting.
+  useLayoutEffect(() => {
+    const position = liveScrollRef.current;
+    const container = containerRef.current;
+    if (!position || !container) return;
+    liveScrollRef.current = null;
+    if (container.scrollLeft !== position.x) container.scrollLeft = position.x;
+    if (container.scrollTop !== position.y) container.scrollTop = position.y;
+    scrollRef.current = { x: container.scrollLeft, y: container.scrollTop };
+  }, [pdfDoc]);
+
+  /**
+   * Releases the engine's document when the viewer goes away.
+   *
+   * The pane is unmounted every time it is hidden, and the worker's document is
+   * not free: it is the page tree, the display lists and the render cache for a
+   * file the reader is no longer looking at.
+   */
+  useEffect(
+    () => () => {
+      const open = openPathRef.current;
+      openPathRef.current = null;
+      if (open) void window.eukoliaApi.pdfClose(open).catch(() => undefined);
+    },
+    []
+  );
 
   /**
    * Watches the file's modification time so a rebuild is picked up
    * automatically — the same behaviour a LaTeX user expects from an external
-   * compiler writing the PDF. The open effect owns the document, so a reload is a
-   * single re-open (`reloadToken`), never a second render pass on top of the old
-   * bitmaps: `renderedRef` and the in-flight map are cleared by that effect.
+   * compiler writing the PDF, and the same behaviour light-pdf implements with a
+   * file watcher (`FileWatcherSubscribe` → `ReloadDocument(win, true)`). The open
+   * effect owns the document, so a reload is a single re-open (`reloadToken`),
+   * never a second render pass on top of the old bitmaps: `renderedRef` and the
+   * in-flight map are cleared by that effect.
+   *
+   * Three callers ask for that check, and they share this one function so they
+   * cannot disagree about what "changed" means:
+   *
+   *   - the interval below, which is what notices a build run by something else
+   *     (VS Code, a script, `latexmk` in a terminal) — `pdf.autoReload` turns it
+   *     off, and `pdf.reloadCheckIntervalMs` sets its cadence;
+   *   - the build that just finished (`checkToken`), which does not have to wait
+   *     for the interval to come round because it knows the file was written;
+   *   - `Reload Document` (`forceToken`), which does not look at the timestamp at
+   *     all — the reader asked for the file, not for a comparison.
    */
+  const checkForDiskChange = useCallback(
+    async (force: boolean): Promise<void> => {
+      if (!path) return;
+      try {
+        const stat = await window.eukoliaApi.stat(path);
+        if (livePathRef.current !== path) return;
+        if (!stat.exists) return;
+        if (!force && (diskMtimeRef.current === null ||
+          (stat.mtimeMs === diskMtimeRef.current && stat.size === diskSizeRef.current))) return;
+        if (reloadingRef.current) {
+          pendingReloadRef.current = true;
+          return;
+        }
+        // The mtime is remembered before the token changes so a poll that
+        // arrives while the re-open is running cannot queue a second one.
+        reloadingRef.current = true;
+        setReloadToken((value) => value + 1);
+      } catch {
+        /* a transient stat failure is not worth reporting */
+      }
+    },
+    [path]
+  );
+
+  // The build signal: check as soon as a build reports that it finished.
   useEffect(() => {
     if (!path || !pdfDoc) return;
+    void checkForDiskChange(false);
+    // `pdfDoc` is deliberately absent: a build that finishes while the document is
+    // still opening must not be lost, and re-running the check when the document
+    // arrives is harmless — it compares timestamps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkToken, path, checkForDiskChange]);
+
+  // `Reload Document`: re-open the file whether or not it moved.
+  useEffect(() => {
+    if (!path || !pdfDoc || forceToken === 0) return;
+    void checkForDiskChange(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forceToken, path, checkForDiskChange]);
+
+  useEffect(() => {
+    if (!path || !pdfDoc) return;
+    if (!setting.bool('pdf.autoReload')) return;
+    const intervalMs = Math.max(250, setting.num('pdf.reloadCheckIntervalMs') || 2000);
 
     let cancelled = false;
     const interval = setInterval(() => {
-      void (async () => {
-        try {
-          const stat = await window.eukoliaApi.stat(path);
-          if (cancelled || !stat.exists) return;
-          if (diskMtimeRef.current !== null && stat.mtimeMs !== diskMtimeRef.current && !reloadingRef.current) {
-            // The mtime is remembered before the token changes so a poll that
-            // arrives while the re-open is running cannot queue a second one.
-            diskMtimeRef.current = stat.mtimeMs;
-            setReloadToken((value) => value + 1);
-          }
-        } catch {
-          /* a transient stat failure is not worth reporting */
-        }
-      })();
-    }, 2000);
+      if (cancelled) return;
+      void checkForDiskChange(false);
+    }, intervalMs);
 
     return () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [path, pdfDoc]);
+    // `settingsRevision` so turning live preview on or off, or changing the
+    // cadence, is answered by the viewer that is already open rather than by the
+    // next one.
+  }, [path, pdfDoc, checkForDiskChange, settingsRevision]);
 
   // ------------------------------------------------------------- page geometry
 
@@ -1285,15 +1549,126 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
     }
     return map;
   }, [layout, pdfDoc, effectiveScale]);
+  /** The same map, readable from the frame pump without a re-created callback. */
+  const geometryByPageRef = useRef(geometryByPage);
+  geometryByPageRef.current = geometryByPage;
 
   /** The pages to rasterise at the current scroll offset, nearest first. */
   const visiblePageNumbers = useCallback(
     (scrollTop: number): number[] => {
       const prefetchDistance = setting.num('pdf.renderAheadPages') * ((containerRef.current?.clientHeight ?? 0) || 1);
-      return pagesToRender(layout, scrollTop, prefetchDistance);
+      return pagesToRender(layout, scrollTop, prefetchDistance, containerRef.current?.scrollLeft ?? 0);
     },
     [layout]
   );
+
+  // ------------------------------------------------------------- tiled rendering
+  //
+  // The frame-sensitive half of the viewer (`PDFVIEWER.md` §4): a viewport controller
+  // that coalesces input into at most one plan per frame, a scheduler that dedups and
+  // bounds the engine requests, a tile store with a byte budget and fallback lookup, and
+  // a surface presenter whose uploads fit a frame budget.
+  //
+  // It is *additive*. The whole-page canvas below stays exactly as it is — §11 phase 3
+  // asks for it as a rollback path, and §6 keeps it for pages where tiling costs more
+  // than it saves — and a page only stops using it when the pipeline has decided that
+  // page's device area is worth tiling, the worker has advertised the capability, and a
+  // tile host exists for it.
+
+  /** The one place the tiled pipeline is held. Null until the capability is known. */
+  const tilePipelineRef = useRef<PdfTilePipeline | null>(null);
+  const wakeTileFrameRef = useRef<() => void>(() => undefined);
+  /**
+   * Whether the *installed worker* can do regional renders.
+   *
+   * `PDFVIEWER.md` §7: "Add capability negotiation for tiled presentation… with runtime
+   * validation." A packaged `eukolia-pdf.exe` older than the renderer bundle would
+   * ignore `tile` and answer with a whole page, which would be drawn into one tile's
+   * box — so the renderer asks before it assumes, and falls back to whole pages when the
+   * answer is no.
+   */
+  const [tileCapable, setTileCapable] = useState(false);
+  /** Live DOM hosts for tile canvases, one per mounted page. */
+  const tileHostRefs = useRef(new Map<number, HTMLElement>());
+  /** The pipeline's own counters, published to the scroller for probes. */
+  const tileStatusRef = useRef<PipelineStatus | null>(null);
+  const tileMetricsRef = useRef(new PdfRenderMetrics());
+  /**
+   * The values the plan pump reads at frame time, kept in refs.
+   *
+   * The pump is not a React effect — it runs from `requestAnimationFrame` between
+   * commits — so every input it needs has to be readable without a closure over a
+   * render, for the same reason `layoutRef` and `scrollRef` exist.
+   */
+  const invertColorsRef = useRef(invertColors);
+  invertColorsRef.current = invertColors;
+  const canvasDevicePixelRatioRef = useRef(canvasDevicePixelRatio);
+  canvasDevicePixelRatioRef.current = canvasDevicePixelRatio;
+  /** Bumped per document read, so the native cache can retire the previous generation. */
+  const viewportRevisionRef = useRef(0);
+  const tileGenerationRef = useRef(-1);
+
+  useEffect(() => {
+    const uninstall = installPdfMetrics(tileMetricsRef.current);
+    return uninstall;
+    // Installed once for the viewer's lifetime: the probe reaches it through
+    // `window.__eukoliaPdfMetrics`, and the metrics object itself never changes.
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const api = window.eukoliaApi;
+    if (!api?.pdfTileCapabilities) return;
+    void api
+      .pdfTileCapabilities()
+      .then((capabilities) => {
+        if (cancelled) return;
+        setTileCapable(Boolean(capabilities?.tiledRender && capabilities.viewport && capabilities.maxTileRes >= 1));
+      })
+      .catch(() => {
+        if (!cancelled) setTileCapable(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pdfDoc]);
+
+  /**
+   * The tile host's ref callback, stable for the same reason `attachCanvasRef` is: an
+   * inline callback is a new function every render, and React detaches and re-attaches
+   * every page's host with it — a DOM move inside the scroller on every commit.
+   *
+   * It is a no-op while tiling is unavailable, so a viewer that never tiles never
+   * creates a host element or a canvas.
+   */
+  const attachTileRef = useCallback(
+    (element: HTMLDivElement | null) => {
+      if (!element) return;
+      const pageNumber = Number(element.dataset.tileLayer || 0);
+      if (!(pageNumber > 0)) return;
+      tileHostRefs.current.set(pageNumber, element);
+      tilePipelineRef.current?.setPageHost(pageNumber, element);
+    },
+    []
+  );
+
+  /**
+   * The viewer's `PageGeometry` in the pipeline's terms.
+   *
+   * The page box is recovered from the layout's CSS sheet divided by the layout scale,
+   * which is the engine's own rotated page box — see `pageBoxFromSheet` for why that is
+   * the right inverse rather than a second implementation of `pageSizeAfterRotation`.
+   */
+  const pipelinePage = useCallback((geometry: PageGeometry): PipelinePage => {
+    return {
+      page: geometry.page,
+      box: pageBoxFromSheet({ width: geometry.sheetWidth, height: geometry.sheetHeight }, geometry.zoomReal),
+      layoutScale: geometry.zoomReal,
+      sheet: { width: geometry.sheetWidth, height: geometry.sheetHeight },
+      offset: { x: geometry.x, y: geometry.y },
+      rotation
+    };
+  }, [rotation]);
 
   // ---------------------------------------------------------------- rendering
 
@@ -1633,6 +2008,11 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
   const renderPage = useCallback(
     async (page: PageGeometry): Promise<void> => {
       if (!path || !pdfDoc) return;
+      if (tileCapable && page.sheetWidth * page.sheetHeight * canvasDevicePixelRatio ** 2 > 1_500_000 &&
+        tileResForDeviceBox(page.sheetWidth * canvasDevicePixelRatio, page.sheetHeight * canvasDevicePixelRatio) > 0) {
+        wakeTileFrameRef.current();
+        return;
+      }
       /**
        * Nothing is rasterised while the *scale* is moving.
        *
@@ -1664,7 +2044,17 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
       // must not be quietly softer than the display can show.
       const devicePixelRatio = canvasDevicePixelRatio;
       const scale = pdfRenderScale(page.zoomReal, devicePixelRatio, LIGHTPDF_MAX_RENDER_SCALE);
-      const key = `${page.page}:${scale.toFixed(4)}:${invertColors ? 1 : 0}`;
+      /**
+       * The cache key carries the *read* of the file the pixels came from.
+       *
+       * That is what makes a rebuild an update rather than a reload: after the
+       * document is re-read, every key in `renderedRef` belongs to the previous
+       * generation, so the pages being looked at ask for their new pixels on the
+       * next pass while the old ones stay on screen until each replacement is
+       * drawn — and a page outside the render window is left alone entirely, with
+       * the pixels it already has, until the reader scrolls to it.
+       */
+      const key = `${generationRef.current}/${page.page}:${scale.toFixed(4)}:${invertColors ? 1 : 0}`;
       const cacheKey = `${page.page}`;
       const cached = renderedRef.current.get(page.page);
 
@@ -1792,6 +2182,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
         // Anything else is a real failure and is surfaced in the pane as well as
         // reported upward, so a blank page is never left unexplained.
         const message = err instanceof Error ? err.message : String(err);
+        if (inFlightRef.current.get(cacheKey)?.requestId !== requestId) return;
         if (!/cancel/i.test(message)) {
           setError(message);
           onErrorRef.current?.(message);
@@ -1801,7 +2192,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
         if (inFlightRef.current.get(cacheKey)?.requestId === requestId) inFlightRef.current.delete(cacheKey);
       }
     },
-    [path, pdfDoc, invertColors, paint, schedulePaint, canvasDevicePixelRatio]
+    [path, pdfDoc, invertColors, paint, schedulePaint, canvasDevicePixelRatio, tileCapable]
   );
 
   /**
@@ -1858,7 +2249,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
     // Pages actually touching the viewport (the prefetch window is only for
     // rendering, exactly as `PageVisible`/`PageVisibleNearby` differ in light-pdf).
     for (const pageNo of ordered) {
-      if (pageVisibleAt(layout, pageNo, scrollTop)) visible.add(pageNo);
+      if (pageVisibleAt(layout, pageNo, scrollTop, container.scrollLeft)) visible.add(pageNo);
     }
 
     visiblePagesRef.current = visible;
@@ -1876,6 +2267,13 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
      * Nothing else here re-renders React: the pass exists to mount what is coming,
      * unmount what has gone and ask for the bitmaps — the scroll path's own
      * `data-` attributes are written imperatively.
+     *
+     * `version` is a dependency because a re-read of the file is a new revision of
+     * every cached bitmap: on a reload the layout, the page count and the scroll
+     * offset are all deliberately unchanged, so without it nothing would ask for
+     * the new pixels and the pane would keep showing the previous build. The extra
+     * runs a highlight or the end of a scroll cause are early returns — a page whose
+     * cache key still matches has nothing to do.
      */
     const window = new Set(ordered);
     setMountedPageNumbers((previous) => {
@@ -1894,7 +2292,16 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
 
     for (const pageNo of ordered) {
       const page = geometryByPage.get(pageNo);
-      if (page) void renderPage(page);
+      /**
+       * A page the tiled pipeline is drawing is *not* also rasterised whole.
+       *
+       * The whole-page render is the thing tiling exists to stop paying for, and at high
+       * zoom it is both the most expensive request the viewer can make and a
+       * *capped-scale* one (`LIGHTPDF_MAX_RENDER_SCALE`). Tiles are therefore the
+       * primary rendering for such a page, and `paint` stays as the fallback for the
+       * pages the pipeline has not tiled.
+       */
+      if (page && !(tileCapable && tilePipelineRef.current?.shouldTile(pipelinePage(page)))) void renderPage(page);
     }
 
     // Evict far-away bitmaps so memory stays bounded.
@@ -1908,7 +2315,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
         renderedRef.current.delete(pageNumber);
       }
     }
-  }, [pageCount, visiblePageNumbers, layout, geometryByPage, renderPage, currentPage]);
+  }, [pageCount, visiblePageNumbers, layout, geometryByPage, renderPage, currentPage, version]);
 
   /**
    * The end of an interaction: one pass, at the scale the reader stopped on.
@@ -1934,6 +2341,162 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
   useEffect(() => {
     updateVisiblePages();
   }, [updateVisiblePages, effectiveScale, pdfDoc, rotation, resolvedDisplayMode, canvasDevicePixelRatio]);
+
+  /**
+   * Build the tiled pipeline once, when the worker has said it can take it.
+   *
+   * Its lifetime is the document's: a `pdfRender` that carries a tile address and a
+   * clipped region is the same call the whole-page path makes, so there is nothing to
+   * renegotiate on a reload — the generation in `setViewport` is what retires the old
+   * pixels and withdraws the old jobs.
+   */
+  useEffect(() => {
+    if (!tileCapable || !path) return;
+    const pipeline = new PdfTilePipeline({
+      render: (request, requestId) =>
+        window.eukoliaApi.pdfRender({
+          requestId,
+          path,
+          page: request.pageIndex,
+          scale: request.scale,
+          clip: request.clip,
+          tile: request.tile,
+          targetTileSize: request.targetTileSize,
+          invert: request.invert,
+          allowCache: true
+        }),
+      // Best-effort: the native display-list replay cannot be interrupted, so a cancel
+      // only removes work the worker has not started. `PDFVIEWER.md` §7 says not to
+      // claim more than that.
+      cancel: (requestId) => {
+        void window.eukoliaApi.pdfCancelRender(requestId).catch(() => undefined);
+      },
+      metrics: tileMetricsRef.current,
+      onNeedsFrame: () => wakeTileFrameRef.current(),
+      onError: (message) => {
+        console.warn('[pdf] tiled presentation failed; using page renderer:', message);
+        setTileCapable(false);
+      },
+      onStatus: (status) => {
+        tileStatusRef.current = status;
+      }
+    });
+    tilePipelineRef.current = pipeline;
+    // The hosts already exist for the pages React has mounted; a page mounted later
+    // registers itself through `attachTileRef`.
+    for (const [page, host] of tileHostRefs.current) pipeline.setPageHost(page, host);
+    return () => {
+      if (tilePipelineRef.current === pipeline) tilePipelineRef.current = null;
+      pipeline.dispose();
+    };
+  }, [tileCapable, path]);
+
+  /**
+   * The plan pump: the one place the pipeline is driven from.
+   *
+   * One animation frame per pass rather than one per event — the same shape as
+   * `scheduleScrollFrame`, and for the same reason (`PDFVIEWER.md` §7: "Publish viewport
+   * changes at most once per frame"). Every input is read from a ref at frame time, so
+   * the closure never goes stale and a pass never depends on a React commit.
+   */
+  const tileFrameRef = useRef(0);
+  const publishedViewportRef = useRef('');
+  const runTileFrame = useCallback(() => {
+    tileFrameRef.current = 0;
+    const pipeline = tilePipelineRef.current;
+    const container = containerRef.current;
+    if (!pipeline || !container) return;
+    if (!tileCapable) return;
+
+    const dpr = canvasDevicePixelRatioRef.current;
+    const scale = scaleRef.current;
+    const generation = generationRef.current;
+    /**
+     * A document re-read is a new generation, and the revision that carries it is what
+     * retires the previous one's pixels and queued jobs (`PDFVIEWER.md` §5: "old
+     * generations cannot reenter after reload").
+     */
+    if (generation !== tileGenerationRef.current) {
+      tileGenerationRef.current = generation;
+      viewportRevisionRef.current += 1;
+    }
+
+    const pages: PipelinePage[] = [];
+    for (const pageNumber of mountedPageNumbersRef.current) {
+      const geometry = geometryByPageRef.current.get(pageNumber);
+      if (geometry) pages.push(pipelinePage(geometry));
+    }
+    if (pages.length === 0) return;
+    const visible = pages.filter(page => {
+      const geometry = geometryByPageRef.current.get(page.page);
+      return geometry && geometry.y < container.scrollTop + container.clientHeight &&
+        geometry.y + geometry.height > container.scrollTop;
+    }).map(page => page.page - 1);
+    const viewportKey = JSON.stringify([path, generation, scale, invertColorsRef.current, visible, pages.map(p => p.page)]);
+    if (viewportKey !== publishedViewportRef.current && window.eukoliaApi.pdfViewport) {
+      publishedViewportRef.current = viewportKey;
+      void window.eukoliaApi.pdfViewport({ path: path!, visiblePages: visible,
+        adjacentPages: pages.map(p => p.page - 1).filter(p => !visible.includes(p)),
+        scale: scale * dpr, invert: invertColorsRef.current, prefetch: false
+      }).catch(() => { publishedViewportRef.current = ''; });
+    }
+
+    /**
+     * Nothing is tiled while the *scale* moves.
+     *
+     * A divider drag changes the fit scale every frame, and every one of those scales
+     * would be its own tile grid — the same "35 rasterisations for one gesture" that
+     * `renderPage` guards against. The sheets already hold pixels (tiles at the previous
+     * scale, or the whole page) and the compositor scales them for free; `settle` asks
+     * for the real thing once the movement stops.
+     */
+    if (resizingRef.current) {
+      pipeline.pumpUploads();
+      return;
+    }
+
+    pipeline.setViewport({
+      x: container.scrollLeft,
+      y: container.scrollTop,
+      width: container.clientWidth,
+      height: container.clientHeight,
+      devicePixelRatio: dpr,
+      generation,
+      resolution: viewportRevisionRef.current,
+      renderScale: pdfRenderScale(scale, dpr, LIGHTPDF_MAX_RENDER_SCALE),
+      invert: invertColorsRef.current,
+      renderAheadPages: Math.max(0, setting.num('pdf.renderAheadPages'))
+    });
+    pipeline.plan(pages);
+  }, [pipelinePage, tileCapable, path]);
+
+  const scheduleTileFrame = useCallback(() => {
+    if (tileFrameRef.current) return;
+    tileFrameRef.current = requestAnimationFrame(runTileFrame);
+  }, [runTileFrame]);
+  wakeTileFrameRef.current = scheduleTileFrame;
+
+  // A new plan whenever the layout, the scale, the rotation or the document changes.
+  useEffect(() => {
+    scheduleTileFrame();
+  }, [scheduleTileFrame, layout, effectiveScale, rotation, pdfDoc, resolvedDisplayMode, canvasDevicePixelRatio, version]);
+
+  // And a pass on the frame a scroll asks for, coalesced with the rest.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const onScroll = () => scheduleTileFrame();
+    container.addEventListener('scroll', onScroll, { passive: true });
+    return () => container.removeEventListener('scroll', onScroll);
+  }, [scheduleTileFrame, scroller]);
+
+  useEffect(
+    () => () => {
+      if (tileFrameRef.current) cancelAnimationFrame(tileFrameRef.current);
+      tileFrameRef.current = 0;
+    },
+    []
+  );
 
   /**
    * The scroll range follows the content, so it is re-read whenever the content can
@@ -2008,6 +2571,50 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
     scroller.dataset.visiblePages = String(visiblePagesRef.current.size);
     scroller.dataset.selectionLength = String(selection?.text.length ?? 0);
     scroller.dataset.currentPage = String(currentPage);
+    /**
+     * How many pages the reader can see have nothing drawn on them.
+     *
+     * An update that re-reads the file must never *clear* the pane — the pages
+     * being looked at keep the bitmap of the previous read until each replacement
+     * is drawn, which is what light-pdf does by keeping the old rendering until
+     * the new tiles arrive. A page counts here when it has no pixels at all, or
+     * has pixels that were never drawn (a fresh entry, a detached canvas, a resize
+     * that wiped a backing store): those are the pages that would show the
+     * backdrop. Only the *visible* pages are counted — a prefetched page is
+     * legitimately empty until it is needed — and zero across a rebuild is the
+     * whole claim, measured rather than argued about, because the gap it describes
+     * lasts a fraction of a second and nothing else in the DOM records it.
+     */
+    let blank = 0;
+    for (const pageNumber of visiblePagesRef.current) {
+      if (!mountedPageNumbersRef.current.has(pageNumber)) continue;
+      const entry = renderedRef.current.get(pageNumber);
+      if (!entry || !entry.image || entry.painted === null) blank += 1;
+    }
+    scroller.dataset.blankPages = String(blank);
+    /**
+     * Which read of the file the pixels on screen came from.
+     *
+     * Bumped once per document read — an open and a reload alike — so a probe can
+     * say "the pane took the build's output" without inferring it from a repaint
+     * that a resize would also produce.
+     */
+    scroller.dataset.docGeneration = String(generationRef.current);
+    /**
+     * The tiled pipeline's own counters.
+     *
+     * Written here rather than kept in React state for the same reason as the rest of
+     * this effect, and read by `scripts/probe-pdf-frames.mjs`: a tile plan that is
+     * thrashing, a scheduler queue that never drains and a surface count that grows are
+     * all invisible from the outside, and each of them is a bug the frame numbers alone
+     * would not explain.
+     */
+    const tiles = tileStatusRef.current;
+    scroller.dataset.pdfTiles = tiles
+      ? `${tiles.tiledPages}/${tiles.residentTiles}/${tiles.surfaces}/${tiles.queuedUploads}/${tiles.scheduler.queued}/${tiles.scheduler.active}/` +
+        `${tiles.scheduler.cancelled}/${tiles.scheduler.deduplicated}/${tiles.scheduler.stale}/${tiles.scheduler.dropped}/` +
+        `${Math.round(tiles.residentBytes / 1024)}/${tiles.lastUploadMs.toFixed(2)}`
+      : 'off';
     const park = parkStatsRef.current;
     scroller.dataset.canvasPark = `${canvasParkRef.current.unmounted.size}+${canvasParkRef.current.detached.size}/${park.park}/${park.take}/${park.miss}/${park.noHolder}`;
   });
@@ -3663,7 +4270,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
           // nodes, and doing that for every page that just mounted lands in the
           // same frame the bitmaps do. One page per frame keeps the burst off the
           // frame the reader is waiting on.
-          schedulePaint(() => renderTextLayer(pageNumber, known));
+          schedulePaint(() => { if (!cancelled) renderTextLayer(pageNumber, known); });
           continue;
         }
         try {
@@ -3675,7 +4282,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
             contentBoxRef.current.set(pageNumber, box);
             setContentVersion((value) => value + 1);
           }
-          schedulePaint(() => renderTextLayer(pageNumber, blocks));
+          schedulePaint(() => { if (!cancelled) renderTextLayer(pageNumber, blocks); });
         } catch {
           /* a page without text is normal for scanned documents */
         }
@@ -4031,6 +4638,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
           // against it — is the pane's.
           maxHeight: paneBound ? paneBound.height : undefined,
           overflow: 'auto',
+          overflowAnchor: 'none',
           overscrollBehavior: 'contain'
         }}
         data-testid="pdf-scroll-container"
@@ -4134,6 +4742,27 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
                     data-canvas-width={Math.round(canvasBox.width * canvasDevicePixelRatio)}
                     style={{ width: canvasBox.width, height: canvasBox.height }}
                   />
+
+                  {/*
+                    The tiled layer, above the whole-page canvas and below the text
+                    layer.
+
+                    `PDFVIEWER.md` §8: "First implement retained tile canvases inside
+                    existing page-position containers, allowing Chromium to
+                    scroll/composite already uploaded content." The container is the
+                    unrotated sheet, so a tile's position is its own device box divided
+                    by the DPR and the sheet's own rotation carries the tiles with the
+                    page. The host is empty until the pipeline draws into it; a document
+                    whose worker cannot tile never gets one.
+                  */}
+                  {tileCapable && (
+                    <div
+                      ref={attachTileRef}
+                      data-tile-layer={page.pageNo}
+                      aria-hidden="true"
+                      style={{ position: 'absolute', left: 0, top: 0, width: geometry.sheetWidth, height: geometry.sheetHeight }}
+                    />
+                  )}
 
                   <div
                     ref={attachTextRef}
@@ -4262,7 +4891,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
                     />
                   )}
 
-                  <PageLinks path={path} page={page.pageNo} scale={geometry.zoomReal} onGoToPage={(target) => goToPage(target)} />
+                  <PageLinks path={path} revision={generationRef.current} page={page.pageNo} scale={geometry.zoomReal} onGoToPage={(target) => goToPage(target)} />
                 </div>
 
                 {!rendered?.image && (
@@ -4353,7 +4982,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
         </div>
       )}
 
-      {error && (
+      {error && (!pdfDoc || openPathRef.current !== path) && (
         <div style={{ ...overlay, background: backdrop }}>
           <div style={{ maxWidth: 420, textAlign: 'center' }}>
             <div style={{ color: '#c0392b', fontWeight: 600, marginBottom: 6 }}>Could not open the PDF</div>
@@ -4472,10 +5101,11 @@ export function formatCursorPosition(
 /** Internal links inside a page; external links open in the OS browser. */
 const PageLinks: React.FC<{
   path: string;
+  revision: number;
   page: number;
   scale: number;
   onGoToPage(page: number): void;
-}> = ({ path, page, scale, onGoToPage }) => {
+}> = ({ path, revision, page, scale, onGoToPage }) => {
   const [links, setLinks] = useState<PdfLink[]>([]);
 
   useEffect(() => {
@@ -4491,7 +5121,7 @@ const PageLinks: React.FC<{
     return () => {
       cancelled = true;
     };
-  }, [path, page]);
+  }, [path, page, revision]);
 
   if (links.length === 0) return null;
 
@@ -4534,10 +5164,8 @@ const PageLinks: React.FC<{
 // Helpers
 // ---------------------------------------------------------------------------
 
-let requestCounter = 0;
-
 function nextRequestId(): number {
-  return ++requestCounter;
+  return nextPdfRequestId();
 }
 
 /**
@@ -4686,77 +5314,6 @@ function frameTimeMs(timestamp?: number): number {
  * requires RGBA, so the channels are swapped once here rather than in the paint
  * loop.
  */
-function toImageData(result: PdfRenderResult): ImageData {
-  const { pixels, width, height, order } = result;
-  let rgba: Uint8ClampedArray;
-
-  /**
-   * The path every page takes.
-   *
-   * The worker sends one tightly packed buffer per render, so the only work needed
-   * is the channel swap — done **in place**, on the buffer that arrived — and an
-   * `ImageData` built *over* that same buffer. The previous version allocated twice
-   * as much as the page on every render (a swapped copy plus the `ImageData`
-   * buffer): 10 MB per A4 page at 125 %, which the profiler caught as 530 ms of
-   * garbage collection inside a 6.4 s scroll, with 4–6 ms `MajorGC` pauses landing
-   * as dropped frames.
-   */
-  const expected = width * height * 4;
-  if (pixels.byteLength === expected && (order === 'bgra' || order === 'rgba')) {
-    if (order === 'bgra') {
-      for (let i = 0; i < pixels.length; i += 4) {
-        const blue = pixels[i];
-        pixels[i] = pixels[i + 2];
-        pixels[i + 2] = blue;
-      }
-    }
-    if (width <= 0 || height <= 0) {
-      throw new Error(`The PDF engine returned an empty bitmap for this page (${width}x${height}).`);
-    }
-    // `as ArrayBuffer`: the IPC reply is never a `SharedArrayBuffer`, and
-    // `ImageData`'s constructor is typed to reject one.
-    const view = new Uint8ClampedArray(pixels.buffer as ArrayBuffer, pixels.byteOffset, expected);
-    return new ImageData(view, width, height);
-  }
-
-  if (order === 'rgba') {
-    rgba = new Uint8ClampedArray(pixels.buffer, pixels.byteOffset, pixels.byteLength);
-  } else if (order === 'bgra') {
-    rgba = new Uint8ClampedArray(pixels.length);
-    for (let i = 0; i < pixels.length; i += 4) {
-      rgba[i] = pixels[i + 2];
-      rgba[i + 1] = pixels[i + 1];
-      rgba[i + 2] = pixels[i];
-      rgba[i + 3] = pixels[i + 3];
-    }
-  } else if (order === 'bgr') {
-    rgba = new Uint8ClampedArray((pixels.length / 3) * 4);
-    for (let source = 0, target = 0; source < pixels.length; source += 3, target += 4) {
-      rgba[target] = pixels[source + 2];
-      rgba[target + 1] = pixels[source + 1];
-      rgba[target + 2] = pixels[source];
-      rgba[target + 3] = 255;
-    }
-  } else {
-    rgba = new Uint8ClampedArray((pixels.length / 3) * 4);
-    for (let source = 0, target = 0; source < pixels.length; source += 3, target += 4) {
-      rgba[target] = pixels[source];
-      rgba[target + 1] = pixels[source + 1];
-      rgba[target + 2] = pixels[source + 2];
-      rgba[target + 3] = 255;
-    }
-  }
-
-  if (width <= 0 || height <= 0) {
-    throw new Error(`The PDF engine returned an empty bitmap for this page (${width}x${height}).`);
-  }
-
-  // Built via the sized constructor and `set` so the buffer type matches
-  // whatever `pixels` came back as, without an unchecked cast.
-  const imageData = new ImageData(width, height);
-  imageData.data.set(rgba);
-  return imageData;
-}
 
 /**
  * The device pixel ratio, tracked live.

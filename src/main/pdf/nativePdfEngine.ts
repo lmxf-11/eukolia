@@ -38,6 +38,7 @@ import {
   type WorkerLogMessage,
   type WorkerReadyInfo,
   type WireCancelResult,
+  type WireDiagnosticsResult,
   type WireErrorBody,
   type WireGlyphsResult,
   type WireInfoResult,
@@ -106,6 +107,19 @@ interface OpenDocumentState {
   path: string;
   pageCount: number;
   generation: number;
+  /**
+   * The file's identity when the worker read it.
+   *
+   * The worker holds one document at a time, so a second `open` of the same path
+   * is normally answered from what is already loaded — which is what makes the
+   * viewer cheap to re-show. It is the wrong answer when the file has been
+   * rewritten underneath, which is precisely what a build does: the viewer would
+   * be handed the page count and the page boxes of the *previous* document, and
+   * would go on rendering pages from a file that no longer exists. Recording the
+   * size and the modification time is what tells the two cases apart.
+   */
+  size: number;
+  mtimeMs: number;
 }
 
 /** Resolved geometry for one page, cached per document generation. */
@@ -615,7 +629,7 @@ export class NativePdfEngine {
   }
 
   /** Send one command and await its response frame. */
-  private call<T>(command: WorkerCommand, params: Record<string, unknown> = {}, options: { timeoutMs?: number; expectsPixels?: boolean } = {}): Promise<T> {
+  private call<T>(command: WorkerCommand, params: Record<string, unknown> = {}, options: { timeoutMs?: number; expectsPixels?: boolean; assigned?: (id: number) => void } = {}): Promise<T> {
     return this.ensureWorker().then(
       () =>
         new Promise<T>((resolve, reject) => {
@@ -625,6 +639,7 @@ export class NativePdfEngine {
             return;
           }
           const requestId = this.nextRequestId++;
+          options.assigned?.(requestId);
           const timeoutMs = options.timeoutMs ?? DEFAULT_CALL_TIMEOUT_MS;
           const timer = setTimeout(() => {
             if (this.pending.delete(requestId)) {
@@ -661,20 +676,32 @@ export class NativePdfEngine {
   // ----------------------------------------------------------- public: PDF
 
   /**
-   * Open a document (closing whatever was open) and return its structure.
-   * `docId` identifies the document for subsequent calls.
+   * Open a document and return its structure. `docId` identifies the document
+   * for subsequent calls.
+   *
+   * A path that is already loaded is answered from the worker's open handle only
+   * while the file is still the one it read. Once the file has been rewritten —
+   * a build, a formatter, another application — the document is re-read, because
+   * every page box, page count and outline the caller is about to be given has to
+   * describe the file that is there now.
    */
   async openDocument(
     filePath: string,
-    password?: string
+    password?: string,
+    force = false
   ): Promise<{ docId: string; open: WireOpenResult; geometry: PageGeometry[] }> {
     const resolved = path.resolve(filePath);
     if (!fs.existsSync(resolved)) {
       throw new NativePdfError(`PDF not found: ${resolved}`, 'not_found');
     }
-    if (this.activeDocument?.path === resolved) {
-      // Same document already loaded: reuse the worker's open handle and just
-      // re-read the metadata, so a viewer reopen is nearly free.
+    const stat = fs.statSync(resolved);
+    if (
+      !force && this.activeDocument?.path === resolved &&
+      this.activeDocument.size === stat.size &&
+      this.activeDocument.mtimeMs === stat.mtimeMs
+    ) {
+      // Same file, unchanged: reuse the worker's open handle and just re-read the
+      // metadata, so a viewer reopen is nearly free.
       return {
         docId: this.activeDocument.docId,
         open: await this.rawInfo(resolved),
@@ -683,9 +710,21 @@ export class NativePdfEngine {
     }
 
     const open = await this.call<WireOpenResult>('open', { path: resolved, password: password ?? '' }, { timeoutMs: 60_000 });
+    if (open.unchanged && this.activeDocument?.path === resolved) {
+      this.activeDocument.size = stat.size;
+      this.activeDocument.mtimeMs = stat.mtimeMs;
+      return { docId: this.activeDocument.docId, open, geometry: this.geometryArray() };
+    }
     this.generation += 1;
     const docId = `${crypto.createHash('sha1').update(resolved).digest('hex').slice(0, 12)}:${this.generation}`;
-    this.activeDocument = { docId, path: resolved, pageCount: open.pageCount, generation: this.generation };
+    this.activeDocument = {
+      docId,
+      path: resolved,
+      pageCount: open.pageCount,
+      generation: this.generation,
+      size: stat.size,
+      mtimeMs: stat.mtimeMs
+    };
     this.geometry.clear();
     for (const page of open.pages) {
       this.geometry.set(page.index, { width: page.width, height: page.height, rotate: page.rotate });
@@ -703,6 +742,7 @@ export class NativePdfEngine {
     const info = await this.call<WireInfoResult>('info');
     return {
       ok: true,
+      unchanged: true,
       path: filePath,
       pageCount: info.pageCount,
       needsPassword: false,
@@ -730,9 +770,7 @@ export class NativePdfEngine {
   async reloadDocument(): Promise<WireOpenResult | null> {
     const current = this.activeDocument;
     if (!current) return null;
-    this.activeDocument = null;
-    this.geometry.clear();
-    const reopened = await this.openDocument(current.path);
+    const reopened = await this.openDocument(current.path, undefined, true);
     return reopened.open;
   }
 
@@ -762,6 +800,8 @@ export class NativePdfEngine {
    * `requestId` is chosen by the caller so it can cancel a superseded render;
    * the worker echoes it back on the response.
    */
+  private renderWireIds = new Map<number, number>();
+
   async renderPage(
     requestId: number,
     params: RenderRequestParams,
@@ -771,6 +811,7 @@ export class NativePdfEngine {
       throw new NativePdfError('no document is open', 'not_open');
     }
     const startedAt = Date.now();
+    try {
     const result = await this.call<WireRenderResult>(
       'render',
       {
@@ -782,19 +823,37 @@ export class NativePdfEngine {
         format: params.format ?? 'bgra',
         allowCache: params.allowCache ?? true,
         ...(params.clip ? { clip: params.clip } : {}),
-        ...(params.tile ? { tile: params.tile } : {})
+        // The tile address is advisory -- the worker derives the region from the same
+        // grid formula either way -- but sending it keeps the native cache's tile
+        // bookkeeping, its prefetch dedup and any future native work on the same
+        // addresses the renderer laid out.
+        ...(params.tile ? { tile: params.tile } : {}),
+        // Pins the worker's adaptive tile geometry to the grid the caller composed
+        // its addresses from, so a memory-pressure reduction cannot silently change
+        // what those addresses mean (`RenderJob::targetTileSize`).
+        ...(params.targetTileSize && params.targetTileSize > 0
+          ? { targetTileSize: Math.round(params.targetTileSize) }
+          : {})
       },
-      { timeoutMs: options.timeoutMs ?? DEFAULT_CALL_TIMEOUT_MS, expectsPixels: true }
+      { timeoutMs: options.timeoutMs ?? DEFAULT_CALL_TIMEOUT_MS, expectsPixels: true,
+        assigned: (wireId) => {
+          this.renderWireIds.set(requestId, wireId);
+        } }
     );
     this.options.onProgress?.({ page: params.page, cached: result.fromCache, ms: Date.now() - startedAt });
     return result;
+    } finally {
+      this.renderWireIds.delete(requestId);
+    }
   }
 
   /** Cancel a queued render. In-flight renders finish and are discarded. */
   async cancelRender(requestId: number): Promise<boolean> {
     if (!this.child) return false;
+    const wireId = this.renderWireIds.get(requestId);
+    if (wireId === undefined) return false;
     try {
-      await this.call<WireCancelResult>('cancel', { targetRequestId: requestId }, { timeoutMs: 15_000 });
+      await this.call<WireCancelResult>('cancel', { targetRequestId: wireId }, { timeoutMs: 15_000 });
       return true;
     } catch {
       return false;
@@ -883,6 +942,78 @@ export class NativePdfEngine {
   }
 
   /**
+   * What this worker build can do, for the renderer's capability check.
+   *
+   * Derived from the startup handshake rather than probed, so it costs nothing and
+   * cannot itself fail: `PDFVIEWER.md` §7 wants the capability *negotiated* so that a
+   * newer renderer beside an older packaged worker falls back to whole pages instead
+   * of asking for a route that does not exist.
+   */
+  getTileCapabilities(): {
+    available: boolean;
+    tiledRender: boolean;
+    viewport: boolean;
+    maxTileRes: number;
+    targetTileSize: number;
+    protocolVersion: number | null;
+    engine: string | null;
+    mupdfVersion: string | null;
+  } {
+    const ready = this.readyInfo;
+    const commands = new Set(ready?.commands ?? []);
+    return {
+      available: Boolean(this.child && ready?.ok),
+      // Both are required for the tiled route: `tile`/`clip` addressing *and*
+      // `viewport`, because a tiled viewer that cannot tell the worker what it wants
+      // leaves the native prefetch guessing.
+      tiledRender: Boolean(this.child && ready?.ok && ready.maxTileRes !== undefined && commands.has('render')),
+      viewport: Boolean(this.child && ready?.ok && commands.has('viewport')),
+      // An older worker has no `maxTileRes`; 0 means "do not tile", which is the
+      // correct reading of "this build predates the tile-address audit".
+      maxTileRes: ready?.maxTileRes ?? 0,
+      targetTileSize: ready?.maxTileSize ?? 0,
+      protocolVersion: ready?.protocolVersion ?? null,
+      engine: ready?.engine ?? null,
+      mupdfVersion: ready?.mupdfVersion ?? null
+    };
+  }
+
+  /** Cache/queue counters, optionally with the full entry list. */
+  async getStats(includeEntries = false): Promise<WireStatsResult> {
+    if (!this.child) {
+      // Counters for a worker that is not running are zeroes, not an error: the
+      // smoke probes poll this before opening a document.
+      return {
+        ok: true,
+        cacheEntries: 0,
+        cacheBytes: 0,
+        queued: 0,
+        active: 0,
+        servedFromCache: 0,
+        rendered: 0,
+        aborted: 0,
+        evicted: 0,
+        pendingTextTasks: 0
+      };
+    }
+    return this.call<WireStatsResult>('stats', includeEntries ? { includeEntries: true } : {}, { timeoutMs: 15_000 });
+  }
+
+  /**
+   * Text the cache and the engine raised, drained on read.
+   *
+   * `PDFVIEWER.md` §5 wants an oversized-entry rejection reported "with a
+   * diagnostic, not silently", and §9 wants diagnostics kept out of the normal
+   * reading UI. This is the route a probe or the developer log uses.
+   */
+  async getDiagnostics(): Promise<WireDiagnosticsResult> {
+    if (!this.child) {
+      throw new NativePdfError('worker is not running', 'not_running');
+    }
+    return this.call<WireDiagnosticsResult>('diagnostics', {}, { timeoutMs: 30_000 });
+  }
+
+  /**
    * Continuous-scroll page placement, computed by light-pdf's DocumentLayout
    * inside the worker.
    *
@@ -917,25 +1048,6 @@ export class NativePdfEngine {
       },
       { timeoutMs: 60_000 }
     );
-  }
-
-  /** Render-cache and queue statistics, for diagnostics. */
-  async getStats(): Promise<WireStatsResult> {
-    if (!this.child) {
-      return {
-        ok: true,
-        cacheEntries: 0,
-        cacheBytes: 0,
-        queued: 0,
-        active: 0,
-        servedFromCache: 0,
-        rendered: 0,
-        aborted: 0,
-        evicted: 0,
-        pendingTextTasks: 0
-      };
-    }
-    return this.call<WireStatsResult>('stats', {}, { timeoutMs: 15_000 });
   }
 
   /** The page-space rectangle actually covered by the page's content. */

@@ -975,6 +975,226 @@ export async function runSmokeProbe(window: BrowserWindow): Promise<void> {
       }
     }
 
+    // ---------------------------------------------------- 5d live preview
+    await step('5d live preview');
+    //
+    // The pane follows the compiler by itself. Two things make that true, and both
+    // are the behaviour a LaTeX user gets from light-pdf's file watcher: a build
+    // that rewrites the PDF is picked up as soon as it reports that it finished,
+    // and a file changed by anything else — VS Code, a script, `latexmk` in a
+    // terminal — is noticed by the viewer's own check of the modification time.
+    //
+    // The document is given another page first, so "the pane followed the build"
+    // is a fact about the screen rather than about a repaint that would look the
+    // same either way: a one-page PDF reloaded is indistinguishable from a
+    // one-page PDF left alone.
+    const sourceBefore = fs.readFileSync(texFile, 'utf8');
+    const readViewer = (attribute: string) =>
+      evaluate<string>(
+        `(() => { const el = document.querySelector('[data-testid="pdf-scroll-container"]'); return el ? (el.dataset.${attribute} || '') : 'missing'; })()`
+      );
+    const pageCountBefore = await readViewer('docPageCount');
+    // Which read of the file the pixels on screen came from. It is the signal that
+    // says "the pane took the build's output" without depending on the page count
+    // changing: a rebuild that only rewrites a paragraph updates the pane and
+    // leaves the count alone.
+    const generationBefore = await readViewer('docGeneration');
+    fs.writeFileSync(
+      texFile,
+      sourceBefore.replace(
+        /\n\\end\{document\}/,
+        '\n\\newpage\n\\section*{Live preview}\nAnother page, so the rebuilt PDF is a different document.\\newpage\n\n\\end{document}'
+      ),
+      'utf8'
+    );
+    await wait(800);
+
+    // Samples taken across the build, so "the pane never blanked" is a fact about
+    // the rebuild rather than about the frame it happened to be read on. The
+    // viewer reports how many *visible* pages have nothing drawn on them; a
+    // rebuild that reloaded the document would show one or two for as long as the
+    // new bitmaps took to arrive.
+    const blankSamples: number[] = [];
+    const readBlankPages = () =>
+      evaluate<number>(
+        `(() => { const el = document.querySelector('[data-testid="pdf-scroll-container"]'); return el ? Number(el.dataset.blankPages || '0') : -1; })()`
+      );
+    /**
+     * Whether the pane is covering the document with its "Opening PDF…" sheet.
+     *
+     * That sheet is right for a first open and wrong for a rebuild: it is drawn
+     * over the whole pane, so a build that triggered it would look exactly like a
+     * reload — which is what this step is here to rule out.
+     */
+    const readLoadingSheet = () =>
+      evaluate<boolean>(
+        `(() => { const el = document.querySelector('[data-testid="pdf-pane-root"]'); return el ? (el.textContent || '').includes('Opening PDF') : false; })()`
+      );
+    let loadingSheetSeen = 0;
+    // A baseline rather than an assertion: if the pane were still filling in from
+    // an earlier step, that is not this step's fault and must not be reported as a
+    // blank caused by the rebuild.
+    const baselineBlankPages = await readBlankPages();
+
+    command('latex.build');
+    let previewStatus = '';
+    for (let attempt = 0; attempt < 60; attempt++) {
+      blankSamples.push(await readBlankPages());
+      if (await readLoadingSheet()) loadingSheetSeen += 1;
+      await wait(250);
+      previewStatus = await evaluate<string>(
+        `(() => { const el = document.querySelector('[data-testid="status-build"]'); return el ? (el.getAttribute('data-build-status') || '') : ''; })()`
+      );
+      if (previewStatus === 'succeeded' || previewStatus === 'failed') break;
+    }
+    // The update lands just after the build reports success: keep sampling through
+    // it rather than stopping at the status change.
+    for (let attempt = 0; attempt < 12; attempt++) {
+      blankSamples.push(await readBlankPages());
+      if (await readLoadingSheet()) loadingSheetSeen += 1;
+      await wait(100);
+    }
+
+    // No reload command is issued: the pane has to notice by itself.
+    const previewStarted = Date.now();
+    let pageCountAfter = pageCountBefore;
+    let generationAfter = generationBefore;
+    for (let attempt = 0; attempt < 40; attempt++) {
+      await wait(500);
+      pageCountAfter = await readViewer('docPageCount');
+      generationAfter = await readViewer('docGeneration');
+      if (generationAfter !== generationBefore) break;
+    }
+
+    probe.livePreview = {
+      buildStatus: previewStatus,
+      pageCountBefore,
+      pageCountAfter,
+      generationBefore,
+      generationAfter,
+      elapsedMs: Date.now() - previewStarted,
+      baselineBlankPages,
+      blankSamples: blankSamples.length,
+      worstBlankPages: blankSamples.reduce((worst, value) => Math.max(worst, value), 0),
+      loadingSheetSamples: loadingSheetSeen
+    };
+
+    {
+      const preview = section(probe, 'livePreview');
+      if (previewStatus !== 'succeeded') {
+        problems.push(`Live preview: the build that changed the document reported "${previewStatus}"`);
+      }
+      if (String(preview.generationAfter) === String(preview.generationBefore)) {
+        problems.push(
+          'Live preview: the pane did not re-read the PDF after a build rewrote it (no new document generation)'
+        );
+      }
+      if (String(preview.pageCountAfter) === String(preview.pageCountBefore)) {
+        problems.push(
+          `Live preview: the pane still holds ${String(preview.pageCountBefore)} page(s) after a build produced a longer PDF`
+        );
+      }
+      if (Number(preview.worstBlankPages) > 0) {
+        problems.push(
+          `Live preview: the update blanked ${String(preview.worstBlankPages)} visible page(s) instead of replacing them in place`
+        );
+      }
+      if (Number(preview.loadingSheetSamples) > 0) {
+        problems.push(
+          `Live preview: the pane showed its "Opening PDF…" sheet over the document during a build (${String(preview.loadingSheetSamples)} sample(s))`
+        );
+      }
+    }
+
+    // -------------------------------------------------- 5e automatic builds
+    await step('5e automatic builds');
+    //
+    // `compilation.autoBuild` has three values, and the point of the setting is
+    // that they differ. The project's own settings file is the way in — it is what
+    // a project carries and what the application watches — so the probe writes the
+    // mode it wants, changes a source file *on disk* (the difference between
+    // `onFileChange` and `onSave`), and reads the PDF's modification time to see
+    // whether a build ran without being asked.
+    const projectSettingsDirectory = path.join(workspace, '.eukolia');
+    const projectSettingsFile = path.join(projectSettingsDirectory, 'settings.json');
+    fs.mkdirSync(projectSettingsDirectory, { recursive: true });
+    const writeProjectSettings = (values: Record<string, unknown>) =>
+      fs.writeFileSync(projectSettingsFile, `${JSON.stringify(values, null, 2)}\n`, 'utf8');
+    const pdfMtime = () => (fs.existsSync(pdfFile) ? fs.statSync(pdfFile).mtimeMs : 0);
+    const buildStatus = () =>
+      evaluate<string>(
+        `(() => { const el = document.querySelector('[data-testid="status-build"]'); return el ? (el.getAttribute('data-build-status') || '') : ''; })()`
+      );
+
+    /** Waits for the PDF to be rewritten, and reports how long that took. */
+    const waitForRebuild = async (since: number, attempts = 120): Promise<number | null> => {
+      const before = pdfMtime();
+      for (let attempt = 0; attempt < attempts; attempt++) {
+        await wait(250);
+        if (pdfMtime() > before + 1) return Date.now() - since;
+      }
+      return null;
+    };
+
+    writeProjectSettings({
+      'compilation.autoBuild': 'onFileChange',
+      'compilation.autoBuildDelayMs': 300,
+      'compilation.autoBuildMinIntervalMs': 500
+    });
+    await wait(2500);
+
+    const changedAt = Date.now();
+    fs.appendFileSync(texFile, `\n% touched by the smoke probe at ${changedAt}\n`, 'utf8');
+    const autoBuildMs = await waitForRebuild(changedAt);
+
+    // Wait for that build to settle, then watch for a build the *build* would have
+    // started: a compile writes a dozen files beside the source, and a mode that
+    // watched its own output would run forever.
+    for (let attempt = 0; attempt < 40; attempt++) {
+      await wait(250);
+      if ((await buildStatus()) !== 'running') break;
+    }
+    const settledMtime = pdfMtime();
+    let spurious: string | null = null;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      await wait(250);
+      if (pdfMtime() !== settledMtime) {
+        spurious = 'the PDF was rebuilt again';
+        break;
+      }
+      if ((await buildStatus()) === 'running') {
+        spurious = 'another build started';
+        break;
+      }
+    }
+
+    // And the mode that must build nothing: the same external change, with
+    // automatic building off.
+    writeProjectSettings({ 'compilation.autoBuild': 'never' });
+    await wait(2500);
+    const neverAt = Date.now();
+    fs.appendFileSync(texFile, `\n% touched again at ${neverAt}\n`, 'utf8');
+    const neverBuiltMs = await waitForRebuild(neverAt, 16);
+
+    probe.autoBuild = {
+      changedOnDiskMs: autoBuildMs,
+      spurious,
+      builtWhileNever: neverBuiltMs !== null
+    };
+
+    {
+      const auto = section(probe, 'autoBuild');
+      if (auto.changedOnDiskMs === null) {
+        problems.push('Automatic build: a source file changed on disk and no build started (mode onFileChange)');
+      }
+      if (auto.spurious) {
+        problems.push(`Automatic build: the build\u2019s own output started another build (${String(auto.spurious)})`);
+      }
+      if (auto.builtWhileNever === true) {
+        problems.push('Automatic build: a build ran with the mode set to never');
+      }
+    }
+
     // ---------------------------------------------------------- 6. SyncTeX
     await step('6 SyncTeX');
     //
@@ -1025,12 +1245,42 @@ export async function runSmokeProbe(window: BrowserWindow): Promise<void> {
       // Deliberately not gated on earlier problems: a failure in one surface
       // must not silently skip the checks for another, or a single regression
       // hides every later one.
-      await evaluate(`(() => {
+      //
+      // Focus is *asserted*, not assumed, and for the reason the earlier steps
+      // record their chords: light-pdf's accelerators are ignored while a text
+      // field has focus (the page box of the toolbar is one), and the shell's own
+      // capture-phase handler defers to the viewer only while the event's target
+      // is inside the pane. A pane that never took focus therefore looks exactly
+      // like a viewer whose keys do nothing — which is what this step reported
+      // once, for a whole run, without saying so.
+      const focused = await evaluate<Record<string, unknown>>(`(() => {
         const pane = document.querySelector('[data-testid="pdf-pane-root"]');
-        if (pane) pane.focus();
-        return !!pane;
+        const scroller = document.querySelector('[data-testid="pdf-scroll-container"]');
+        const describe = (node) => node ? {
+          tag: node.tagName,
+          testid: node.getAttribute ? node.getAttribute('data-testid') : null,
+          inPane: !!(node.closest && node.closest('[data-testid="pdf-pane-root"]')),
+          typing: !!(node.tagName === 'INPUT' || node.tagName === 'TEXTAREA' || node.isContentEditable)
+        } : null;
+        if (pane && typeof pane.focus === 'function') pane.focus();
+        const afterPane = describe(document.activeElement);
+        if (!afterPane || !afterPane.inPane) {
+          if (scroller && typeof scroller.focus === 'function') scroller.focus();
+        }
+        return {
+          paneTabIndex: pane ? pane.tabIndex : null,
+          afterPane,
+          afterScroller: describe(document.activeElement)
+        };
       })()`);
       await wait(400);
+      probe.pdfKeyboardFocus = focused;
+      const settled = focused.afterScroller as Record<string, unknown> | null;
+      if (!settled || settled.inPane !== true) {
+        problems.push(
+          `PDF keyboard: focus could not be put inside the viewer's pane, so the key checks below cannot be trusted (${JSON.stringify(focused)})`
+        );
+      }
 
       /** Reads a `data-` attribute from the viewer's scroll container. */
       const viewerAttribute = (name: string) =>

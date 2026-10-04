@@ -99,12 +99,12 @@ rmSync(reportPath, { force: true });
 /*
  * The application runs a probe in its own `userData` directory, and the shell it
  * drives does not exist until a project library does — so the *main process* seeds
- * one (`seedVisualProbeLibrary` in `src/main/main.ts`), exactly as `seedSmokeLibrary`
- * does for the smoke probe. `EUKOLIA_PROBE_DOCUMENT` is what it seeds from, so
- * pointing this probe at a real paper is enough to reach the editor; the earlier
- * version of this script tried to seed a profile itself and the application's own
- * `app.setPath('userData', …)` overrode it, leaving the run reporting
- * `visualEditorMounted: false` on the welcome screen.
+ * one (`seedVisualProbeLibrary` in `src/main/visualProbe.ts`, called from `main.ts`),
+ * exactly as `seedSmokeLibrary` does for the smoke probe. `EUKOLIA_PROBE_DOCUMENT` is
+ * what it seeds from, so pointing this probe at a real paper is enough to reach the
+ * editor. That has to happen in the application rather than here: `main.ts` overrides
+ * `userData` for every probe run, so a profile this script wrote was ignored and the
+ * run reported `visualEditorMounted: false` on the welcome screen.
  */
 const child = spawn(electronBinary, ['.'], {
   cwd: projectRoot,

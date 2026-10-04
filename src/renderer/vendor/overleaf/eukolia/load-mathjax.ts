@@ -34,4 +34,19 @@ export const loadMathJax = (
   createMathJaxTypesetter({
     singleDollar: options.singleDollar,
     numbering: options.numbering,
+  }).then(MathJax => {
+    /*
+     * The instance, published once for the scroll probe.
+     *
+     * `scripts/probe-scroll.mjs` has to answer "how much of a stuttering frame is
+     * MathJax?", and a count of cache misses cannot: a miss may be a 2 ms render or a
+     * 40 ms one, and the difference is the whole question on a document where a warm
+     * scroll still misses. Timing `tex2svgPromise` is the only way to find out, and this
+     * is where every rendering in the application passes — the same reason the render
+     * cache publishes its counters.
+     *
+     * One assignment per load, and the loader is idempotent, so this runs once.
+     */
+    ;(globalThis as unknown as { __eukoliaMathJax?: unknown }).__eukoliaMathJax = MathJax
+    return MathJax
   })

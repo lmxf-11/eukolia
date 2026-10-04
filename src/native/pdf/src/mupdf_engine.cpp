@@ -23,6 +23,7 @@
 #include "mupdf_engine.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 #include <mutex>
 
@@ -67,6 +68,38 @@ namespace {
 const fz_matrix& kIdentity = fz_identity;
 const fz_rect& kEmptyRect = fz_empty_rect;
 const fz_irect& kEmptyIrect = fz_empty_irect;
+
+/**
+ * A fingerprint of the file's *contents*, not its metadata.
+ *
+ * A rebuild that produces identical bytes is the common case: building twice,
+ * saving a comment that does not reach the PDF, or a build whose only real change
+ * was in the log. Timestamps cannot tell that apart from a real edit, and neither
+ * can size, so the decision to re-parse has to be made on content.
+ *
+ * 64-bit FNV-1a is enough. This is not a security boundary and not a cache key
+ * that outlives the open document: it only answers "is the file byte-for-byte what
+ * I already have open", where a collision means one skipped re-parse of the file
+ * the user is already looking at. It runs at roughly a gigabyte a second, so a
+ * 1 MB PDF costs about a millisecond against the ~150 ms a reopen spends
+ * rasterising pages.
+ */
+uint64_t FingerprintFile(const std::string& path) {
+    FILE* f = std::fopen(path.c_str(), "rb");
+    if (!f) return 0;  // 0 means "unreadable", which never equals a real fingerprint
+    uint64_t hash = 1469598103934665603ull;  // FNV-1a 64 offset basis
+    unsigned char buffer[65536];
+    size_t n = 0;
+    while ((n = std::fread(buffer, 1, sizeof(buffer), f)) > 0) {
+        for (size_t i = 0; i < n; i++) {
+            hash ^= static_cast<uint64_t>(buffer[i]);
+            hash *= 1099511628211ull;  // FNV-1a 64 prime
+        }
+    }
+    const bool failed = std::ferror(f) != 0;
+    std::fclose(f);
+    return failed ? 0 : hash;
+}
 }  // namespace
 
 // MuPDF's fz_font_name() and pdf_font_desc_from_font() are not exported by this
@@ -330,6 +363,7 @@ std::vector<std::string> PdfEngine::TakeDiagnostics() {
 // ---------------------------------------------------------------------------
 
 void PdfEngine::CloseDocument() {
+    std::lock_guard<std::recursive_mutex> renderLock(renderMutex_);
     std::lock_guard<std::recursive_mutex> lock(stateMutex_);
     if (ctx_) {
         // Display lists hold references to decoded images owned by the document,
@@ -360,12 +394,144 @@ void PdfEngine::CloseDocument() {
     opened_ = false;
     needsPassword_ = false;
     metadata_.clear();
+    // No document, nothing to recognise a future Open() against.
+    contentFingerprint_ = 0;
 }
 
 bool PdfEngine::Open(const std::string& path, const std::string& password, std::string& error) {
-    CloseDocument();
+    std::lock_guard<std::recursive_mutex> renderLock(renderMutex_);
+    std::lock_guard<std::recursive_mutex> stateLock(stateMutex_);
+    lastOpenUnchanged_ = false;
+    /*
+     * Nothing to do if this is the document already open, byte for byte.
+     *
+     * A LaTeX rebuild rewrites the PDF at the path that is already loaded, and the
+     * pane answers every finished build by asking for it again. When the bytes are
+     * identical -- building twice, saving something that never reaches the PDF, a
+     * build that only changed the log -- the expensive part of that request is
+     * pure waste: CloseDocument() drops every page, every display list and the
+     * whole render cache, and the reopen then re-parses 242 pages and re-rasterises
+     * the visible ones from scratch. Measured on a 242-page document that is
+     * ~150 ms, almost all of it rasterisation, and it is what a reader sees as the
+     * preview flickering on a build that changed nothing.
+     *
+     * The fingerprint is what makes this safe: a real edit changes the bytes, so a
+     * real edit takes the normal path. Checking it costs about a millisecond.
+     */
+    if (opened_ && !path.empty() && path == path_ && contentFingerprint_ != 0) {
+        const uint64_t fingerprint = FingerprintFile(path);
+        if (fingerprint != 0 && fingerprint == contentFingerprint_) {
+            lastOpenUnchanged_ = true;
+            return true;
+        }
+    }
+
+    const uint64_t openFingerprint = FingerprintFile(path);
     std::lock_guard<std::recursive_mutex> lock(stateMutex_);
 
+    /*
+     * Stage the parse against a backup, and only replace the document once the new
+     * one has fully arrived.
+     *
+     * CloseDocument() used to run at the top of this function, which meant a
+     * *failed* open had already destroyed the document on screen. That is the worst
+     * possible moment for it: a LaTeX build rewrites the PDF in place, the pane
+     * re-opens on every finished build, and a read that lands mid-write fails -- so
+     * the pane was left holding no document at all, and the next build had nothing
+     * to keep on screen. light-pdf does not have this failure because
+     * `ReloadDocument` builds the replacement controller first and only calls
+     * `ReplaceDocumentInCurrentTab` once it exists (LightPDF.cpp:1967-1995).
+     *
+     * Holding the backup costs nothing: the page slots are value types and the
+     * MuPDF objects are pointers, so this is a handful of moves. Every failure path
+     * below either reinstates it or drops it -- there is no path that leaves both
+     * documents alive.
+     */
+    std::string oldPath = std::move(path_);
+    std::vector<PageSlot> oldPages = std::move(pages_);
+    const int oldPageCount = pageCount_;
+    const bool oldOpened = opened_;
+    const bool oldNeedsPassword = needsPassword_;
+    fz_outline* oldOutline = outline_;
+    std::map<std::string, std::string> oldMetadata = std::move(metadata_);
+    const uint64_t oldFingerprint = contentFingerprint_;
+    fz_document* oldDoc = doc_;
+    pdf_document* oldPdf = pdf_;
+
+    path_.clear();
+    pages_.clear();
+    pageCount_ = 0;
+    opened_ = false;
+    needsPassword_ = false;
+    outline_ = nullptr;
+    metadata_.clear();
+    contentFingerprint_ = 0;
+    doc_ = nullptr;
+    pdf_ = nullptr;
+
+    /** Put the document that was on screen back, and release the staged one. */
+    const auto restoreOld = [&] {
+        CloseDocument();  // frees whatever the failed parse left behind
+        path_ = std::move(oldPath);
+        pages_ = std::move(oldPages);
+        pageCount_ = oldPageCount;
+        opened_ = oldOpened;
+        needsPassword_ = oldNeedsPassword;
+        outline_ = oldOutline;
+        metadata_ = std::move(oldMetadata);
+        contentFingerprint_ = oldFingerprint;
+        doc_ = oldDoc;
+        pdf_ = oldPdf;
+    };
+    /** Keep the staged document, and release the one it replaces. */
+    const auto commitNew = [&] {
+        for (auto& page : oldPages) {
+            if (!ctx_) break;
+            if (page.displayList) fz_drop_display_list(ctx_, page.displayList);
+            if (page.page) fz_drop_page(ctx_, page.page);
+        }
+        oldPages.clear();
+        if (oldOutline && ctx_) fz_drop_outline(ctx_, oldOutline);
+        if (oldDoc && ctx_) fz_drop_document(ctx_, oldDoc);
+    };
+
+    bool parsed = false;
+    try {
+        parsed = ParseIntoMembersLocked(path, password, openFingerprint, error);
+    } catch (...) {
+        restoreOld();
+        throw;
+    }
+    if (parsed) {
+        commitNew();
+        return true;
+    }
+
+    /*
+     * A password-protected document is the one failure worth keeping: the caller is
+     * told `needsPassword` and retries with a password, and that flag comes from the
+     * engine, so the staged document has to be the one the engine holds. Nothing on
+     * screen is lost either way -- a protected file has no pages to show.
+     */
+    if (needsPassword_ && !oldOpened) {
+        commitNew();
+        return false;
+    }
+
+    restoreOld();
+    return false;
+}
+
+/**
+ * Parse `path` into the engine's members. The caller owns the transaction.
+ *
+ * Split out of `Open` deliberately: everything below the entry checks is the
+ * "build the new document" half, and keeping it in one piece is what lets `Open`
+ * stage it against a backup instead of having to interleave restore logic with the
+ * parse.
+ */
+bool PdfEngine::ParseIntoMembersLocked(const std::string& path, const std::string& password,
+                                      uint64_t openFingerprint, std::string& error) {
     if (!ctx_) {
         error = "MuPDF context could not be created";
         return false;
@@ -376,9 +542,36 @@ bool PdfEngine::Open(const std::string& path, const std::string& password, std::
     }
 
     bool failed = false;
+    fz_buffer* snapshot = nullptr;
+    fz_stream* stream = nullptr;
     fz_var(failed);
+    fz_var(snapshot);
+    fz_var(stream);
     fz_try(ctx_) {
-        doc_ = fz_open_document(ctx_, path.c_str());
+        // Own immutable bytes. A lazy file-backed document becomes invalid as
+        // soon as the compiler truncates its file, even if rollback restores it.
+        snapshot = fz_read_file(ctx_, path.c_str());
+        unsigned char* bytes = nullptr;
+        const size_t size = fz_buffer_storage(ctx_, snapshot, &bytes);
+        uint64_t fingerprint = 1469598103934665603ull;
+        for (size_t i = 0; i < size; ++i) {
+            fingerprint ^= bytes[i];
+            fingerprint *= 1099511628211ull;
+        }
+        if (fingerprint != openFingerprint)
+            fz_throw(ctx_, FZ_ERROR_FORMAT, "PDF changed while reading snapshot");
+        // Do not let MuPDF's repair mode commit a compiler's partial output.
+        const size_t tail = size > 1024 ? size - 1024 : 0;
+        bool complete = false;
+        for (size_t i = tail; i + 5 <= size; ++i)
+            if (std::memcmp(bytes + i, "%%EOF", 5) == 0) complete = true;
+        if (!complete) fz_throw(ctx_, FZ_ERROR_FORMAT, "unexpected EOF in PDF snapshot");
+        stream = fz_open_buffer(ctx_, snapshot);
+        doc_ = fz_open_document_with_stream(ctx_, "application/pdf", stream);
+    }
+    fz_always(ctx_) {
+        fz_drop_stream(ctx_, stream);
+        fz_drop_buffer(ctx_, snapshot);
     }
     fz_catch(ctx_) {
         error = TakeCaughtMessage(ctx_);
@@ -391,7 +584,12 @@ bool PdfEngine::Open(const std::string& path, const std::string& password, std::
     }
 
     path_ = path;
-    if (fz_needs_password(ctx_, doc_)) {
+    bool protectedDocument = false;
+    fz_var(protectedDocument);
+    fz_try(ctx_) { protectedDocument = fz_needs_password(ctx_, doc_) != 0; }
+    fz_catch(ctx_) { error = TakeCaughtMessage(ctx_); failed = true; }
+    if (failed) { CloseDocument(); return false; }
+    if (protectedDocument) {
         needsPassword_ = true;
         bool authenticated = false;
         fz_var(authenticated);
@@ -461,10 +659,13 @@ bool PdfEngine::Open(const std::string& path, const std::string& password, std::
             fz_try(ctx_) {
                 pdf_obj* pageRef = pdf_lookup_page_obj(ctx_, pdf_, i);
                 pdf_page_obj_transform(ctx_, pageRef, &mbox, &pageCtm);
+                slot.pageRotate = NormalizeRotation(pdf_to_int(ctx_, pdf_dict_get_inheritable(ctx_, pageRef, PDF_NAME(Rotate))));
             }
             fz_catch(ctx_) {
-                ReportCaughtError(ctx_);
+                error = TakeCaughtMessage(ctx_);
+                failed = true;
             }
+            if (failed) { CloseDocument(); return false; }
             if (!fz_is_empty_rect(mbox)) {
                 /**
                  * The page box is the rectangle the *content* occupies, and that
@@ -495,9 +696,6 @@ bool PdfEngine::Open(const std::string& path, const std::string& password, std::
             }
             // /Rotate is already applied inside pageCtm; pageRotate only records
             // it for diagnostics and is not applied a second time.
-            const int rotate = pdf_to_int(ctx_, pdf_dict_get_inheritable(ctx_, pdf_lookup_page_obj(ctx_, pdf_, i),
-                                                                        PDF_NAME(Rotate)));
-            slot.pageRotate = NormalizeRotation(rotate);
         }
     }
 
@@ -513,6 +711,18 @@ bool PdfEngine::Open(const std::string& path, const std::string& password, std::
 
     LoadMetadataLocked();
     opened_ = true;
+    /*
+     * Fingerprint the file as it was *before* the parse, not after.
+     *
+     * Taking it here would let a writer that lands between the last page read and
+     * this line pair a hash of the NEW bytes with a document parsed from the OLD
+     * ones -- and the next Open() would then see a matching hash and keep a stale
+     * document forever. Hashing first inverts the failure: if the file changed
+     * mid-parse, the stored hash describes bytes the document does not match, so
+     * the next Open() sees a difference and re-reads. Wrong in the direction that
+     * self-corrects.
+     */
+    contentFingerprint_ = openFingerprint;
     return true;
 }
 

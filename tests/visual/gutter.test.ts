@@ -302,15 +302,22 @@ describe('the gutter bar', () => {
     const app = (selector: string, property: string) =>
       declaredValue(visualEditorCss, selector, property, 'exact')
     expect(app('.eukolia-visual-editor .cm-gutters', 'background')).toBe(
-      'var(--eu-editor-gutter-bg)'
+      'var(--eu-current-editor-bg, var(--eu-editor-bg))'
     )
     expect(app('.eukolia-visual-editor .cm-gutters', 'color')).toBe(
       'var(--eu-editor-gutter-fg)'
     )
+    /*
+     * Padding and minimum width are asserted so that a *second* declaration cannot appear, not
+     * because the numbers are load-bearing. Both changed together when the bar was reworked:
+     * padding `0 8px 0 12px` -> `0 0 0 12px`, and `min-width: 3.4em` -> `0`, since CodeMirror's
+     * line-number spacer already reserves the document's digits and the extra minimum left unused
+     * space on the gutter's right. This test noticed both, which is what it is for.
+     */
     expect(
       app('.eukolia-visual-editor .cm-lineNumbers .cm-gutterElement', 'padding')
-    ).toBe('0 8px 0 12px')
-    expect(app('.eukolia-visual-editor .cm-gutters', 'min-width')).toBe('3.4em')
+    ).toBe('0 8px 0 0')
+    expect(app('.eukolia-visual-editor .cm-gutters', 'min-width')).toBe('0')
   })
 
   it('flips the surface mode through the live compartment', async () => {

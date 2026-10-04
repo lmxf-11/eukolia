@@ -149,7 +149,15 @@ class PdfEngine {
     PdfEngine& operator=(const PdfEngine&) = delete;
 
     // ---- lifecycle --------------------------------------------------------
+    /**
+     * Open `path`. Reuses the document already open when the file's *contents* are
+     * unchanged since it was read, which is what a rebuild that produced identical
+     * bytes looks like from here; a real edit re-parses as it always has.
+     */
     bool Open(const std::string& path, const std::string& password, std::string& error);
+
+    /** True when the last Open() found the file unchanged and kept the document. */
+    bool LastOpenWasUnchanged() const { return lastOpenUnchanged_; }
 
     void CloseDocument();
     bool IsOpen() const { return opened_; }
@@ -232,6 +240,22 @@ class PdfEngine {
     bool needsPassword_ = false;
     fz_outline* outline_ = nullptr;
     std::map<std::string, std::string> metadata_;
+    /**
+     * FNV-1a of the file's bytes as of the last successful parse; 0 means unknown.
+     *
+     * Together with `path_` this is what lets Open() recognise "the same document
+     * again" and skip the teardown. Cleared by CloseDocument().
+     */
+    uint64_t contentFingerprint_ = 0;
+    bool lastOpenUnchanged_ = false;
+
+    /**
+     * The parse itself, with no teardown and no backup: it writes straight into the
+     * engine members. `Open` owns the transaction around it, which is why this must
+     * not be called anywhere else.
+     */
+    bool ParseIntoMembersLocked(const std::string& path, const std::string& password,
+                                uint64_t openFingerprint, std::string& error);
 
     std::mutex clonesMutex_;
     std::map<std::thread::id, fz_context*> clones_;

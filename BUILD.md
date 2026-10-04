@@ -147,8 +147,13 @@ Expanded by the ported `replaceArgumentPlaceholders`, against the root file:
 | `compilation.outputDirectory` | Where output goes. Empty means beside the source. A relative value is resolved against the project directory. |
 | `compilation.cleanExtensions` | The extensions `LaTeX: Clean Auxiliary Files` removes. The default list lives in `shared/cleanExtensions.ts`, where the main process that deletes the files reads it too — two lists is how `.xdv`, `.dvi` and the glossary family came to survive a clean. |
 | `compilation.cleanAfterFailedBuild` | Cleans the auxiliary files after a failed build. |
-| `compilation.autoBuild`, `compilation.autoBuildDelayMs` | Build on save, after that delay. |
+| `compilation.autoBuild` | What starts a build by itself: `never`, `onSave` or `onFileChange` (§6). |
+| `compilation.autoBuildDelayMs` | How long a burst of saves or changes is collected before one build starts. |
+| `compilation.autoBuildMinIntervalMs` | The least time between two builds, whether the previous one was automatic or a manual `Ctrl+B`. The reference recommends no less than about 500. |
+| `compilation.autoBuildIgnore` | Path patterns whose change never starts a build. The default is the reference's: `**/*.sty`, `**/*.cls`. |
 | `compilation.maxLogLines` | How many lines of the compiler log the Output view renders; the panel says how many it left out. |
+| `pdf.autoReload` | Live preview: the viewer reloads the document as soon as a build rewrites it, and when anything else changes the file on disk (§7). Off, the pane is only reloaded when you ask. |
+| `pdf.reloadCheckIntervalMs` | How often the viewer looks for a change to the PDF on disk. A build does not wait for it. |
 
 Every one of these is live. That is worth stating because six of them were not:
 `compilation.engine` was read by the status bar and nothing else,
@@ -158,7 +163,87 @@ Every one of these is live. That is worth stating because six of them were not:
 `compilation.cleanAfterFailedBuild` was connected to a reference key Eukolia's
 build path never consulted.
 
-## 6. Where the output goes, and why it is not where the process runs
+## 6. Building by itself — `compilation.autoBuild`
+
+Three modes, and they are the reference's own, because a LaTeX user already has
+them in their fingers: `never`, `onSave` and `onFileChange`. `onSave` is the
+*stricter* of the two automatic ones — it builds when a LaTeX source is saved in
+this editor — while `onFileChange` also builds for a file changed **on disk by
+anything else**: another editor, a script, a formatter, a `git checkout`.
+
+Two rules make that safe, and both are in `services/autoBuild.ts`:
+
+- **A build never triggers itself.** Compiling rewrites a dozen files beside the
+  source — `.aux`, `.log`, `.pdf`, `.synctex.gz`, the whole list in
+  `shared/cleanExtensions.ts` — so those never count as a change. The
+  recognition is by *job name*, not by extension: `main.pdf` beside `main.tex` is
+  what latexmk just wrote, while `figure.pdf` is a figure the document reads and
+  still triggers a build.
+- **One build per burst, and never two at once.** A save arrives twice with
+  `onFileChange` (the editor's save and the watcher's event), a formatter touches
+  twenty files, and a slow build is still running when the next trigger lands.
+  The scheduler collects a burst for `compilation.autoBuildDelayMs`, starts one
+  build, and starts the next no sooner than
+  `compilation.autoBuildMinIntervalMs` after the previous one *started* — which
+  is also what keeps a manual `Ctrl+B` from being followed by an automatic build
+  of the same sources a moment later.
+
+A trigger that was deliberately ignored is written to the application log
+(`[autobuild] ignored …: reason`), because "nothing happened" is otherwise
+indistinguishable from a watcher that is not watching.
+
+## 7. Live preview — the pane follows the compiler
+
+The PDF viewer updates itself, which is what light-pdf does with a file watcher
+and what LaTeX Workshop does after a build. Two things drive it:
+
+- **a finished build** — the shell bumps a counter, and the viewer compares the
+  file's modification time against the one it recorded. A build that wrote
+  nothing new (latexmk reporting "nothing to do") therefore costs one `stat` and
+  no repaint, and a build that did write the PDF is on screen as soon as it
+  finishes;
+- **the file changing on disk** — the viewer polls
+  (`pdf.reloadCheckIntervalMs`, two seconds by default), which is what notices a
+  build run by something else: VS Code with LaTeX Workshop, a script, `latexmk`
+  in a terminal.
+
+Both go through the same comparison, so they cannot disagree about what
+"changed" means. `pdf.autoReload` turns the whole thing off, and
+`PDF: Reload Document` (`R`, the same accelerator light-pdf uses) re-opens the
+file whether or not its timestamp moved — which is the one thing that helps when
+the pane is showing something you do not believe.
+
+### The update is in place, not a reload
+
+A rebuild re-reads the file — there is no way round that, and neither reference
+tries: light-pdf's `ReloadDocument` builds a new engine and calls
+`ReplaceDocumentInCurrentTab`, and LaTeX Workshop's viewer hands pdf.js the same
+document at a new URL. What neither does is *start the viewer again*, and that is
+the difference this section records:
+
+- **the page being read keeps its pixels.** The viewer's render key carries which
+  read of the file the bitmap came from, so a rebuild marks every cached bitmap as
+  belonging to the previous read rather than throwing it away. The old rendering
+  stays on screen until each replacement is drawn, exactly as light-pdf leaves the
+  previous rendering up until its new tiles arrive. `data-blank-pages` on the
+  viewer's scroll container counts visible pages with nothing drawn on them, and
+  the smoke probe samples it across a build: it must not move off zero.
+- **only the render window is re-read.** The pages on screen (plus the prefetch
+  lookahead) ask for their new bitmaps; a page the reader cannot see keeps what it
+  has until they scroll to it. A rebuild on a two-hundred-page document costs the
+  same as one on a two-page document.
+- **nothing moves.** The page, the scroll offset, the zoom and the navigation
+  history are untouched, and the layout is only recomputed when the page boxes
+  actually changed — so a rebuild cannot scroll the reader anywhere. The text
+  layer is rebuilt (the words may have moved) and the search results are kept
+  (they are the reader's context, and with automatic building on this happens
+  every few seconds).
+- **a write that cannot be read leaves the document alone.** A file the engine
+  cannot open — the compiler is still writing it — is retried rather than
+  replacing what is on screen, which is light-pdf's own rule for an automatic
+  refresh.
+
+## 8. Where the output goes, and why it is not where the process runs
 
 `-output-directory` moves the *files*, not the process. TeX must keep running in
 the root document's directory, because that is what `\input{chapters/one}` and
@@ -175,7 +260,7 @@ The PDF is looked for in the output directory and then beside the source, under
 the job name (the root document's base name). SyncTeX data is looked for in the
 same places, as `.synctex.gz` or `.synctex`.
 
-## 7. When a build fails
+## 9. When a build fails
 
 The bottom bar states **exactly** what failed. There is one value behind it
 (`BuildState.failure`, computed by `compiler/buildFailure.ts` from the step
@@ -204,7 +289,7 @@ The five kinds, and what they mean:
 A cancelled build is not a failure, and neither is a build where latexmk reported
 "nothing to do" — that is the `skipped` fact the Output and Log views print.
 
-## 8. The bottom panel
+## 10. The bottom panel
 
 Five views, one component, one tab strip:
 
@@ -221,7 +306,7 @@ limits) and remembered for the session. A build that fails opens the panel on th
 view that can explain it: Problems when a compiler error points at a source line,
 Output when the build never got that far.
 
-## 9. Commands
+## 11. Commands
 
 | Command | Key | What it does |
 | --- | --- | --- |
@@ -235,7 +320,7 @@ Output when the build never got that far.
 | `LaTeX: Clean and Build` | — | Both, in that order. |
 | `LaTeX: Detect TeX Distribution` | — | Re-probes the tools and re-marks the recipes. |
 
-## 10. Checking that it works
+## 12. Checking that it works
 
 ```bash
 npm test                                       # unit and integration tests
@@ -292,7 +377,7 @@ latexmk --max-print-line=10000 -synctex=1 -interaction=nonstopmode … broken
 
 with the same sentence in the status bar.
 
-## 11. Troubleshooting
+## 13. Troubleshooting
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |

@@ -16,11 +16,9 @@
  *     drawn here (`eu-window-controls`) rather than by the platform: Windows only
  *     paints its own controls over a `titleBarOverlay` region at the top of the
  *     window, and the bar that used to reserve that region is gone.
- *   • **it is never un-mounted.** `view.toggleTabBar` hides the *document tabs*
- *     (`stripVisible`), not the bar: the bar holds the window controls, the
- *     toolbar and the drag region, so removing it would leave a window that cannot
- *     be moved, built or closed by its own chrome. The status bar's Tab Bar
- *     control therefore reports the tabs, which is what its icon draws.
+ *   • **the whole row can be hidden.** `view.toggleTabBar` hides the tabs,
+ *     toolbar, drag region and window controls together. The status-bar toggle
+ *     or Ctrl+Alt+T restores the row.
  *
  * ## The document strip
  *
@@ -39,8 +37,8 @@
  *
  * ## The toolbar on its right-hand end
  *
- * The strip is the one piece of chrome that is on screen in every layout and
- * directly above the document, so the controls for *getting the document built
+ * When visible, the strip sits directly above the document, so the controls
+ * for *getting the document built
  * and read* live on its right-hand end rather than in a toolbar of their own —
  * `Instructions.md` §55 rules out "permanent toolbars full of rarely used
  * actions", and these are not rare.
@@ -100,8 +98,6 @@ import {
   Layers,
   Library,
   LoaderCircle,
-  Maximize2,
-  Minimize2,
   Palette,
   Pin,
   Play,
@@ -112,6 +108,7 @@ import {
   X,
   ZoomIn
 } from './icons';
+import { WindowControlIcon } from './WindowControlIcon';
 
 export interface TabBarProps {
   /** Whether the panel bar is on screen. When false, the compact expandable Menu button is shown on the top left. */
@@ -472,30 +469,8 @@ export const TabBar: React.FC<TabBarProps> = ({ panelBarShown: panelBarShownProp
    */
   const editorSurface = editorMode === 'visual' ? 'var(--eu-visual-bg, var(--eu-editor-bg))' : 'var(--eu-editor-bg)';
 
-  /**
-   * Every tab is the same height, and that height is the bar's.
-   *
-   * Two things follow from it, and both are the reason a tab bar feels solid or
-   * does not:
-   *
-   *  - **Nothing moves when the selection changes.** A tab that grew when it was
-   *    selected — which is what this strip used to do, 28px against 35px — pushes
-   *    its neighbours sideways and sits at a different baseline from the one it
-   *    replaces, so every switch is a small re-layout of the whole row. Tabs that
-   *    are all one size cannot move, and the only thing that changes between them
-   *    is their colour.
-   *  - **The selected tab reaches the document.** Its bottom edge lands on the
-   *    bar's bottom edge, which is the editor's top edge, so its surface and the
-   *    editor's are the same rectangle and read as one object rather than as a
-   *    tab standing on a shelf.
-   *
-   * The strip is laid out one pixel *taller* than the bar (`strip` below), so a
-   * tab's last pixel is the one that covers the hairline separating the two
-   * surfaces. That is the entire mechanism: a tab paints over the rule, and the
-   * rule is what the strip's own background would otherwise show between a tab
-   * and the document.
-   */
-  const tabHeight = barHeight + TAB_STRIP_OVERHANG;
+  // Leave room above the rounded tops while all tabs share the editor baseline.
+  const tabHeight = barHeight - 4;
 
   /**
    * The shortcut editor and the Settings UI can rebind a command while this bar
@@ -564,17 +539,6 @@ export const TabBar: React.FC<TabBarProps> = ({ panelBarShown: panelBarShownProp
   // Focus Mode is a *layout*, so the control reads it rather than holding a
   // toggle of its own: the same value the View menu and `Ctrl+Alt+1` write.
   const focusMode = layout === 'editor';
-  /**
-   * Whether the *document tabs* are on screen.
-   *
-   * `appearance.showTabBar` / `view.toggleTabBar` hide the tabs, not the bar: the
-   * bar is the window's drag region, its caption buttons and its toolbar, none of
-   * which has anywhere else to be. So the toggle removes the tab list, the tab
-   * separator and the New File button, and leaves everything a frameless window
-   * cannot do without.
-   */
-  const stripVisible = tabBarVisible;
-
   /**
    * One tab.
    *
@@ -677,26 +641,11 @@ export const TabBar: React.FC<TabBarProps> = ({ panelBarShown: panelBarShownProp
             fontWeight: 400,
             opacity: isActive ? 1 : (isHovered ? 1 : 0.78),
             background: isActive ? activeBg : 'transparent',
-            borderTopLeftRadius: 6,
-            borderTopRightRadius: 6,
-            /*
-             * The selected tab's feet are rounded, its neighbours' are not.
-             *
-             * A selected tab is joined to the document, so its bottom corners carry
-             * the same curve as its top ones — the surface then has one radius on
-             * all four sides and reads as a single shape opening into the editor,
-             * with the bar's own colour showing in the sliver the curve leaves.
-             *
-             * The tab *beside* the selection is a different case: it is a chip
-             * resting in the strip, and only the corner facing the selected tab is
-             * rounded, because that corner shares an edge with it.
-             *
-             * These are inline because they are per-tab and per-state, and a UI test
-             * reads them back; the stylesheet names the same value through
-             * `--eu-tab-curve`, which is where it is declared.
-             */
-            borderBottomRightRadius: isActive ? TAB_CORNER_RADIUS : isBeforeActive ? 6 : (isHovered ? 4 : 0),
-            borderBottomLeftRadius: isActive ? TAB_CORNER_RADIUS : isAfterActive ? 6 : (isHovered ? 4 : 0),
+            borderTopLeftRadius: TAB_CORNER_RADIUS,
+            borderTopRightRadius: TAB_CORNER_RADIUS,
+            // The open bottom joins the editor; CSS draws the outward curves.
+            borderBottomRightRadius: isActive ? 0 : isBeforeActive ? 6 : (isHovered ? 4 : 0),
+            borderBottomLeftRadius: isActive ? 0 : isAfterActive ? 6 : (isHovered ? 4 : 0),
             borderTop: isActive ? '1px solid var(--eu-border)' : '1px solid transparent',
             borderLeft: isActive ? '1px solid var(--eu-border)' : '1px solid transparent',
             borderRight: isActive ? '1px solid var(--eu-border)' : '1px solid transparent',
@@ -780,6 +729,8 @@ export const TabBar: React.FC<TabBarProps> = ({ panelBarShown: panelBarShownProp
     ]
   );
 
+  if (!tabBarVisible) return null;
+
   return (
     <div
       className="eu-tab-bar"
@@ -795,11 +746,7 @@ export const TabBar: React.FC<TabBarProps> = ({ panelBarShown: panelBarShownProp
         The document strip. It is also the window's drag region, so a press on the
         empty part of it — past the last tab — moves the window and a double-click
         there maximises it, which is what a caption does.
-
-        `stripVisible` is `view.toggleTabBar`: the tabs come and go, the bar does
-        not (see the header).
       */}
-      {stripVisible && (
         <div
           role="tablist"
           aria-label="Open documents"
@@ -850,16 +797,6 @@ export const TabBar: React.FC<TabBarProps> = ({ panelBarShown: panelBarShownProp
             <div className="eu-tab-bar__empty">No open documents</div>
           )}
         </div>
-      )}
-
-      {/*
-        With the tabs away the empty strip is the shell's own surface. It still has
-        to exist — it is the drag region and the space between the Menu control and
-        the toolbar — so it is drawn as a bare flexible spacer rather than as a
-        `tablist` with nothing in it, which a screen reader would announce as an
-        empty list of documents.
-      */}
-      {!stripVisible && <div style={stripSpacer} data-testid="tab-bar-strip-spacer" />}
 
       {/*
         The toolbar. Drawn after the strip so it is the last thing the flex row
@@ -1028,7 +965,7 @@ export const TabBar: React.FC<TabBarProps> = ({ panelBarShown: panelBarShownProp
             className="eu-window-button"
             onClick={minimizeWindow}
           >
-            <Minimize2 size={12} strokeWidth={2} />
+            <WindowControlIcon action="minimize" />
           </button>
           <button
             type="button"
@@ -1038,7 +975,7 @@ export const TabBar: React.FC<TabBarProps> = ({ panelBarShown: panelBarShownProp
             className="eu-window-button"
             onClick={toggleMaximizeWindow}
           >
-            <Maximize2 size={12} strokeWidth={2} />
+            <WindowControlIcon action={maximized ? 'restore' : 'maximize'} />
           </button>
           <button
             type="button"
@@ -1048,7 +985,7 @@ export const TabBar: React.FC<TabBarProps> = ({ panelBarShown: panelBarShownProp
             className="eu-window-button eu-window-button--close"
             onClick={closeWindow}
           >
-            <X size={12} strokeWidth={2} />
+            <WindowControlIcon action="close" />
           </button>
         </div>
       )}
@@ -1117,15 +1054,7 @@ const ToolbarDropdown: React.FC<{
 
 /* --------------------------------------------------------------- styling */
 
-/**
- * The curve on every corner of a tab, and on the sliver the bar leaves beside it.
- *
- * Named once because four places have to agree on it: the two top corners and the
- * two bottom ones, the notch the stylesheet draws at the selected tab's feet, and
- * the radius the tab beside the selection carries on the edge they share. A tab
- * whose top and bottom corners were different values is the kind of thing that is
- * felt rather than seen.
- */
+/** Radius of the tab tops and the outward curves at the editor join. */
 export const TAB_CORNER_RADIUS = 6;
 
 export const TAB_BAR_HEIGHT = 35;
@@ -1168,51 +1097,10 @@ const topLeftButtonWrapper: React.CSSProperties = {
   animation: 'topLeftWrapperExpand 0.28s cubic-bezier(0.16, 1, 0.3, 1)'
 } as React.CSSProperties;
 
-/**
- * How far the strip reaches past the bar it is in.
- *
- * One pixel, and it is the pixel that carries the join. The strip is laid out
- * this much taller than the bar and pulled up by the same amount, so a tab's
- * bottom pixel lands *on* the hairline rule that separates the bar from the
- * editor. A tab paints over that rule; the strip's own background does not,
- * which is why the rule is visible between tabs and invisible under the selected
- * one. That single pixel is the whole mechanism, which is why it has a name.
- */
-const TAB_STRIP_OVERHANG = 1;
-
-/**
- * The scroll container.
- *
- * `height: calc(100% + 1px)` with a matching negative margin, which is what puts
- * a tab's bottom edge one pixel past the bar's bottom edge — far enough to cover
- * the rule drawn there, and no further, so a tab never overlaps the document it
- * points at.
- *
- * The stylesheet gives this box `padding-bottom: var(--eu-tab-curve)` and a matching
- * negative margin, so that its clip edge falls below the tabs and the selected tab's
- * rounded foot is painted rather than cut off. Padding is inside the height, so the
- * height has to include it as well — otherwise the padding comes out of the tabs'
- * share of the box, the strip's content box ends above the bar's bottom, and every tab
- * is left sitting a few pixels high with a band of the bar underneath it. That band is
- * the seam this is meant to remove.
- */
+// The tab bottoms align exactly with the bar; padding only extends the scroll clip.
 const strip: React.CSSProperties = {
-  height: `calc(100% + ${TAB_STRIP_OVERHANG}px + var(--eu-tab-curve))`,
-  marginBottom: `calc(-${TAB_STRIP_OVERHANG}px - var(--eu-tab-curve))`
+  height: 'calc(100% + var(--eu-tab-curve))',
+  marginBottom: 'calc(-1 * var(--eu-tab-curve))'
 };
-
-/**
- * What stands in the strip's place while the tabs are hidden.
- *
- * The same flexible middle, and drag: it is the part of the bar a press has to
- * reach to move the window, so it cannot simply be dropped along with the tabs.
- * No `tablist` role and no `aria-label`, because there is no list in it.
- */
-const stripSpacer: React.CSSProperties = {
-  flex: 1,
-  minWidth: 0,
-  alignSelf: 'stretch',
-  WebkitAppRegion: 'drag'
-} as React.CSSProperties;
 
 export default TabBar;

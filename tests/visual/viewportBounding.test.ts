@@ -228,6 +228,59 @@ describe('a viewport-bounded build says the same thing about the viewport', () =
     // deschedule this worker. The range-count bound above measures saved work.
   })
 
+  it('gives the same answer whether the context was scanned or replayed', () => {
+    /*
+     * The checkpoint cache replays from a boundary it has already counted rather than
+     * walking from position 0 again, and that is only sound if the replay produces
+     * exactly what the full pass would have. Everything the walk accumulates is
+     * monotone in the document position except the list nesting, which the context
+     * carries in its own stacks — so this is the test that says the two are the same
+     * function and not merely similar ones.
+     *
+     * The buildings are each built **thrice**: once cold, once after a neighbour has
+     * been built (so a checkpoint exists to replay from), and once again for the same
+     * boundary (so the cache is hit outright). All three have to agree, and `\item`
+     * numbering is what notices when they do not.
+     */
+    const line = (number: number) => {
+      const at = state.doc.line(number)
+      return { from: at.from, to: at.to }
+    }
+    const atLine = (number: number) =>
+      ordinalsIn(
+        createDecorations(state, parsed, [line(number)]).decorations,
+        line(number).from,
+        line(number).to
+      )
+
+    // A line in the second half of the document, so a replay has real ground to cross.
+    const secondItems: number[] = []
+    const wholeSet = createDecorations(state, parsed, []).decorations
+    wholeSet.between(0, state.doc.length, (from, _to, decoration) => {
+      const start = (
+        decoration as { spec?: { attributes?: Record<string, string> } }
+      ).spec?.attributes?.start
+      if (start === '2') secondItems.push(state.doc.lineAt(from).number)
+    })
+    expect(secondItems.length).toBeGreaterThan(0)
+    const target = secondItems[secondItems.length - 1]
+
+    const cold = atLine(target)
+    // A neighbour first, which is what leaves a checkpoint behind.
+    atLine(Math.max(1, target - 3))
+    const replayed = atLine(target)
+    const fromCache = atLine(target)
+
+    // eslint-disable-next-line no-console
+    console.log(
+      `line ${target} "\\item" ordinals — cold ${JSON.stringify(cold)}, ` +
+        `after a neighbour ${JSON.stringify(replayed)}, again ${JSON.stringify(fromCache)}`
+    )
+    expect(cold).toEqual(['2'])
+    expect(replayed).toEqual(cold)
+    expect(fromCache).toEqual(cold)
+  })
+
   it('numbers every \\item in the document the same way a whole-document build does', () => {
     /*
      * Every numbered list line in the later half of the document, compared one by

@@ -261,6 +261,9 @@ export interface PdfOutlineItem {
 }
 
 export interface PdfOpenResult {
+  docId?: string;
+  /** The committed native document was reused byte-for-byte. */
+  unchanged?: boolean;
   path: string;
   pageCount: number;
   /** Page sizes in PDF points, in page order. */
@@ -282,6 +285,24 @@ export interface PdfRenderRequest {
   rotate?: 0 | 90 | 180 | 270;
   /** Sub-rectangle of the page to render, in PDF points. */
   clip?: PdfRect;
+  /**
+   * The tile address this `clip` was derived from, when it came from a grid.
+   *
+   * Optional and advisory: `PDFVIEWER.md` §7 has the renderer address regions while
+   * the worker's cache keys on the rectangle, and `render_cache.cpp` resolves an
+   * address into exactly the rectangle the viewer computed from the same formula. A
+   * caller that cannot state an address (the whole-page compatibility path) simply
+   * omits it, and the worker derives the region from `clip` alone.
+   */
+  tile?: { res: number; row: number; col: number };
+  /**
+   * Device pixels per tile side this request's grid was composed against.
+   *
+   * Passing it pins the worker's adaptive tile geometry to the grid the viewer laid
+   * out (`RenderJob::targetTileSize`), so a memory-pressure tile-size reduction at
+   * the native end cannot silently change what the viewer's addresses mean.
+   */
+  targetTileSize?: number;
   invert?: boolean;
   /** When true the engine may serve this from cache without re-rasterising. */
   allowCache?: boolean;
@@ -302,6 +323,16 @@ export interface PdfRenderResult {
   pageRect: PdfRect;
   /** Raw pixel payload. */
   pixels: Uint8Array;
+  /**
+   * True when the engine answered from its own cache without rasterising.
+   *
+   * Additive and optional, so the frozen `pdfRender` contract is unchanged for every
+   * caller that ignores it. It matters to the tiled route because `PDFVIEWER.md`
+   * §10's warm-motion gate is "no unnecessary page rasterization": a tile that keeps
+   * coming back from the engine's own cache is a viewer bug rather than a cache win,
+   * and this is the field that tells the two apart.
+   */
+  fromEngineCache?: boolean;
 }
 
 export interface PdfTextSpan {
@@ -370,6 +401,74 @@ export interface PdfDocumentRef {
   path: string;
   /** Opaque handle used by the engine to identify an open document. */
   docId: string;
+}
+
+/**
+ * What the installed native worker can do, so the viewer can decide whether to take
+ * the tiled route.
+ *
+ * `PDFVIEWER.md` §7: "Add capability negotiation for tiled presentation and
+ * viewport updates, forwarding existing native functionality through main/preload
+ * with runtime validation." The renderer must not assume tiles exist: an older
+ * packaged `eukolia-pdf.exe` beside a newer renderer bundle would otherwise ask for
+ * a route the worker has never heard of and get a protocol error on every page.
+ */
+export interface PdfTileCapabilities {
+  /** False when no native worker is available at all. */
+  available: boolean;
+  /**
+   * True when `pdfRender` honours `tile`/`clip` plus `targetTileSize` and reports the
+   * rectangle it actually drew. Older workers ignore both and render the whole page,
+   * which would place a full-page bitmap where a tile belongs.
+   */
+  tiledRender: boolean;
+  /** True when the worker accepts a bulk `viewport` publication. */
+  viewport: boolean;
+  /**
+   * The largest tile resolution the worker's 16-bit row/column address fields can
+   * carry. `PDFVIEWER.md` §7: "Existing native tile index handling uses 16-bit
+   * row/column fields while resolutions accept larger values; audit representable
+   * ranges before public exposure."
+   */
+  maxTileRes: number;
+  /** The worker's own adaptive target tile size, as a starting point for the grid. */
+  targetTileSize: number;
+  /** Protocol version the worker reported, for diagnostics. */
+  protocolVersion: number | null;
+  /** Engine identity string, e.g. `eukolia-mupdf`. */
+  engine: string | null;
+  /** MuPDF version, for the record. */
+  mupdfVersion: string | null;
+}
+
+/**
+ * One bulk viewport publication.
+ *
+ * `PDFVIEWER.md` §7: "Do not hide native prefetch behind a route that also makes the
+ * renderer issue identical jobs. Choose one scheduler as authoritative; the native
+ * cache executes its plan." So `prefetch: false` is the normal setting for a viewer
+ * that schedules its own tiles; `prefetch: true` exists for the compatibility path
+ * and for the benchmark harness, which wants the reference's own prediction policy.
+ */
+export interface PdfViewportRequest {
+  path: string;
+  /** 0-based visible page indices, in reading order. */
+  visiblePages: number[];
+  adjacentPages?: number[];
+  nearbyPages?: number[];
+  scale: number;
+  rotate?: 0 | 90 | 180 | 270;
+  invert?: boolean;
+  /** Let the native cache queue its own prefetches for the adjacent/nearby pages. */
+  prefetch?: boolean;
+}
+
+export interface PdfViewportResult {
+  /** Jobs the native cache queued for this publication (0 when `prefetch` is false). */
+  queued: number;
+  cacheEntries: number;
+  cacheBytes: number;
+  queuedTotal: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -574,6 +673,15 @@ export const IPC = {
     close: 'pdf:close',
     render: 'pdf:render',
     cancelRender: 'pdf:cancelRender',
+    /**
+     * Tiled-presentation capability negotiation and bulk viewport publication.
+     *
+     * Added rather than changed: `pdfRender` keeps its whole-page/clip behaviour
+     * exactly (`PDFVIEWER.md` §7, "Preserve `pdfRender` as the whole-page/clip
+     * compatibility path"), so a viewer that does not understand tiles is unaffected.
+     */
+    tileCapabilities: 'pdf:tileCapabilities',
+    viewport: 'pdf:viewport',
     text: 'pdf:text',
     search: 'pdf:search',
     /** `TextSelection.cpp` — glyph hit-testing, word and line selection. */
@@ -649,6 +757,18 @@ export const IPC = {
     minimize: 'window:minimize',
     maximize: 'window:maximize',
     close: 'window:close',
+    /**
+     * Closes the window with no chance to object, for a renderer that has
+     * already offered to keep what it holds.
+     *
+     * The Snippet Library needs it because its own close path is asynchronous:
+     * it writes the library *as it closes* and leaves the window open with the
+     * reason when the write fails, so the close the main process performs the
+     * moment `window:close` arrives would take the unsaved entries with it.
+     * This channel is the answer to the question that leaves — "close anyway,
+     * discarding this" — and it destroys the window outright.
+     */
+    discard: 'window:discard',
     isMaximized: 'window:isMaximized',
     /** Fired when the window is maximised or restored, so the icon can change. */
     maximizedChanged: 'window:maximizedChanged',

@@ -169,6 +169,10 @@ export function readSettingsFile(
   const filePath = scope === 'user' ? resolveUserSettingsFile(appDataDirectory()) ?? declared : declared;
 
   if (!fs.existsSync(filePath)) {
+    // Not yet written — which is not a reason to stop watching for it. The
+    // watcher is armed on whatever exists (below), so the file appearing is an
+    // event like any other.
+    watchSettingsFile(scope, projectRoot);
     return {
       scope,
       path: filePath,
@@ -181,6 +185,10 @@ export function readSettingsFile(
   }
 
   const read = readValues(filePath);
+  // Watched even when the file does not exist: a project that gains its
+  // `.eukolia/settings.json` while it is open — written by another editor, pulled
+  // from a repository, or created by the settings UI in another window — has to
+  // be noticed, and the watcher below is what notices it.
   watchSettingsFile(scope, projectRoot);
   return {
     scope,
@@ -288,11 +296,38 @@ export function watchSettingsFile(scope: SettingsScope, projectRoot: string | nu
   if (!filePath || watchers.has(filePath)) return;
 
   const directory = path.dirname(filePath);
-  if (!fs.existsSync(directory)) return;
+  const directoryName = path.basename(directory);
+  /**
+   * Watch the settings directory when it exists, and the directory that will
+   * contain it when it does not.
+   *
+   * A project need not have a `.eukolia` folder at all — a project written by
+   * hand, or one created before the folder existed — and `fs.watch` cannot watch
+   * a path that is not there. Watching the project root instead is what makes
+   * *creating* the folder an event: `fs.watch` is not recursive, so the root
+   * reports the new `.eukolia` entry and nothing inside it, which is exactly the
+   * signal needed to re-arm the watcher on the directory itself.
+   */
+  const watchRoot = fs.existsSync(directory) ? directory : path.dirname(directory);
+  if (!fs.existsSync(watchRoot)) return;
+  const watchingParent = watchRoot !== directory;
 
   try {
-    const watcher = fs.watch(directory, (_event, filename) => {
-      if (filename && filename !== path.basename(filePath)) return;
+    const watcher = fs.watch(watchRoot, (_event, filename) => {
+      const name = filename ? path.basename(String(filename)) : '';
+      if (watchingParent) {
+        // Anything but the settings directory appearing is someone else's file.
+        if (name && name !== directoryName) return;
+        watcher.close();
+        watchers.delete(filePath);
+        watcherScopes.delete(filePath);
+        // The directory is there now: watch it, and read whatever it already
+        // holds — the file may have been written in the same breath.
+        watchSettingsFile(scope, projectRoot);
+        if (changeListener) changeListener(readSettingsFile(scope, projectRoot));
+        return;
+      }
+      if (name && name !== path.basename(filePath)) return;
       if (!changeListener) return;
       changeListener(readSettingsFile(scope, projectRoot));
     });

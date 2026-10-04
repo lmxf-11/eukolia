@@ -1,5 +1,6 @@
 import { FULL_FEATURES, type LargeDocumentProfile } from './largeDocument'
 
+
 /**
  * Eukolia Visual Mode extension set.
  *
@@ -55,7 +56,7 @@ import { autoPair } from '@/vendor/overleaf/extensions/auto-pair'
 import { autoComplete } from '@/vendor/overleaf/extensions/auto-complete'
 import { keymaps } from '@/vendor/overleaf/extensions/keymaps'
 import { shortcuts } from '@/vendor/overleaf/extensions/shortcuts'
-import { symbolPalette } from '@/vendor/overleaf/extensions/symbol-palette'
+import { mathSymbolInsertAdapter } from './mathSymbolInsert'
 import { mathPreview } from '@/vendor/overleaf/extensions/math-preview'
 import { effectListeners } from '@/vendor/overleaf/extensions/effect-listeners'
 import { lineNumbers } from '@/vendor/overleaf/extensions/line-numbers'
@@ -131,6 +132,31 @@ export const setVisualMode = (showVisual: boolean): TransactionSpec =>
   setVisual(showVisual)
 
 export { isVisual }
+
+/** Outline chevrons: down for an open block, right for a folded block. */
+function createFoldMarker(open: boolean): HTMLElement {
+  const marker = document.createElement('span')
+  marker.className = 'eu-fold-marker'
+  marker.dataset.folded = String(!open)
+  marker.title = open ? 'Fold block' : 'Unfold block'
+  marker.setAttribute('aria-label', marker.title)
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+  svg.setAttribute('viewBox', '0 0 16 16')
+  svg.setAttribute('width', '16')
+  svg.setAttribute('height', '16')
+  svg.setAttribute('aria-hidden', 'true')
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+  path.setAttribute('d', open ? 'M3.5 5.5 8 10l4.5-4.5' : 'm5.5 3.5 4.5 4.5-4.5 4.5')
+  path.setAttribute('fill', 'none')
+  path.setAttribute('stroke', 'currentColor')
+  path.setAttribute('stroke-width', '1.25')
+  path.setAttribute('stroke-linecap', 'round')
+  path.setAttribute('stroke-linejoin', 'round')
+  svg.append(path)
+  marker.append(svg)
+  return marker
+}
+
 
 /** The file extensions Overleaf's LaTeX visual editor claims. */
 export const VISUAL_MODE_EXTENSIONS = ['tex', 'ltx', 'sty', 'cls']
@@ -390,7 +416,7 @@ export const eukoliaEditorExtensions = (
     diagnosticGutter,
     ...(showLineNumbers ? [lineNumbers(visualLineNumberFormatter())] : []),
     ...(folding
-      ? [foldGutter({ openText: '\u25be', closedText: '\u25b8' })]
+      ? [foldGutter({ markerDOM: createFoldMarker })]
       : []),
     highlightActiveLineGutter(),
     EditorView.contentAttributes.of({ 'aria-label': 'Source Editor editing' }),
@@ -529,7 +555,11 @@ export const eukoliaEditorExtensions = (
     search(null),
     highlightSelectionMatches(),
     shortcuts,
-    symbolPalette(),
+    // The ported Overleaf extension's listener, replaced by an adapter that
+    // resolves and wraps through the Mathematical Symbols insertion path instead
+    // of writing raw code into whatever selection this view happens to hold. See
+    // `mathSymbolInsert.ts` for what was wrong with the original.
+    mathSymbolInsertAdapter(),
     keymaps,
     contextMenu(),
 

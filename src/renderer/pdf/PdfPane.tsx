@@ -95,6 +95,15 @@ export interface PdfPaneProps {  path: string | null;
   /** light-pdf's `CmdReloadDocument` (`R`): re-read the file from disk. */
   onReload?(): void;
   /**
+   * A finished build asks the viewer to look at the file again (`checkToken`),
+   * and `PDF: Reload Document` asks it to re-open it outright (`forceToken`).
+   * Both are passed straight through: the pane has no opinion about when the
+   * bytes on disk should be re-read, and it holds no state that a reload would
+   * have to be told about.
+   */
+  checkToken?: number;
+  forceToken?: number;
+  /**
    * The pointer left the pane.
    *
    * Focus Mode's floating viewer uses this to decide when a viewer it is holding
@@ -297,7 +306,7 @@ export const PdfPane: React.FC<PdfPaneProps> = (props) => {
   const invertColors = props.invertColors || documentColorsAreDark(theme);
 
   /**
-   * Whether the floating toolbar is on screen. It is always shown in the pinned
+   * Whether the floating toolbar is on screen. It is always shown in the always-show
    * mode, and in the overlay mode it is revealed by proximity — except while the
    * find bar is open, because the bar lives inside the toolbar host and must not
    * disappear with it (light-pdf's find bar is a separate window, so it stays
@@ -320,7 +329,7 @@ export const PdfPane: React.FC<PdfPaneProps> = (props) => {
   /**
    * The bar's height, which the find bar has to clear: light-pdf's toolbar is
    * `ToolbarSize`'s icon box rounded up to 4 plus its padding
-   * (`Toolbar.cpp:1402-1417`), i.e. 26px at the default icon size of 18.
+   * (`Toolbar.cpp:1402-1417`), with 16px of padding, i.e. 36px at the default icon size of 18.
    */
   const toolbarBarHeight = lightPdfToolbarBarHeight(viewerSettings.toolbarSize);
 
@@ -354,7 +363,7 @@ export const PdfPane: React.FC<PdfPaneProps> = (props) => {
       if (!toolbarRevealed || overlayHideTimerRef.current !== null) return;
       overlayHideTimerRef.current = setTimeout(() => {
         overlayHideTimerRef.current = null;
-        setToolbarRevealed(false);
+        if (!toolbarRef.current?.contains(document.activeElement)) setToolbarRevealed(false);
       }, LIGHTPDF_TOOLBAR_HIDE_DELAY_MS);
     },
     [viewerSettings.toolbarMode, toolbarRevealed, cancelOverlayHide]
@@ -365,7 +374,7 @@ export const PdfPane: React.FC<PdfPaneProps> = (props) => {
     if (overlayHideTimerRef.current !== null) return;
     overlayHideTimerRef.current = setTimeout(() => {
       overlayHideTimerRef.current = null;
-      setToolbarRevealed(false);
+      if (!toolbarRef.current?.contains(document.activeElement)) setToolbarRevealed(false);
     }, LIGHTPDF_TOOLBAR_HIDE_DELAY_MS);
   }, [viewerSettings.toolbarMode, toolbarRevealed]);
 
@@ -508,7 +517,7 @@ export const PdfPane: React.FC<PdfPaneProps> = (props) => {
       const mode = zoomModeFromSetting(defaultZoom);
       if (mode) applyZoom(zoomState.zoom, mode);
     }
-    // `ShowOrHideToolbar` (`Toolbar.cpp:652-680`): switching back to a pinned
+    // `ShowOrHideToolbar` (`Toolbar.cpp:652-680`): switching back to an always-visible
     // toolbar shows it immediately; switching *to* the overlay leaves it to the
     // proximity rule, so it starts hidden like light-pdf's.
     if (previous && previous.toolbar !== toolbar) {
@@ -898,7 +907,7 @@ export const PdfPane: React.FC<PdfPaneProps> = (props) => {
           }}
         >
           {/*
-            `Toolbar`/`ShowToolbar` + `ToolbarPosition`. An overlay toolbar
+            Both visible modes share a floating toolbar position. The hover toolbar
             (`ToolbarModeIsOverlay`, `LightPDF.cpp:1163-1165`) floats over the
             page, sized to its natural width and centred (`OverlayToolbarRect`,
             `Toolbar.cpp:545-558`), and is revealed by proximity.
@@ -906,20 +915,22 @@ export const PdfPane: React.FC<PdfPaneProps> = (props) => {
           <div
             ref={toolbarRef}
             data-testid="pdf-toolbar-host"
-            style={
-              viewerSettings.toolbarMode === 'overlay'
-                ? {
-                    position: 'absolute',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    [toolbarAtBottom ? 'bottom' : 'top']: 0,
-                    zIndex: 15,
-                    opacity: toolbarVisible ? 1 : 0,
-                    pointerEvents: toolbarVisible ? 'auto' : 'none',
-                    transition: 'opacity 120ms linear'
-                  }
-                : { position: 'relative', flexShrink: 0 }
-            }
+            aria-hidden={!toolbarVisible || viewerSettings.toolbarMode === 'hide'}
+            inert={!toolbarVisible || viewerSettings.toolbarMode === 'hide'}
+            onFocusCapture={() => { cancelOverlayHide(); setToolbarRevealed(true); }}
+            onBlurCapture={onOverlayPointerLeave}
+            style={{
+              position: 'absolute',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              [toolbarAtBottom ? 'bottom' : 'top']: 0,
+              width: 'max-content',
+              maxWidth: 'calc(100% - 16px)',
+              zIndex: 15,
+              opacity: toolbarVisible ? 1 : 0,
+              pointerEvents: toolbarVisible ? 'auto' : 'none',
+              transition: 'opacity 160ms ease'
+            }}
           >
             {viewerSettings.toolbarMode !== 'hide' && (
               <ToolbarHost
@@ -991,13 +1002,13 @@ export const PdfPane: React.FC<PdfPaneProps> = (props) => {
               (`FindBar.cpp`, `ShowOrHideToolbar`, `Toolbar.cpp:652-680`).
             */}
             {viewerSettings.toolbarMode === 'hide' && findOpen && (
-              <div style={{ position: 'absolute', [toolbarAtBottom ? 'bottom' : 'top']: 0, left: 0, zIndex: 20 }}>
+              <div style={{ position: 'absolute', [toolbarAtBottom ? 'bottom' : 'top']: 0, left: 8, right: 8, zIndex: 20 }}>
                 <LightPdfFindBar
                   theme={theme}
                   anchorLeft={findAnchor}
                   matchCase={matchCase}
                   wholeWord={wholeWord}
-                  placement="below"
+                  placement={toolbarAtBottom ? 'above' : 'below'}
                   barHeight={0}
                   status={findState.total > 0 ? `${findState.index} / ${findState.total}` : findQuery ? '0 / 0' : ''}
                   query={findQuery}
@@ -1024,6 +1035,8 @@ export const PdfPane: React.FC<PdfPaneProps> = (props) => {
           <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
             <PdfViewer
               path={props.path}
+              checkToken={props.checkToken}
+              forceToken={props.forceToken}
               zoom={zoomState.zoom}
               zoomMode={zoomState.mode}
               displayMode={displayMode}
@@ -1161,7 +1174,7 @@ const ToolbarHost: React.FC<{
   );
 
   return (
-    <div ref={attach} style={{ position: 'relative', flexShrink: 0 }}>
+    <div ref={attach} style={{ position: 'relative', flexShrink: 0, maxWidth: '100%' }}>
       {toolbar}
       {findBar}
     </div>

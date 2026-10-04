@@ -38,6 +38,7 @@ import { setActiveOverallTheme } from '@/vendor/overleaf/eukolia/theme-hooks'
 import { setEditable } from '@/vendor/overleaf/extensions/editable'
 import { renderCacheStats } from '@/vendor/overleaf/extensions/visual/visual-widgets/math-render-cache'
 import type { EditorHandle } from '../editor/editorHandle'
+import { applyInsertionPlan } from '../mathSymbols/insertMathSymbol'
 import { setCompilerDiagnostics } from '../editor/cmDiagnostics'
 import type { LatexNavigationHost } from '../editor/cmNavigation'
 import { formattingEngine } from '../aligner/texAligner'
@@ -73,6 +74,7 @@ import {
 } from '../editor/projectMacros'
 import { buildFigureIndex, renderPdfFigurePage } from '../services/figurePreview'
 import { setting, settingsManager } from '../core/settings'
+import { NATIVE_SCROLL_ATTRIBUTE } from '../core/smoothScroll'
 import { FigureOptionsDialog } from './FigureOptionsDialog'
 // Styling for the visual editor widget classes.
 import './visual-editor.css'
@@ -606,6 +608,18 @@ export const VisualEditor: React.FC<VisualEditorProps> = React.memo(props => {
         const view = viewRef.current
         return view ? view.state.selection.main.head : null
       },
+      applyMathInsertion(plan) {
+        const view = viewRef.current
+        if (!view) return null
+        // The plan was built against a state the caller read; `applyInsertionPlan`
+        // writes it as one transaction with its own undo boundary, and focusing
+        // afterwards is what returns the caret to the source editor the moment
+        // the symbol lands — which is what makes a second click continue the
+        // same formula rather than the search box.
+        const applied = applyInsertionPlan(plan, view)
+        view.focus()
+        return applied
+      },
       focus() {
         viewRef.current?.focus()
       },
@@ -772,6 +786,18 @@ export const VisualEditor: React.FC<VisualEditorProps> = React.memo(props => {
     // probe can never be handed a destroyed view.
     ;(window as any).__cmView = view
     /*
+     * The callbacks the editor reports through, on the window, for the keystroke
+     * probe.
+     *
+     * `scripts/probe-keystroke.mjs` asks what a keystroke *costs* and has no other
+     * way to ask which part of it is the host's: `onChange`, `applyChange` and
+     * `onSelectionChange` are called from inside CodeMirror's own update, so nothing
+     * outside the renderer can time them. The probe wraps these functions; the
+     * application never reads this and pays nothing for it — the reference is already
+     * in a ref that every update dereferences.
+     */
+    ;(window as any).__eukoliaEditorProps = propsRef.current
+    /*
      * The render cache's own counters, on the window, for the performance probe.
      *
      * `scripts/probe-visual.mjs` measures interactions from outside the renderer and
@@ -911,8 +937,42 @@ export const VisualEditor: React.FC<VisualEditorProps> = React.memo(props => {
     settingsVersion,
   ])
 
-  // ------------------------------------------------------------- theme & styles
-  // Theme and typography styles update dynamically through the ported theme
+  // ------------------------------------------------- who scrolls the document
+  /**
+   * `scrolling.smoothEditor` off hands the wheel over the document to the browser.
+   *
+   * This is an **attribute on the live scroller**, not a rebuild, and that is the whole point:
+   * `data-native-scroll` is what `smoothScroll.ts` already reads to recognise a subtree whose
+   * scrolling belongs to somebody else, so the shell's window listener stands down for the
+   * editor and the notch goes to the compositor. Nothing is destroyed, no scroll position is
+   * lost and no file is reopened — the setting takes effect on the next notch.
+   *
+   * It is deliberately *not* in the `editor.*` set above, whose changes rebuild the view: the
+   * only thing this has to change is which element owns the wheel.
+   */
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+    const apply = (): void => {
+      const smooth = setting.bool('scrolling.smoothEditor')
+      /* Read by `scripts/lib/setting-probe.client.js`; the application never reads it. */
+      view.scrollDOM.setAttribute('data-smooth-editor', String(smooth))
+      if (smooth) {
+        view.scrollDOM.removeAttribute(NATIVE_SCROLL_ATTRIBUTE)
+      } else {
+        view.scrollDOM.setAttribute(NATIVE_SCROLL_ATTRIBUTE, 'true')
+      }
+    }
+    apply()
+    return settingsManager.on('change', payload => {
+      const key = (payload as { key?: string } | undefined)?.key
+      if (key !== undefined && key !== 'scrolling.smoothEditor') return
+      apply()
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scope, filePath, settingsVersion])
+
+  // ------------------------------------------------------------- theme & styles  // Theme and typography styles update dynamically through the ported theme
   // compartment (`optionsThemeConf`) without rebuilding the editor view,
   // destroying the state, or causing twitching and jerking.
   const prevThemeRef = useRef(theme)

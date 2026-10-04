@@ -116,7 +116,49 @@ describe('the command list the toolbar names', () => {
     expect(commands.filter((command) => command.id === 'view.toggleFocusMode')).toHaveLength(0);
     const focus = commands.find((command) => command.id === 'view.focusMode');
     expect(focus?.title).toContain('Toggle');
-    expect(appSource).toContain('handler: () => state.toggleFocusMode()');
+    /*
+     * Read through the *live* state view, which is what the handler must call.
+     *
+     * The command list is registered once and its reads go through `liveState` (a
+     * ref-backed view), because re-registering and re-indexing all eighty commands
+     * whenever the application state changed cost about 5.4 ms of every keystroke —
+     * measured, see `useApplicationCommands` in `App.tsx`. An earlier version of this
+     * string was `state.toggleFocusMode()`, which is now the bug rather than the
+     * expectation: a handler closing over the state it was built with would act on a
+     * stale one, and `Save` would write yesterday's text.
+     */
+    expect(appSource).toContain('handler: () => liveState.toggleFocusMode()');
+  });
+
+  it('registers the command list once, and reads state through the live view', () => {
+    /*
+     * The property is two halves that only work together, which is why they are one
+     * test: `[]` without `liveState` freezes every handler on the state the shell
+     * mounted with, and `liveState` without `[]` pays the re-registration again.
+     *
+     * The cost it removes, measured by CPU-profiling forty keystrokes in an 1 877-line
+     * Stacks chapter (`scripts/probe-typing-profile.mjs`): `reindexKeybindings` 179 ms,
+     * `getValue` 159 ms, `register` 92 ms, `unregister` 50 ms — roughly 5.4 ms per
+     * keystroke spent tearing down and rebuilding a keybinding table that had not
+     * changed. Reporting the caret writes application state on every keystroke, so the
+     * effect's `[state]` dependency made that happen on every keystroke.
+     */
+    expect(appSource).toContain('}, []);');
+    expect(
+      appSource.includes("handler: () => liveState."),
+      'the command handlers must read the live state view'
+    ).toBe(true);
+    // And nothing in the command list may read the captured `state` directly.
+    const listStart = appSource.indexOf('commandRegistry.registerAll([');
+    const listEnd = appSource.indexOf('}, []);', listStart);
+    expect(listStart).toBeGreaterThan(0);
+    expect(listEnd).toBeGreaterThan(listStart);
+    const commandList = appSource.slice(listStart, listEnd);
+    const captured = commandList.match(/(^|[^\w$.])state\./g) ?? [];
+    expect(
+      captured,
+      `the command list still reads the captured state ${captured.length} time(s)`
+    ).toHaveLength(0);
   });
 
   it('gives Focus Mode a shortcut and no other command that key', () => {
@@ -234,12 +276,8 @@ describe('the chrome toggles are settings as well as commands', () => {
      * command that hides it needs a persisted preference behind the command, or
      * the Settings UI and the keyboard disagree.
      *
-     * The tab bar is the deliberate exception, and it is the interesting one: it
-     * carries the window's drag region and its caption buttons, so no setting may
-     * remove the bar itself — `view.toggleTabBar` hides the *tabs* (see
-     * `TabBar`'s own `stripVisible`). Asserted here because "which chrome can
-     * disappear" is a question about the window, and this is the file that reads
-     * the whole command list.
+     * Tab-bar visibility is session state, controlled by its command and the
+     * status-bar button, rather than a persisted appearance setting.
      */
     for (const key of ['appearance.showStatusBar', 'appearance.showActivityBar']) {
       const descriptor = SETTINGS_SCHEMA.find((entry) => entry.key === key);

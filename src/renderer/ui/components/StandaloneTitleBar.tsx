@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Maximize2, Minimize2, X, type LucideIcon } from './icons';
+import { type LucideIcon } from './icons';
+import { WindowControlIcon } from './WindowControlIcon';
 
 export const TITLE_BAR_HEIGHT = 34;
 
@@ -80,9 +81,6 @@ export const StandaloneTitleBar: React.FC<StandaloneTitleBarProps> = ({
       <div className="eu-title-bar__drag" />
 
       <div className="eu-title-bar__brand eu-standalone-title__brand">
-        {/* The wordmark tile: the same gradient `.eu-logo` the shell's tab bar
-            draws, at the same 18px, so the windows carry one mark. */}
-        <span className="eu-logo">Eu</span>
         {Icon && <Icon size={14} className="eu-standalone-title__icon" />}
         <span className="eu-standalone-title__text">{title}</span>
         {subtitle && <span className="eu-standalone-title__subtitle">— {subtitle}</span>}
@@ -95,7 +93,7 @@ export const StandaloneTitleBar: React.FC<StandaloneTitleBarProps> = ({
           className="eu-window-button eu-standalone-title__button"
           title="Minimize"
         >
-          <Minimize2 size={12} />
+          <WindowControlIcon action="minimize" />
         </button>
         <button
           type="button"
@@ -103,7 +101,7 @@ export const StandaloneTitleBar: React.FC<StandaloneTitleBarProps> = ({
           className="eu-window-button eu-standalone-title__button"
           title={maximized ? 'Restore' : 'Maximize'}
         >
-          <Maximize2 size={12} />
+          <WindowControlIcon action={maximized ? 'restore' : 'maximize'} />
         </button>
         <button
           type="button"
@@ -114,7 +112,7 @@ export const StandaloneTitleBar: React.FC<StandaloneTitleBarProps> = ({
           className="eu-window-button eu-window-button--close eu-standalone-title__button"
           title="Close"
         >
-          <X size={14} />
+          <WindowControlIcon action="close" />
         </button>
       </div>
     </header>

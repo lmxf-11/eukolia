@@ -874,8 +874,10 @@ describe('rendering contract', () => {
 
     expect(openCalls).toBe(opensAfterFirstLoad + 1);
     /*
-     * The re-open clears the bitmap cache and repaints each page exactly once, so a
-     * rebuild never stacks a second render pass on the old bitmaps.
+     * The re-read marks every cached bitmap as belonging to the previous read of
+     * the file, so each page in the render window is repainted exactly once — a
+     * rebuild never stacks a second render pass on the old bitmaps, and never
+     * leaves a page showing the previous build either.
      *
      * Counted as requests that were *not* superseded. A rebuild legitimately cancels
      * an in-flight render and asks again — `pdfCancelRender` is called for the old
@@ -967,6 +969,268 @@ describe('rendering contract', () => {
     });
     host.remove();
   }, 20000);
+});
+
+/**
+ * Live preview.
+ *
+ * Two ways in, and they mean different things. A *build* that finished is a
+ * request to look at the file — the viewer compares the modification time it
+ * recorded against the one on disk, so a build that wrote nothing new costs a
+ * `stat` and no repaint. `Reload Document` (light-pdf's `R`) is a request for the
+ * bytes themselves, whatever the timestamp says.
+ *
+ * Both reach the viewer as counters, because the viewer owns the document: the
+ * caller says "something may have changed", and the decision to re-read the file
+ * belongs where the file's state is kept.
+ */
+describe('live preview — a build asks, the viewer decides', () => {
+  it('keeps the latest scroll position and zoom when a delayed refresh appends a wider page', async () => {
+    currentDocument = { pageCount: 6, pages: Array.from({ length: 6 }, () => LETTER) };
+    const mounted = await mount();
+    const scale = mounted.scroller.dataset.scale;
+    const firstPageLeft = (mounted.scroller.querySelector('[data-page="1"]') as HTMLElement).style.left;
+    mounted.scroller.scrollTop = 700;
+    openGate = new Promise<void>((resolve) => { releaseOpen = resolve; });
+    mtime = 2000;
+    await rerender(mounted, { checkToken: 1 });
+    await settle(30);
+    mounted.scroller.scrollTop = 900;
+    currentDocument = { pageCount: 7, pages: [...currentDocument.pages, { width: 1200, height: 792 }] };
+    releaseOpen?.();
+    await settle(80);
+    await advanceFrames(4);
+    expect(mounted.scroller.scrollTop).toBe(900);
+    expect(mounted.scroller.dataset.scale).toBe(scale);
+    expect((mounted.scroller.querySelector('[data-page="1"]') as HTMLElement).style.left).toBe(firstPageLeft);
+    expect(mounted.scroller.dataset.docPageCount).toBe('7');
+    expect(mounted.host.textContent).not.toContain('Opening PDF');
+    await mounted.unmount();
+  });
+
+  it('keeps the preview on a failed replacement and retries without a new timestamp', async () => {
+    const mounted = await mount();
+    const api = window.eukoliaApi;
+    const open = api.pdfOpen;
+    let fail = true;
+    api.pdfOpen = async (...args) => {
+      if (fail) { fail = false; throw new Error('unexpected EOF in PDF snapshot'); }
+      return open(...args);
+    };
+    const generation = Number(mounted.scroller.dataset.docGeneration);
+    mounted.scroller.scrollTop = 100;
+    mtime = 2000;
+    await rerender(mounted, { checkToken: 1 });
+    await settle(80);
+    expect(mounted.host.textContent).not.toContain('Could not open the PDF');
+    expect(mounted.scroller.scrollTop).toBe(100);
+    expect(Number(mounted.scroller.dataset.docGeneration)).toBe(generation);
+    await settle(1600);
+    expect(Number(mounted.scroller.dataset.docGeneration)).toBe(generation + 1);
+    expect(mounted.scroller.scrollTop).toBe(100);
+    await mounted.unmount();
+  });
+
+  it('does not invalidate rendered pages for byte-identical output', async () => {
+    const mounted = await mount();
+    const open = window.eukoliaApi.pdfOpen;
+    window.eukoliaApi.pdfOpen = async (...args) => ({ ...await open(...args), unchanged: true });
+    const generation = mounted.scroller.dataset.docGeneration;
+    const renders = renderCalls.length;
+    mtime = 2000;
+    await rerender(mounted, { checkToken: 1 });
+    await settle(80);
+    expect(mounted.scroller.dataset.docGeneration).toBe(generation);
+    expect(renderCalls.length).toBe(renders);
+    await mounted.unmount();
+  });
+
+  it('commits a coherent snapshot even when a follow-up read is unchanged', async () => {
+    const mounted = await mount();
+    const open = window.eukoliaApi.pdfOpen;
+    let first = true;
+    window.eukoliaApi.pdfOpen = async (...args) => {
+      const info = await open(...args);
+      if (first) { first = false; mtime = 3000; return { ...info, docId: 'new' }; }
+      return { ...info, docId: 'new', unchanged: true };
+    };
+    const generation = Number(mounted.scroller.dataset.docGeneration);
+    mtime = 2000;
+    await rerender(mounted, { checkToken: 1 });
+    await settle(100);
+    expect(Number(mounted.scroller.dataset.docGeneration)).toBe(generation + 1);
+    await mounted.unmount();
+  });
+  /**
+   * The pane component is imported lazily, as the harness's own `mount` does: its
+   * module reads `window.eukoliaApi` as it evaluates, and the fake bridge is
+   * installed per test.
+   */
+  const loadPane = async () => (await import('../../src/renderer/pdf/PdfPane')).PdfPane;
+
+  const paneProps = (mounted: Mounted, extra: Record<string, unknown> = {}) => ({
+    path: 'D:/docs/paper.pdf',
+    appearance: 'light' as const,
+    invertColors: false,
+    handleRef: mounted.handle,
+    onOpenFile: () => undefined,
+    ...extra
+  });
+
+  const rerender = async (mounted: Mounted, extra: Record<string, unknown>) => {
+    const PdfPane = await loadPane();
+    await act(async () => {
+      mounted.root.render(createElement(PdfPane, paneProps(mounted, extra)));
+    });
+  };
+
+  it('re-opens the document when a finished build finds the file changed', async () => {
+    const mounted = await mount();
+    const opens = openCalls;
+    mtime = 2000;
+
+    await rerender(mounted, { checkToken: 1 });
+    await settle(60);
+
+    expect(openCalls).toBe(opens + 1);
+    await mounted.unmount();
+  });
+
+  it('does not re-open it when the build wrote nothing new', async () => {
+    // latexmk reporting "nothing to do" is the common case for an auto-build, and
+    // it must not repaint the pane.
+    const mounted = await mount();
+    const opens = openCalls;
+    const renders = renderCalls.length;
+
+    await rerender(mounted, { checkToken: 1 });
+    await settle(60);
+
+    expect(openCalls).toBe(opens);
+    expect(renderCalls.length).toBe(renders);
+    await mounted.unmount();
+  });
+
+  it('re-opens it for Reload Document even when the timestamp has not moved', async () => {
+    const mounted = await mount();
+    const opens = openCalls;
+
+    // The file is unchanged on disk — which is exactly when a reader asks for a
+    // reload: the pane is showing something they do not believe.
+    await rerender(mounted, { forceToken: 1 });
+    await settle(60);
+
+    expect(openCalls).toBe(opens + 1);
+    await mounted.unmount();
+  });
+
+  it('stops watching the file when live preview is turned off', async () => {
+    const { settingsManager } = await import('../../src/renderer/core/settings');
+    settingsManager.setValue('pdf.autoReload', false, 'user');
+    try {
+      const mounted = await mount();
+      const opens = openCalls;
+      // Longer than the poll's own cadence, so a viewer that was still watching
+      // would have re-opened by now.
+      mtime = 5000;
+      await settle(2400);
+      expect(openCalls).toBe(opens);
+      await mounted.unmount();
+    } finally {
+      settingsManager.setValue('pdf.autoReload', true, 'user');
+    }
+  }, 20000);
+
+  /**
+   * The pane updates in place.
+   *
+   * This is the difference between "the viewer follows the compiler" and "the
+   * viewer starts again on every save": a rebuild must not move the reader, and
+   * must not touch a page the reader cannot see. light-pdf reaches the same place
+   * from the other end — it saves the display state, replaces the document in the
+   * tab, and leaves the previous rendering on screen until the new tiles are ready
+   * (`ReloadDocument` → `ReplaceDocumentInCurrentTab`).
+   *
+   * The third part of that claim — that no page goes blank while the new read
+   * arrives — is measured in the running application rather than here: jsdom has
+   * no canvas, so `paint` never reaches a backing store and the viewer's
+   * `data-blank-pages` cannot move. The smoke probe asserts it on a real one.
+   */
+  it('re-reads the file without re-reading the pages the reader cannot see', async () => {
+    // Six pages, one on screen: the rebuild may repaint what is being looked at
+    // (plus the prefetch window), and nothing else. Re-rendering the document
+    // would be a full reload in everything but name.
+    currentDocument = { pageCount: 6, pages: Array.from({ length: 6 }, () => LETTER) };
+    const mounted = await mount();
+    const rendersBefore = renderCalls.length;
+    expect(rendersBefore).toBeGreaterThan(0);
+
+    mtime = 2000;
+    await rerender(mounted, { checkToken: 1 });
+    await settle(80);
+
+    const requested = new Set(renderCalls.slice(rendersBefore).map((call) => call.page + 1));
+    expect(requested.size).toBeGreaterThan(0);
+    // The far end of the document is untouched: whatever the prefetch window is,
+    // the sixth page is not in it, and a viewer that reloaded the document would
+    // have asked for every page of it.
+    expect(requested.has(6)).toBe(false);
+    expect(requested.size).toBeLessThan(6);
+    expect(Number(mounted.scroller.dataset.docPageCount)).toBe(6);
+    await mounted.unmount();
+  });
+
+  it('does not cover the document with the loading sheet on a rebuild', async () => {
+    const mounted = await mount();
+    /*
+     * The re-read is held open deliberately.
+     *
+     * The pane's "Opening PDF…" sheet is drawn for as long as the open is in
+     * flight, so this is the one state a test can stand in to see it — and it is
+     * the state a rebuild used to spend every save in, which is what a reader
+     * describes as "it reloads the whole document". Only a first open has nothing
+     * to show; a re-read of a document that is already up is not one.
+     */
+    openGate = new Promise<void>((resolve) => {
+      releaseOpen = resolve;
+    });
+    mtime = 2000;
+    await rerender(mounted, { checkToken: 1 });
+    await settle(60);
+
+    expect(mounted.host.textContent ?? '').not.toContain('Opening PDF');
+    // …and the document itself is still there, in the same place.
+    expect(Number(mounted.scroller.dataset.docPageCount)).toBeGreaterThan(0);
+    expect(mounted.scroller.dataset.documentPath).toBe('D:/docs/paper.pdf');
+
+    releaseOpen?.();
+    await settle(60);
+    expect(openCalls).toBeGreaterThan(0);
+    await mounted.unmount();
+  });
+
+  it('reloads on a rebuild rather than starting the document again', async () => {
+    const mounted = await mount();
+    const rendersBefore = renderCalls.length;
+    const pagesBefore = mounted.scroller.dataset.currentPage;
+    const generations = Number(mounted.scroller.dataset.docGeneration ?? '0');
+
+    mtime = 2000;
+    await rerender(mounted, { checkToken: 1 });
+    await settle(80);
+
+    // The document on screen is the same document, and the reader is where they
+    // were: an update, not an open. `data-document-path` is the pane's copy of
+    // what it holds, and the page is compared because a viewer that had unmounted
+    // and re-opened would have gone back to the remembered page instead.
+    expect(mounted.scroller.dataset.documentPath).toBe('D:/docs/paper.pdf');
+    expect(mounted.scroller.dataset.currentPage).toBe(pagesBefore);
+    expect(Number(mounted.scroller.dataset.docGeneration ?? '0')).toBe(generations + 1);
+    // …and the paint status is a moving diagnostic by design, so the generation is
+    // what is read rather than the status string it was set with.
+    expect(renderCalls.length).toBeGreaterThan(rendersBefore);
+    await mounted.unmount();
+  });
 });
 
 

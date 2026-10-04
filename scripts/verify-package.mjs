@@ -127,6 +127,7 @@ require_(
 if (packageDir) {
   const asarPath = path.join(packageDir, 'resources', 'app.asar');
   require_(path.join(packageDir, 'Eukolia.exe'), 'the packaged Windows executable is missing');
+  require_(path.join(packageDir, 'resources', 'icon.ico'), 'the app/window icon was not packaged');
   require_(path.join(packageDir, 'resources', 'native', 'eukolia-pdf.exe'), 'the native PDF worker was not packaged');
   require_(path.join(packageDir, 'resources', 'native', 'libmupdf.dll'), 'the PDF runtime was not packaged');
   if (!existsSync(packageDir)) {

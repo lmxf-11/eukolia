@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { ProjectLibraryStatus } from '../../../shared/projectLibrary';
 import { dismissBootScreen } from '../../core/bootScreen';
 import { useAppState } from '../state';
+import { welcomeIconUrl } from '../appIcons';
 import { Modal } from './Modal';
 import {
   Folder,
@@ -71,7 +72,7 @@ export function ProjectLibraryGate({
       <header className="library-window-bar">Eukolia</header>
       <main className="library-welcome">
         <div className="library-emblem">
-          <Library size={32} />
+          <img src={welcomeIconUrl} width={40} height={40} alt="" aria-hidden="true" />
         </div>
         {/* The eyebrow above the headline and the headline itself are the same
             two lines they always were; what changed is that the eyebrow is now
@@ -145,9 +146,8 @@ export function LibraryHome() {
   return (
     <main className="library-home">
       <div className="library-emblem">
-        <Library size={28} />
+        <img src={welcomeIconUrl} width={40} height={40} alt="" aria-hidden="true" />
       </div>
-      <p className="library-eyebrow eu-eyebrow">EUKOLIA</p>
       <h1>Space to think.</h1>
       <p className="library-lead">
         Start with a template, or return to your work.

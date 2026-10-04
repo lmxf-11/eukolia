@@ -5,6 +5,20 @@ import renderer from 'vite-plugin-electron-renderer';
 import path from 'path';
 
 export default defineConfig({
+  /*
+   * A build-time constant for the probe switch, because a *runtime* one cannot be relied on.
+   *
+   * The decoration pass reads `__EUKOLIA_NO_WIDGETS` to run the elimination test in
+   * `ARCHITECTURE.md` §3.45, and the first two attempts to set it from outside failed in a way that
+   * made the A/B silently meaningless: publishing it from the main process at `did-start-loading`
+   * races the renderer's own module evaluation, so the page reported the switch as absent while the
+   * runner believed it was on. Substituting it at build time removes the race entirely — the value is
+   * in the source the renderer evaluates — at the cost of one rebuild per arm, which is a price worth
+   * paying for a measurement that cannot lie about its own configuration.
+   */
+  define: {
+    __EUKOLIA_NO_WIDGETS: JSON.stringify(process.env.EUKOLIA_NO_WIDGETS === '1')
+  },
   plugins: [
     react(),
     electron([

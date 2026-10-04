@@ -6,7 +6,17 @@
   },
   "files": [
     "dist/**/*",
-    "dist-electron/**/*"
+    "dist-electron/**/*",
+    "!node_modules/**/*",
+    "node_modules/node-pty/**/*",
+    "!node_modules/node-pty/build/**/*",
+    "!node_modules/node-pty/prebuilds/win32-arm64/**/*",
+    "!node_modules/node-pty/prebuilds/darwin-*/**/*",
+    "!node_modules/node-pty/deps/**/*",
+    "!node_modules/node-pty/src/**/*",
+    "!node_modules/node-pty/typings/**/*",
+    "!node_modules/node-pty/scripts/**/*",
+    "!node_modules/node-pty/third_party/**/*"
   ],
   "extraResources": [
     {
@@ -14,11 +24,15 @@
       "to": "native",
       "filter": [
         "eukolia-pdf.exe",
-        "libmupdf.dll"
+        "libmupdf.dll",
+        "*-COPYING.txt",
+        "*-COPYING.BSD.txt",
+        "*-AUTHORS.txt",
+        "README.md"
       ]
     },
     {
-      "from": "assets/icon.ico",
+      "from": "assets/icon/icon.ico",
       "to": "icon.ico"
     }
   ],
@@ -37,7 +51,7 @@
         ]
       }
     ],
-    "icon": "assets/icon.ico"
+    "icon": "assets/icon/icon.ico"
   },
   "nsis": {
     "oneClick": false,

@@ -73,9 +73,9 @@
 /*
  * The full-height rule for a caption button, and the rest of its box.
  *
- * `.eu-window-button` (below) is the *treatment* — 34px wide, muted glyph, the
+ * `.eu-window-button` (below) is the *treatment* — 46px wide, muted glyph, the
  * hover, the red close — and it was written for a title bar. In the tab strip the
- * buttons are as tall as the bar and a little wider, which is what makes them
+ * buttons are as tall as the bar, which is what makes them
  * read as the window's rather than as another toolbar control: a press that
  * closes the window should not be the same size as a press that toggles a panel.
  *
@@ -93,27 +93,13 @@
   height: 100%;
   margin-left: 0;
   flex-shrink: 0;
-  border-left: 1px solid var(--eu-border);
   -webkit-app-region: no-drag;
 }
 
 .eu-tab-bar__window-controls .eu-window-button {
-  width: 38px;
+  width: 46px;
   height: 100%;
   -webkit-app-region: no-drag;
-}
-
-/*
- * The empty middle of the strip while the document tabs are hidden.
- *
- * `view.toggleTabBar` takes the tabs away and leaves this behind, because the
- * part of the bar a press has to reach in order to move the window cannot leave
- * with them.
- */
-.eu-tab-bar__strip-spacer {
-  flex: 1;
-  min-width: 0;
-  -webkit-app-region: drag;
 }
 
 /*
@@ -132,7 +118,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
+  width: 46px;
+  padding: 0;
+  border-radius: 0;
   border: none;
   background: transparent;
   color: var(--eu-fg-secondary);
@@ -170,6 +158,7 @@
   display: flex;
   align-items: center;
   gap: var(--eu-space-2);
+  padding-left: var(--eu-space-2);
   /* It takes the room the controls do not, which is what holds them at the far
      edge: without it they sit wherever the brand's own text happens to end. */
   flex: 1;
@@ -209,6 +198,7 @@
 .eu-standalone-title__controls {
   position: relative;
   z-index: 1;
+  height: 100%;
   -webkit-app-region: no-drag;
 }
 
@@ -262,24 +252,7 @@
   user-select: none;
 }
 
-/*
- * The rule between the tab bar and the document.
- *
- * Obsidian draws this line **per tab**, not across the bar: each tab carries a
- * 1px outline and the active tab's background paints over its own bottom edge, so
- * the divider exists only where there is a tab and stops dead at the selected
- * one — which is what makes that tab read as continuous with the page beneath
- * it. A single hairline across the whole width cannot do that: the line runs
- * under the selected tab as well, and covering it there needs a second element
- * painted over it, which is what this bar used to have and what kept going
- * wrong at the seam.
- *
- * So there is nothing here. What was `.eu-tab-bar::after` — a full-width rule at
- * `z-index: 0` for the tabs to paint over — is gone, and the line now comes from
- * the two rules below (`.eu-tab`'s outline and `.eu-tab[aria-selected]`'s
- * bottom edge), which is Obsidian's own construction.
- */
-
+/* Keep the scroll clip below the seam so the selected tab can cover it. */
 .eu-tab-strip {
   position: relative;
   z-index: 2;
@@ -287,43 +260,9 @@
   align-items: flex-end;
   flex: 1;
   min-width: 0;
-  /*
-   * Scrolls, and the bottom edge of its clip sits *below* the tabs.
-   *
-   * `overflow-y: hidden` — which an `overflow-x: auto` box gets whether it asks for it
-   * or not — was cutting the selected tab's rounded foot off at the strip's boundary,
-   * and a clipped radius has no anti-aliasing: the fill either reaches a pixel or it
-   * does not, where the reference has a four-column gradient. That is what made the
-   * corner look sharp however the radius was set.
-   *
-   * `overflow-y: visible` is not available: a box cannot have `auto` on one axis and
-   * `visible` on the other. So the clip stays and the clip is moved down instead — the
-   * strip is made taller than the space it is given and pulled back by a negative margin
-   * of the same size. The tabs, laid out from the content box, do not move; the padding
-   * box, which is what `overflow` clips against, now ends several pixels below them.
-   *
-   * The alternative was dropping the scroll, which would lose the only way to reach a
-   * tab that has scrolled out of view. This keeps both.
-   */
   overflow-x: auto;
   overflow-y: hidden;
-  padding-left: var(--eu-space-2);
-  padding-right: var(--eu-space-2);
-  padding-bottom: var(--eu-tab-curve);
-  margin-bottom: calc(-1 * var(--eu-tab-curve));
-  /*
-   * No gap between tabs, and that is the whole of the joint.
-   *
-   * A `gap: 1px` leaves a one-pixel slot between every pair of tabs, and through that
-   * slot shows the *bar's* colour — a narrow wedge between two dark surfaces, which reads
-   * as a notch or a cusp at each foot. Obsidian's strip measured `gap = 0`: its tabs are
-   * laid end to end and share an edge, so there is no slot and nothing to fill. A joint
-   * drawn into a gap is a joint drawn in the wrong place, and every attempt to paint a
-   * curve there made the wedge more obvious rather than less.
-   *
-   * The tabs stay visually separate all the same: each unselected tab carries its own
-   * outline, so the boundary between two of them is a line rather than a channel.
-   */
+  padding: 0 var(--eu-space-2) var(--eu-tab-curve);
   gap: 0;
   scroll-behavior: smooth;
   scrollbar-width: none;
@@ -334,23 +273,17 @@
   display: none;
 }
 
-/**
- * One tab.
- *
- * The colour, the corner radii and the box shadow are set inline by the component
- * — the tests read the first two back — so this rule supplies what inline styles
- * cannot: the transition into those values, the press feedback, and a hover that
- * is a *surface* rather than a colour swap.
- *
- * ## The selected tab is a hole cut in the line
- *
- * What makes it read as selected is that it is the *same surface as the editor
- * beneath it* and that the divider between bar and document stops at its edges.
- * This file builds that the way Obsidian does — a per-tab outline, the selected
- * tab's fill painted over its own bottom edge, and two invisible circles whose
- * shadows draw the concave corners. See the three rules below; read them in that
- * order, because each assumes the one before it.
- */
+.eu-tab-bar {
+  --eu-tab-curve: 8px;
+  --eu-tab-surface: var(--eu-editor-bg);
+  /* Paint the divider inside the bar without changing its content height.
+     The active tab covers it on the same baseline, including at fractional DPI. */
+  background-image: linear-gradient(var(--eu-border), var(--eu-border));
+  background-size: 100% 1px;
+  background-position: left bottom;
+  background-repeat: no-repeat;
+}
+
 .eu-tab {
   position: relative;
   display: flex;
@@ -365,153 +298,41 @@
   -webkit-app-region: no-drag;
   transition: background-color var(--eu-dur-fast) var(--eu-ease-out),
     color var(--eu-dur-fast) var(--eu-ease-out),
-    opacity var(--eu-dur-fast) var(--eu-ease-out),
-    border-radius var(--eu-dur-fast) var(--eu-ease-out);
+    opacity var(--eu-dur-fast) var(--eu-ease-out);
 }
 
-/*
- * The tab outline.
- *
- * This is where the divider between the tab bar and the document comes from:
- * every tab carries a 1px ring in the outline colour, and a row of tabs therefore
- * draws one continuous line across the bar. The selected tab's own background
-/*
- * One value that the component and the stylesheet both need: the curve radius.
- * It is declared on the bar rather than on a tab so that a tab's pseudo-elements
- * — which are positioned from its own edges — inherit it.
- */
-.eu-tab-bar {
-  --eu-tab-curve: 6px;
-  /* The document's own surface. The component overwrites this inline, because it
-     is the one value here that differs between Code Mode and Visual Mode; the
-     declaration is the fallback for the first paint. */
-  --eu-tab-surface: var(--eu-editor-bg);
-}
-
-/*
- * The tab outline, which is where the divider between the bar and the document
- * comes from: each *unselected* tab carries a 1px ring in the outline colour, and
- * a row of them draws one continuous line across the bar. The selected tab's own
- * background paints over its bottom edge (below), so the line stops at the selected
- * tab on both sides and the page's surface runs straight into it.
- *
- * Unselected only. A ring on *every* tab was how this started, and on the selected
- * one it drew a line along the top and both sides as well — a rectangle around the
- * tab, which is the "separating line" that must not be there. The selected tab is
- * joined to the document; a border around it says the opposite.
- *
- * The ring is a shadow rather than a `border`, and it has to be: a tab's border
- * slots are already spoken for — the component sets `borderBottom: none` inline and
- * the tests read it back — and a shadow draws outside the box without touching
- * layout, so no tab's width or height changes by a pixel.
- */
-.eu-tab:not([aria-selected='true']) {
-  box-shadow: 0 0 0 1px var(--eu-border);
-}
-
-/*
- * The bar's own edge, which is what actually draws the divider.
- *
- * A tab is one pixel taller than the bar and its ring's bottom edge is therefore
- * clipped by the bar — so the tabs alone leave the divider to chance, and on a
- * display whose device pixel ratio does not divide evenly it lands on half a
- * pixel and fades. A border on the bar is drawn at a whole pixel at the bar's own
- * edge, so the line is crisp at every scale.
- *
- * The *selected* tab then paints over it: a 1px spread shadow in the document's
- * own colour, drawn below the tab, which is what makes the line stop at its
- * edges. That is the whole join — a rule the bar draws everywhere, and one tab
- * that covers it.
- */
-.eu-tab-bar {
-  border-bottom: 1px solid var(--eu-border);
-}
-
-/*
- * The corners, which is the part that makes this look like an application rather
- * than like a web page.
- *
- * A selected tab does not sit *above* the line — it is cut *out* of it, and the
- * two corners where the cut meets the line are concave: the line curves up into
- * the tab's sides. No `border-radius` can draw that; a radius rounds a corner the
- * other way, making a convex tab standing on a shelf.
- *
- * Obsidian's device — and this is its own, read out of its `app.css` — is two
- * circles that are never seen. Each is transparent, sits centred on the line, and
- * carries two shadows: an inset ring in the outline colour, which becomes the
- * curve, and a large spread in the *tab's* colour, which paints everything outside
- * the circle. The transparent circle punches a round hole in that paint, so the
- * boundary between "tab surface" and "everything else" is an arc — the concave
- * corner. `clip-path` then keeps only the outer quarter of each circle, throwing
- * away the three quarters whose arcs belong to the neighbouring tab.
- *
- * The geometry, from Obsidian: the circle's diameter is twice the curve radius,
- * its centre sits on the bar's bottom edge, and its *inner* edge is flush with
- * the tab's outer edge.
- */
-.eu-tab::before,
-.eu-tab::after {
+/* Native rounded borders antialias the joins and meet the tab sides tangentially.
+   The clipped surface shadow fills the outside of each concave corner. */
+.eu-tab[aria-selected='true']::before,
+.eu-tab[aria-selected='true']::after {
   content: '';
   position: absolute;
-  bottom: calc(-1 * var(--eu-tab-curve));
-  width: calc(var(--eu-tab-curve) * 2);
-  height: calc(var(--eu-tab-curve) * 2);
-  border-radius: 100%;
+  bottom: 0;
+  width: calc(var(--eu-tab-curve) + 1px);
+  height: calc(var(--eu-tab-curve) + 1px);
+  box-sizing: border-box;
+  background: var(--eu-bg-toolbar);
+  border: 0 solid var(--eu-border);
+  box-shadow: 0 0 0 var(--eu-tab-curve) var(--eu-tab-surface);
   pointer-events: none;
 }
 
-.eu-tab::before {
-  left: calc(-2 * var(--eu-tab-curve));
-  clip-path: inset(50% calc(-1 * var(--eu-tab-curve)) 0 50%);
+.eu-tab[aria-selected='true']::before {
+  left: calc(-1 * var(--eu-tab-curve) - 1px);
+  border-right-width: 1px;
+  border-bottom-width: 1px;
+  border-bottom-right-radius: 100%;
+  clip-path: inset(0 -1px -1px 0);
 }
 
-.eu-tab::after {
-  right: calc(-2 * var(--eu-tab-curve));
-  clip-path: inset(50% 50% 0 calc(-1 * var(--eu-tab-curve)));
+.eu-tab[aria-selected='true']::after {
+  right: calc(-1 * var(--eu-tab-curve) - 1px);
+  border-left-width: 1px;
+  border-bottom-width: 1px;
+  border-bottom-left-radius: 100%;
+  clip-path: inset(0 0 -1px -1px);
 }
 
-/*
- * The corners: the selected tab's feet are rounded, and the bar wraps around them.
- *
- * A `border-radius` on the tab's own bottom corners — convex, the same curve as its
- * top — rather than a concave notch. The two are different shapes and this is the
- * one that reads as "the tab and the document are one object": the tab's surface
- * carries the curve on all four sides, and the bar's own colour shows in the
- * sliver the curve leaves behind.
- *
- * The bar's surface therefore has to be *behind* the tab at that point, which it
- * is: the tab paints after the bar's background. And the tab is one pixel taller
- * than the bar, so its rounded foot sits against the document rather than above a
- * strip of the bar.
- *
- * The curve is the stylesheet's own `--eu-tab-curve`, the same value the top
- * corners and the notch beneath use, so the tab is one shape rather than three that
- * happen to agree.
- */
-.eu-tab[aria-selected='true'] {
-  border-bottom-left-radius: var(--eu-tab-curve);
-  border-bottom-right-radius: var(--eu-tab-curve);
-}
-
-
-/*
- * The selected tab: filled with the document's own surface, ringed, and bridging
- * the line at its feet.
- *
- * Two shadows, and each is a different job:
- *
- *  - `0 1px 0 0 <surface>` paints the bar's bottom pixel below the tab, so the
- *    divider does not run under it — the tab and the page become one rectangle;
- *  - `0 0 0 1px <outline>` is the ring every tab carries.
- */
-.eu-tab[aria-selected='true'] {
-  box-shadow:
-    0 1px 0 0 var(--eu-tab-surface),
-    0 0 0 1px var(--eu-border);
-}
-
-/* An inactive tab is a *surface* on hover, drawn as a translucent tint so it
-   never fights the inline `background: transparent` the tests read. */
 .eu-tab:not([aria-selected='true']):hover {
   background-image: linear-gradient(var(--eu-hover-tint), var(--eu-hover-tint)) !important;
 }
@@ -520,37 +341,15 @@
   background-image: linear-gradient(var(--eu-active-tint), var(--eu-active-tint)) !important;
 }
 
-/*
- * Focus on a tab is an underline *inside* it, and only that.
- *
- * It used to add a 1px ring in `--eu-border-focus` and `--eu-border` around the
- * whole tab. Two things were wrong with it. A ring around a tab is a second border
- * — the tab already has a surface, an outline where it meets the bar, and a curve
- * at its feet, and a fourth line tracing the same box reads as a selection
- * rectangle rather than as a focused document. And because a spread shadow follows
- * the element's radius, the ring came out *square* at the foot that is rounded,
- * which is the one place the shape has to be right.
- *
- * An inset underline cannot do either: it is inside the tab, so it cannot trace the
- * perimeter, and it is horizontal, so there is no curve for it to get wrong. It is
- * also unambiguous — the accent colour, at the foot of the tab the keyboard is on.
- */
+/* Focus the label without drawing a line across the open editor join. */
 .eu-tab:focus-visible {
   outline: none;
-  box-shadow: inset 0 -2px 0 var(--eu-accent);
 }
 
-.eu-tab[aria-selected='true']:focus-visible {
-  /*
-   * Only the one shadow the selected tab already carries, plus the underline: the
-   * first paints the bar's last pixel below the tab so the divider does not run
-   * under it, and the second is the focus. No ring, for the reason above — and no
-   * second copy of the bridge either, which is what a ring in the surface colour
-   * would have been.
-   */
-  box-shadow:
-    0 1px 0 0 var(--eu-tab-surface),
-    inset 0 -2px 0 var(--eu-accent);
+.eu-tab:focus-visible .eu-tab__label {
+  text-decoration: underline;
+  text-decoration-color: var(--eu-accent);
+  text-underline-offset: 4px;
 }
 
 .eu-tab__label {

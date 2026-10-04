@@ -582,22 +582,10 @@ describe('tab labels and file icons', () => {
     expect(tabs[0].querySelector('[data-testid="tab-corner-left"]')).toBeNull();
     expect(tabs[0].querySelector('[data-testid="tab-corner-right"]')).toBeNull();
 
-    /*
-     * And the tab reaches the editor.
-     *
-     * The strip is laid out one pixel taller than the bar and pulled up by the
-     * same amount, so a tab's bottom pixel lands *on* the hairline rule between
-     * the bar and the document — and covers it. That pixel is the join: the
-     * tab's surface continues into the editor's with nothing between them.
-     *
-     * The tab is therefore one pixel taller than the bar it stands in, and this
-     * is the number that says so. A tab that shrank back to the bar's own height
-     * would leave the rule showing under the selected tab again, which is the
-     * defect the join is here to prevent.
-     */
+    // The strip aligns the bottoms; shorter tabs leave an inset above the tops.
     const tabHeight = Number.parseFloat(tabs[0].style.height);
     const barHeight = Number.parseFloat((container.querySelector('[data-testid="tab-bar"]') as HTMLElement).style.height);
-    expect(tabHeight, 'the selected tab reaches past the bar').toBeGreaterThan(barHeight);
+    expect(tabHeight, 'the rounded top has room within the bar').toBeLessThan(barHeight);
 
     /*
      * And every tab is the same height, which is what keeps the row still.
@@ -615,7 +603,7 @@ describe('tab labels and file icons', () => {
     expect(tabs[1].style.background).toBe('transparent');
   });
 
-  it('rounds every corner of the selected tab, and only the facing corner of the tabs beside it', async () => {
+  it('keeps the selected tab open at the bottom and rounds its neighbours facing it', async () => {
     await mount(
       stateWith({
         documents: [createDoc('evil.tex'), createDoc('globals.tex'), createDoc('settings.tex')],
@@ -625,22 +613,12 @@ describe('tab labels and file icons', () => {
     const tabs = [...container.querySelectorAll('[role="tab"]')] as HTMLElement[];
     expect(tabs).toHaveLength(3);
 
-    /*
-     * The selected tab rounds all four corners with the same 6px, and the tabs beside
-     * it round only the corner they share with it — a chip resting in the strip touches
-     * the selection on one edge and nothing on the other.
-     *
-     * All four, and that is the shape: the reference has the active tab's lower corner
-     * curving into the bar's material, with the rule along the bar stopping where the
-     * curve begins and no band of the bar left between the tab and the document. A
-     * square foot leaves that band; a foot rounded differently from the top makes the
-     * tab two shapes instead of one.
-     */
+    // CSS supplies concave shoulders outside the active tab's square lower edge.
     expect(tabs[0].style.borderBottomRightRadius, 'the tab before the selection rounds the facing corner').toBe('6px');
     expect(tabs[0].style.borderBottomLeftRadius, 'and leaves its other foot square').toBe('0px');
 
-    expect(tabs[1].style.borderBottomLeftRadius, 'the selected tab rounds all four corners').toBe('6px');
-    expect(tabs[1].style.borderBottomRightRadius, 'all four of them').toBe('6px');
+    expect(tabs[1].style.borderBottomLeftRadius, 'the selected tab opens into the editor').toBe('0px');
+    expect(tabs[1].style.borderBottomRightRadius, 'both lower corners stay open').toBe('0px');
     expect(tabs[1].style.borderTopLeftRadius, 'including the top ones').toBe('6px');
 
     expect(tabs[2].style.borderBottomLeftRadius, 'the tab after the selection rounds the facing corner').toBe('6px');
@@ -728,38 +706,24 @@ describe('the window controls live on the tab bar', () => {
   });
 });
 
-/**
- * `view.toggleTabBar` hides the tabs, not the bar.
- *
- * The bar is the drag region, the toolbar and the caption buttons, so a toggle
- * that removed it would leave a window that cannot be moved, built or closed by
- * its own chrome. What goes is the `tablist` — and what must stay is everything
- * else, including something for a press to land on in order to move the window.
- */
-describe('hiding the tab bar leaves the window usable', () => {
-  it('takes the document tabs away', async () => {
+describe('toggling the entire tab bar', () => {
+  it('removes the complete row, including toolbar and window controls', async () => {
     await mount(stateWith({ documents: [openDocument], tabBarVisible: false }));
-    expect(container.querySelector('[role="tablist"]')).toBeNull();
-    expect(button('tab-bar-new-file')).toBeNull();
-    expect(container.querySelector('[data-testid="tab-bar-separator"]')).toBeNull();
+    expect(container.childElementCount).toBe(0);
   });
 
-  it('keeps the drag region, the toolbar and the window controls', async () => {
-    await mount(stateWith({ documents: [openDocument], tabBarVisible: false }));
-    expect(container.querySelector('[data-testid="tab-bar"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="tab-bar-strip-spacer"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="tab-bar-toolbar"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="tab-bar-window-controls"]')).not.toBeNull();
-    // The toolbar still dispatches: a hidden document strip is not a disabled app.
+  it('restores the tabs and working controls after a live toggle', async () => {
+    await mount(stateWith({ documents: [openDocument], tabBarVisible: true }));
+    fake.state = stateWith({ documents: [openDocument], tabBarVisible: false });
+    await act(async () => root.render(React.createElement(TabBar)));
+    expect(container.childElementCount).toBe(0);
+    fake.state = stateWith({ documents: [openDocument], tabBarVisible: true });
+    await act(async () => root.render(React.createElement(TabBar)));
+    expect(container.querySelectorAll('[role="tab"]')).toHaveLength(1);
+    expect(button('tab-bar-new-file')).not.toBeNull();
+    expect(button('tab-bar-toolbar')).not.toBeNull();
+    expect(button('tab-bar-window-controls')).not.toBeNull();
     click('toolbar-compile');
     expect(fake.executed).toEqual(['latex.build']);
   });
-
-  it('draws the tabs again when it comes back', async () => {
-    await mount(stateWith({ documents: [openDocument], tabBarVisible: false }));
-    await mount(stateWith({ documents: [openDocument], tabBarVisible: true }));
-    expect(container.querySelectorAll('[role="tab"]')).toHaveLength(1);
-    expect(container.querySelector('[data-testid="tab-bar-strip-spacer"]')).toBeNull();
-  });
 });
-

@@ -549,14 +549,14 @@ export function themePlaceholderColor(state: LightPdfThemeState): number {
 // Selection, find and forward-search colours
 // ---------------------------------------------------------------------------
 
-/** `Settings.h` — `FixedPageUI.SelectionColor` default. */
-export const LIGHTPDF_SELECTION_COLOR = '#ffff00';
+/** Blue selection shared by text selection and the active search match. */
+export const LIGHTPDF_SELECTION_COLOR = '#3b82f6';
 /** `Selection.h` — `kSelectionDefaultAlpha`, used when the colour has no alpha. */
 export const LIGHTPDF_SELECTION_DEFAULT_ALPHA = 0x5f;
 /** `Selection.cpp` — `PaintSelection` pads the rectangles by 2px and outlines them. */
 export const LIGHTPDF_SELECTION_PAD = 2;
 /** `SearchAndDDE.cpp` — `kFindOtherMatchColor`. */
-export const LIGHTPDF_FIND_OTHER_MATCH_COLOR = '#ff9632';
+export const LIGHTPDF_FIND_OTHER_MATCH_COLOR = '#93c5fd';
 /** `Settings.h` — `ForwardSearch.HighlightColor` default. */
 export const LIGHTPDF_FORWARD_SEARCH_COLOR = '#6581ff';
 /**
@@ -725,15 +725,15 @@ export const LIGHTPDF_TOOLBAR_METRICS = {
   textPaddingRight: 6,
   /**
    * `Toolbar.cpp` — `iconDy` is `RoundUp(DpiScale(iconSize), 4)`; the toolbar
-   * height is the icon box plus the 6px padding Win32's toolbar adds.
+   * height adds 16px around the icon box for Eukolia's floating controls.
    */
-  iconPadding: 6
+  iconPadding: 16
 } as const;
 
 /**
  * `Toolbar.cpp:1402-1417` — the toolbar's height: `iconDy` is
  * `RoundUp(DpiScale(iconSize), 4)` and Win32's toolbar adds its own padding, so
- * the default `ToolbarSize` of 18 gives a 20px icon box and light-pdf's 26px bar.
+ * the default icon size of 18 gives a 36px bar with comfortable hit targets.
  */
 export function lightPdfToolbarBarHeight(iconSize: number): number {
   const iconBox = Math.ceil(Math.max(1, iconSize) / 4) * 4;

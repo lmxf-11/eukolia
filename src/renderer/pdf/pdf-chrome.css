@@ -1,0 +1,48 @@
+.eu-pdf-toolbar {
+  box-sizing: border-box;
+  max-width: 100%;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 16%);
+}
+
+.eu-pdf-tool-button {
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.eu-pdf-tool-button:disabled {
+  opacity: 0.45;
+}
+
+.eu-pdf-tool-button:focus-visible,
+.eu-pdf-field:focus-visible {
+  outline: 2px solid #3b82f6 !important;
+  outline-offset: -2px;
+}
+
+.eu-pdf-field {
+  box-sizing: border-box;
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.eu-pdf-find-bar {
+  box-sizing: border-box;
+  border-radius: 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eu-pdf-tool-button,
+  [data-testid='pdf-toolbar-host'] {
+    transition: none !important;
+  }
+}
+
+[data-testid='pdf-toc'] button:focus-visible,
+[data-testid='pdf-toc'] [role='treeitem']:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: -2px;
+}
+
+[data-testid='pdf-toc'] [role='treeitem']:hover {
+  background: rgb(59 130 246 / 10%) !important;
+}

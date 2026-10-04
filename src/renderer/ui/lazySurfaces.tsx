@@ -1,3 +1,4 @@
+import { waitingIconUrl } from './appIcons';
 /**
  * Eukolia — the surfaces that load on demand.
  *
@@ -83,6 +84,22 @@ export const LazyTabSwitcher = lazy(() =>
 );
 
 /**
+ * The Mathematical Symbols panel.
+ *
+ * Lazy for a reason the other entries do not have: this panel imports the
+ * generated catalog, which is a few thousand entries of JSON. Parsing it is
+ * work no launch should pay — the panel is behind a click, and until that click
+ * happens the catalog is bytes in a chunk nobody asked for. The dynamic import
+ * is what puts it in its own chunk rather than in the shell's.
+ */
+export const LazyMathematicalSymbolsView = lazy(() =>
+  import('./components/MathematicalSymbolsView').then((module) => {
+    reportChunk('math-symbols');
+    return { default: module.MathematicalSymbolsView };
+  })
+);
+
+/**
  * The fallback for a loading surface.
  *
  * Deliberately the same background an empty pane gets, and deliberately not a
@@ -101,6 +118,7 @@ export const LazyTabSwitcher = lazy(() =>
  */
 export const PaneLoading: React.FC<{ label?: string }> = ({ label }) => (
   <div style={loadingPane} data-testid="pane-loading" aria-busy="true">
+    <img src={waitingIconUrl} width={48} height={48} alt="" aria-hidden="true" />
     <div className="eu-pane-skeleton" aria-hidden="true">
       <span className="eu-skeleton" style={{ width: '52%' }} />
       <span className="eu-skeleton" style={{ width: '78%' }} />

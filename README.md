@@ -4,11 +4,11 @@ Download the latest release from: [**https://github.com/lmxf-11/eukolia/releases
 
 ### Installer
 
-Download `Eukolia.Setup.0.2.0.exe` and run the setup wizard.
+Download `Eukolia.Setup.0.5.0.exe` and run the setup wizard.
 
 ### Portable
 
-Download `Eukolia-0.2.0.zip`, extract the archive, and run `Eukolia.exe`.
+Download `Eukolia-0.5.0.zip`, extract the archive, and run `Eukolia.exe`.
 
 ## 📚 Documentation & Configuration
 

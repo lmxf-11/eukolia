@@ -26,6 +26,8 @@
  *    document order, so `from <= to` always holds.
  */
 
+import type { InsertionPlan, PlannedCaret } from '../mathSymbols/types';
+
 /**
  * The imperative editor surface.
  *
@@ -69,6 +71,26 @@ export interface EditorHandle<TEditor = unknown> {
   insertText(text: string): void;
   /** Wraps the selection (or inserts a template when empty). */
   wrapSelection(prefix: string, suffix?: string, placeholder?: string): void;
+  /**
+   * Applies a planned Mathematical Symbols insertion as one transaction.
+   *
+   * This is the single typed insertion operation the Mathematical Symbols panel
+   * uses, and it exists on the *handle* rather than as an event because of what
+   * the alternative costs: an event is a broadcast with no target, so every
+   * mounted editor would answer it and none of them would know whether it was
+   * the active one. The plan carries the whole decision — the exact text, the
+   * wrapper, the slot placements, the caret — so this method does nothing but
+   * write it, in one transaction, with the insertion user-event annotation and
+   * its own undo boundary.
+   *
+   * Returns the caret and slot placements that resulted, or `null` when the
+   * editor is not mounted. A plan is built against a pre-transaction snapshot and
+   * is refused as a whole when any part of it does not apply, so a non-null
+   * return means the document was changed exactly as planned.
+   */
+  applyMathInsertion(plan: InsertionPlan): {
+    carets: readonly PlannedCaret[];
+  } | null;
   /** Current caret offset, or null when the editor is not mounted. */
   getCursorOffset(): number | null;
   focus(): void;

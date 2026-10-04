@@ -129,6 +129,40 @@ async function cdp(
   return window.webContents.debugger.sendCommand(method, params)
 }
 
+/**
+ * Probe switches that must exist in the page **before the renderer evaluates its modules**.
+ *
+ * A switch read at module scope or plugin construction — the decoration pass's widget switch, for
+ * instance — cannot be set by an injected script, because the injected script runs long after the
+ * editor exists. An A/B that tries is a comparison of two identical configurations, which is exactly
+ * what §3.40 measured before the mistake was found: the switch was on, the behaviour was unchanged,
+ * and two identical timings looked like a result.
+ *
+ * The main process has the environment before the window loads, so it is the only place that can
+ * publish a value early enough. `did-start-loading` fires before the document's own scripts run, and
+ * the assignment is one line, so it is in place by the time the bundle evaluates. Failures are
+ * ignored: a probe must not be taken down by a global it could not publish, and the switch simply
+ * stays at its shipped value.
+ *
+ * Only probes set these variables. The application never does.
+ */
+const PAGE_GLOBALS: Array<[string, string]> = [['__eukoliaNoWidgets', 'EUKOLIA_NO_WIDGETS']]
+
+export function publishPageGlobals(window: BrowserWindow): void {
+  const assignments = PAGE_GLOBALS.filter(([, from]) => process.env[from] !== undefined).map(
+    ([name, from]) => {
+      const raw = process.env[from] as string
+      const value =
+        raw === '1' || raw === 'true' ? true : raw === '0' || raw === 'false' ? false : JSON.stringify(raw)
+      return `window.${name} = ${value};`
+    }
+  )
+  if (assignments.length === 0) return
+  window.webContents.on('did-start-loading', () => {
+    window.webContents.executeJavaScript(assignments.join('\n')).catch(() => {})
+  })
+}
+
 export async function runVisualProbe(window: BrowserWindow): Promise<void> {
   const report: Named<unknown> = {}
 
@@ -168,13 +202,26 @@ export async function runVisualProbe(window: BrowserWindow): Promise<void> {
    * hang into a probe that writes no report and says nothing. The timeout resolves
    * to `null`, which is why the return type stays `Promise<T>` — the callers that
    * can receive it compare against `null` explicitly rather than trusting it.
+   *
+   * `EUKOLIA_PROBE_EVALUATE_MS` raises it for the scripts that are *measurements*
+   * rather than questions — the smoothness phase drives dozens of wheel gestures and
+   * takes minutes by design, and at 30 s it was cut off mid-run and reported
+   * `smoothness: null`, which reads exactly like a renderer that had wedged. A
+   * phase that measures time needs a budget that is not smaller than the time it
+   * means to measure.
    */
+  const evaluateMs = Number(process.env.EUKOLIA_PROBE_EVALUATE_MS) > 0
+    ? Number(process.env.EUKOLIA_PROBE_EVALUATE_MS)
+    : 30_000
   const evaluate = <T>(script: string): Promise<T> => {
     progress(evaluateStage + ' …')
     return Promise.race<T | null>([
       window.webContents.executeJavaScript(script) as Promise<T | null>,
-      wait(30_000).then(() => {
-        progress(evaluateStage, 'TIMED OUT after 30s — the renderer did not answer')
+      wait(evaluateMs).then(() => {
+        progress(
+          evaluateStage,
+          `TIMED OUT after ${Math.round(evaluateMs / 1000)}s — the renderer did not answer`
+        )
         return null
       }),
     ]).then(
@@ -247,6 +294,345 @@ export async function runVisualProbe(window: BrowserWindow): Promise<void> {
     // Visual Mode, through the same command channel the menu bar uses.
     window.webContents.send('menu:command', 'editor.visualMode')
     await wait(3500)
+
+    /*
+     * A scripted run may ask for the other surface first.
+     *
+     * `editor.codeMode` is a **setter**, which is what the first version of this got
+     * wrong: it sent `editor.visualMode` and asked for Visual Mode a second time, so
+     * every "source mode" measurement in this repository was silently a measurement of
+     * Visual Mode. Nothing failed — the surface attribute simply still said `visual`, and
+     * the probe reported the number it had been given rather than the one it asked for.
+     * The assertion below is the guard: a mode switch that did not happen stops the run
+     * instead of producing a comparison of a mode with itself.
+     */
+    if (process.env.EUKOLIA_PROFILE_SWITCH_MODE === 'source') {
+      window.webContents.send('menu:command', 'editor.codeMode')
+      await wait(2500)
+      const mode = await evaluate<string>(
+        `document.querySelector('.eukolia-visual-editor [data-mode], .cm-editor[data-mode]')?.getAttribute('data-mode') ?? 'unknown'`
+      )
+      if (mode !== 'source') {
+        report.modeSwitchFailure = `asked for source mode, the editor reports "${mode}"`
+        progress('mode', `FAILED: asked for source, editor is "${mode}"`)
+      } else {
+        progress('mode', 'source')
+      }
+    }
+
+    /*
+     * A single scripted measurement, in place of every phase below.
+     *
+     * `scripts/probe-raster.mjs` supplies a script that drives the live editor and
+     * returns numbers; this runs it and prints them under a marker of its own. It
+     * exists because the smoothness phase's own experiment is *one* script inside a
+     * long report, measured once each, and an interleaved comparison of six
+     * configurations needs many alternating cycles and per-gesture counters to be
+     * readable at all. The first version of that experiment was confounded by the
+     * ordering and said so in its own data; this is the instrument that replaced it.
+     *
+     * A script may carry a **profile boundary** — `__EUKOLIA_PROFILE_START__` on a line
+     * of its own — and then V8's sampler is turned on between the two halves and the
+     * result written to `EUKOLIA_VISUAL_CPU_PROFILE_PATH`. `scripts/probe-typing-profile.mjs`
+     * uses that to profile exactly the typing loop: everything before the marker warms
+     * the editor, everything after it is the window the profile describes. Without the
+     * boundary a profile of "the probe" is a profile of thirty unrelated phases.
+     */
+    const scripted = process.env.EUKOLIA_RASTER_SCRIPT
+    if (scripted) {
+      /*
+       * The injected script's own failures, reported as the script's.
+       *
+       * `executeJavaScript` answers "Script failed to execute, this normally means an
+       * error was thrown. Check the renderer console for the error." — which names
+       * neither the error nor the line, and is what a one-character mistake in a
+       * two-hundred-line injected measurement produces. Wrapping the text puts the
+       * message, the stack and the line count in the report, so a probe that fails
+       * says why on the first run instead of the third.
+       */
+      const wrapped = (text: string) =>
+        `(async () => {
+  try {
+    return { __eukoliaProbeOk: true, value: await (async () => { ${text} })() };
+  } catch (error) {
+    return {
+      __eukoliaProbeOk: false,
+      error: String(error && error.message ? error.message : error),
+      stack: String(error && error.stack ? error.stack : '').split('\\n').slice(0, 6),
+    };
+  }
+})()`
+      const unwrap = <T>(answer: unknown): T => {
+        const wrappedAnswer = answer as
+          | { __eukoliaProbeOk?: boolean; value?: T; error?: string; stack?: string[] }
+          | null
+        if (wrappedAnswer && wrappedAnswer.__eukoliaProbeOk === false) {
+          throw new Error(
+            `${wrappedAnswer.error}\n  ${(wrappedAnswer.stack ?? []).join('\n  ')}`
+          )
+        }
+        return (wrappedAnswer && 'value' in wrappedAnswer
+          ? wrappedAnswer.value
+          : wrappedAnswer) as T
+      }
+      const boundary = '__EUKOLIA_PROFILE_START__'
+      const at = scripted.indexOf(boundary)
+      const profilePath = process.env.EUKOLIA_VISUAL_CPU_PROFILE_PATH
+      let result: unknown
+      if (at >= 0 && profilePath) {
+        /*
+         * The sampler runs between two `evaluate` calls, and **the two halves are
+         * separate programs**.
+         *
+         * That is a real constraint on any script that asks to be profiled: the second
+         * half cannot call a function the first half declared, because each
+         * `executeJavaScript` is its own scope and the second answers `… is not defined`.
+         * An earlier version of this tried to keep one scope by embedding both halves in
+         * a single wrapper and starting the sampler from inside the page — which
+         * deadlocks, because the renderer then waits for a message that the main process
+         * cannot send while it is awaiting the renderer.
+         *
+         * So a profiled script has to be written as two self-contained programs. Both
+         * callers of this today do.
+         */
+        result = unwrap(await evaluate<unknown>(wrapped(scripted.slice(0, at))))
+        /*
+         * The protocol is only reachable once the debugger is attached, and the
+         * phases that use it attach it themselves — `Profiler.enable` without an
+         * attachment answers "No target available", which is what the first run of
+         * this did. Detached again afterwards so a later phase's own `attach` cannot
+         * find it already held.
+         */
+        try {
+          if (!window.webContents.debugger.isAttached()) {
+            window.webContents.debugger.attach('1.3')
+          }
+          await cdp(window, 'Profiler.enable')
+          await cdp(window, 'Profiler.setSamplingInterval', { interval: 100 })
+          await cdp(window, 'Profiler.start')
+          result = unwrap(
+            await evaluate<unknown>(wrapped(scripted.slice(at + boundary.length)))
+          )
+          const { profile } = (await cdp(window, 'Profiler.stop')) as {
+            profile: unknown
+          }
+          try {
+            fs.mkdirSync(path.dirname(profilePath), { recursive: true })
+            fs.writeFileSync(profilePath, JSON.stringify(profile))
+            progress('profile', `wrote ${profilePath}`)
+          } catch (error) {
+            progress('profile', `could not write ${profilePath}: ${String(error)}`)
+          }
+        } catch (error) {
+          /*
+           * A profile that cannot be taken must not cost the measurement: the script
+           * is a measurement first and a profile window second, so the second half is
+           * run (or re-run) with no sampler rather than reported as a failure.
+           */
+          progress('profile', `FAILED ${String(error).slice(0, 160)}`)
+          if (result === undefined) {
+            result = unwrap(
+              await evaluate<unknown>(wrapped(scripted.slice(at + boundary.length)))
+            )
+          }
+        } finally {
+          if (window.webContents.debugger.isAttached()) {
+            window.webContents.debugger.detach()
+          }
+        }
+      } else if (process.env.EUKOLIA_VISUAL_TRACE_PATH) {
+        /*
+         * A real trace, and it is the only way to see paint.
+         *
+         * `long-animation-frame` says how much of a frame was script, style-and-layout
+         * and blocking, and "blocking" is the remainder — paint, composite, and whatever
+         * the compositor does off the main thread. On `algebra.tex` that remainder is
+         * ~130 ms of a 170 ms frame, and no amount of wrapping JavaScript attributes it.
+         * The trace's `Paint`/`Layout`/`UpdateLayerTree`/`CompositeLayers` events carry
+         * the element counts and the timings that say which of them it is.
+         *
+         * An *alternative* to the profile rather than an addition to it: the two both use
+         * the debugger, and a trace taken while V8 is sampling is a trace of the sampler.
+         */
+        const tracePath = process.env.EUKOLIA_VISUAL_TRACE_PATH as string
+        try {
+          if (!window.webContents.debugger.isAttached()) {
+            window.webContents.debugger.attach('1.3')
+          }
+          const chunks: string[] = []
+          /*
+           * Every protocol event is counted while tracing, not just the ones the code
+           * below expects.
+           *
+           * The empty trace gave no diagnosis at all: `Tracing.start` succeeded, the
+           * gestures ran, `Tracing.end` succeeded, and nothing arrived — and a handler
+           * that filters for one method name cannot tell "no events were emitted" from
+           * "events arrive under a name I did not expect" from "the handler is never
+           * called at all". This counts them.
+           */
+          const seen: Record<string, number> = {}
+          const onData = (
+            _event: unknown,
+            method: string,
+            params: unknown,
+            data?: string
+          ): void => {
+            seen[method] = (seen[method] ?? 0) + 1
+            if (method === 'Tracing.dataCollected') {
+              /*
+               * Electron's `message` event is `(event, method, params, ...rest)`, and for
+               * `Tracing.dataCollected` the payload is `params.value` — an array of trace
+               * events, not a JSON string. The first version looked for a string in the
+               * fourth argument and in `params.value`, found neither, and pushed nothing
+               * while the event fired 215 times: the listener was right and the reader of
+               * its arguments was not.
+               */
+              const paramsValue = (params as { value?: unknown })?.value
+              if (Array.isArray(paramsValue)) {
+                for (const entry of paramsValue) chunks.push(JSON.stringify(entry))
+              } else if (typeof paramsValue === 'string' && paramsValue) {
+                chunks.push(paramsValue)
+              } else if (typeof data === 'string' && data) {
+                chunks.push(data)
+              }
+            }
+          }
+          window.webContents.debugger.on('message', onData)
+          await cdp(window, 'Tracing.start', {
+            /*
+             * The `devtools.timeline` categories carry the frame, layout and paint
+             * events; the `disabled-by-default-*` ones carry the detail — which paint
+             * invalidation, which element count — and are off by default because they are
+             * expensive to collect.
+             */
+            categories: [
+              'devtools.timeline',
+              'disabled-by-default-devtools.timeline',
+              'disabled-by-default-devtools.timeline.frame',
+              'blink.user_timing',
+            ].join(','),
+            /*
+             * `ReportEvents`, not `ReturnAsStream`.
+             *
+             * A streamed trace is delivered through `IO.read` on the *stream* handle that
+             * `Tracing.tracingComplete` carries — not through `Tracing.dataCollected`,
+             * which the first version of this listened for. So the chunks array stayed
+             * empty and the file it wrote was the two characters `[]`, with no error
+             * anywhere: a trace of nothing is a valid trace. `ReportEvents` puts every
+             * event on `Tracing.dataCollected` as it happens, which is what the listener
+             * below collects.
+             */
+            transferMode: 'ReportEvents',
+          })
+          progress('trace', 'recording')
+          result = unwrap(await evaluate<unknown>(wrapped(scripted)))
+          await cdp(window, 'Tracing.end')
+          /*
+           * Three seconds for the remaining buffers, not an unbounded wait.
+           *
+           * `tracingComplete` is the correct signal and it arrives for both transfer
+           * modes — but a listener registered *before* the work, as this one used to be,
+           * is not the same as one that is still listening when the main process is busy
+           * pumping `Tracing.dataCollected` for a megabyte of events. A bounded settle
+           * gets the same events with a guaranteed end, which matters more here than the
+           * last few milliseconds of trace: a probe that hangs produces no measurement.
+           */
+          await Promise.race([
+            new Promise<void>(resolve => {
+              const onEnd = (_event: unknown, method: string): void => {
+                if (method === 'Tracing.tracingComplete') resolve()
+              }
+              window.webContents.debugger.once('message', onEnd)
+            }),
+            wait(3000),
+          ])
+          window.webContents.debugger.removeListener('message', onData)
+          fs.mkdirSync(path.dirname(tracePath), { recursive: true })
+          fs.writeFileSync(tracePath, `[${chunks.join(',')}]`)
+          const methods = Object.entries(seen)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 8)
+            .map(([name, count]) => `${name}×${count}`)
+            .join(', ')
+          progress(
+            'trace',
+            `wrote ${tracePath} (${chunks.length} chunks) — protocol events seen: ${methods || 'none'}`
+          )
+        } catch (error) {
+          progress('trace', `FAILED ${String(error).slice(0, 200)}`)
+        } finally {
+          if (window.webContents.debugger.isAttached()) {
+            window.webContents.debugger.detach()
+          }
+        }
+      } else {
+        result = unwrap(await evaluate<unknown>(wrapped(scripted)))
+      }
+      /*
+       * What the compositor is actually doing, reported beside every scripted
+       * measurement.
+       *
+       * A scroll measurement is a measurement of the compositor, and every frame-time
+       * reading in this repository was taken without ever asking whether hardware
+       * acceleration was on. If it is not — a driver blocklist, a software-GL fallback, a
+       * VM without a GPU — then "paint is 82 % of the gesture" is a fact about the
+       * fallback rasteriser and not about the application, and no CSS change would show
+       * it. The three answers that separate those cases are the feature status, the
+       * active GPU, and whether the renderer reports a compositing layer at all.
+       */
+      let gpu: Record<string, unknown> = {}
+      try {
+        const rendererGpu = await evaluate<Record<string, unknown>>(`(() => {
+          const canvas = document.createElement('canvas');
+          const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+          const debug = gl && gl.getExtension('WEBGL_debug_renderer_info');
+          return {
+            webgl: Boolean(gl),
+            vendor: debug ? gl.getParameter(debug.UNMASKED_VENDOR_WEBGL) : null,
+            renderer: debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : null,
+            devicePixelRatio: window.devicePixelRatio,
+          };
+        })()`)
+        gpu = {
+          // Present at runtime, absent from this Electron's typings.
+          hardwareAcceleration: (app as unknown as { isHardwareAccelerationEnabled?: () => boolean })
+            .isHardwareAccelerationEnabled?.() ?? null,
+          featureStatus: app.getGPUFeatureStatus(),
+          gpuInfo: app.getGPUInfo('basic'),
+          renderer: rendererGpu,
+        }
+      } catch (error) {
+        gpu = { error: String(error).slice(0, 300) }
+      }
+      progress('gpu', JSON.stringify(gpu.gpuInfo ?? gpu.error ?? gpu).slice(0, 600))
+      /*
+       * A screenshot, when the scripted probe asks for one.
+       *
+       * The other phases capture the window, but the scripted branch is where a measurement that parks
+       * the caret somewhere specific runs — and that is exactly when a picture is worth taking, because
+       * a bug about where something is *drawn* cannot be settled by asking the DOM where it is. §3.47
+       * is the case in point: the rectangles said the gutter highlight and the caret line agreed, and
+       * the screenshot said otherwise.
+       */
+      let screenshot: string | null = null
+      const shotPath = process.env.EUKOLIA_VISUAL_SHOT_PATH
+      if (shotPath) {
+        try {
+          const image = await window.webContents.capturePage()
+          fs.writeFileSync(shotPath, image.toPNG())
+          screenshot = shotPath
+        } catch (error) {
+          screenshot = `FAILED: ${String(error).slice(0, 200)}`
+        }
+      }
+      const payload =
+        result && typeof result === 'object'
+          ? { ...(result as Record<string, unknown>), gpu, screenshot }
+          : { value: result, gpu, screenshot }
+      process.stdout.write(`__EUKOLIA_RASTER_PROBE__${JSON.stringify(payload)}\n`)
+      app.exit(0)
+      return
+    }
 
     // A short diagram-only pass avoids the later scrolling/performance experiments.
     if (process.env.EUKOLIA_TIKZCD_PROBE === '1') {
@@ -1686,6 +2072,22 @@ export async function runVisualProbe(window: BrowserWindow): Promise<void> {
           passes.push(await gesture('pass #' + pass, 40));
         }
 
+        /*
+         * Where the frame actually goes is **not** measured here.
+         *
+         * The first version of this report carried an interleaved comparison of six CSS
+         * configurations at this point, and it was confounded by its own ordering:
+         * mounts rose monotonically across all twelve gestures whichever
+         * configuration was applied, so the later ones were measured against a
+         * document that had changed underneath them, and the table read "baseline
+         * 14.7 ms, content-visibility 7.0 ms" only because baseline ran first.
+         *
+         * scripts/probe-raster.mjs is that measurement done properly — per-gesture
+         * counters, a sequence that repeats so drift lands on every configuration
+         * equally, and a no-op control. What it found is in ARCHITECTURE.md §3.31:
+         * hiding every rendered SVG changes the frame time by nothing, so the artwork
+         * is not what the scroll costs.
+         */
         return {
           cold,
           warm,

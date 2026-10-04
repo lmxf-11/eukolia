@@ -141,7 +141,7 @@ describe('one press flips the sidebar between on screen and off screen', () => {
     // Every view of the region answers to the same toggle: the panels are one
     // element, so there is no view that survives the collapse.
     const state = await mount();
-    for (const view of ['explorer', 'search', 'outline', 'symbols', 'snippets', 'problems'] as const) {
+    for (const view of ['explorer', 'search', 'outline', 'symbols', 'math-symbols', 'snippets', 'problems'] as const) {
       await run((s) => s.setSidebarView(view));
       expect(shown(state()), `${view} should be on screen`).toBe(true);
 

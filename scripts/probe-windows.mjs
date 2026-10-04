@@ -431,6 +431,65 @@ try {
     });
   }
 
+  /*
+   * The Close control, pressed.
+   *
+   * These windows are frameless, so this button is the *only* way to dismiss
+   * one — and it used to be answered by hiding the window instead of closing it.
+   * A hidden window keeps its DevTools target and its session, so "did it
+   * really close" is exactly "is the target gone", and a probe that only looked
+   * at the DOM could not tell the difference: the control had been drawn and
+   * wired the whole time it was doing nothing a user could see.
+   *
+   * Both halves are checked, because either one alone is passed by a broken
+   * window: closing proves the press is honoured, and reopening proves the
+   * window is rebuilt rather than left as a dead reference.
+   */
+  const closePress = async (kind) => {
+    const before = (await targets()).filter((entry) => (entry.url ?? '').includes(`window=${kind}`)).length;
+    const target = (await targets()).find((entry) => (entry.url ?? '').includes(`window=${kind}`));
+    if (!target) return { ok: false, detail: `no ${kind} target to press` };
+
+    const cdp = await attach(target.webSocketDebuggerUrl);
+    const point = await cdp.evaluate(`(() => {
+      const button = document.querySelector('.eu-window-button--close');
+      if (!button) return null;
+      const rect = button.getBoundingClientRect();
+      return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
+    })()`);
+    if (!point) return { ok: false, detail: `${kind}: no .eu-window-button--close in the bar` };
+
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: point.x, y: point.y });
+    await sleep(150);
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: point.x, y: point.y, button: 'left', clickCount: 1 });
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', clickCount: 1 });
+    await sleep(2_500);
+
+    const after = (await targets()).filter((entry) => (entry.url ?? '').includes(`window=${kind}`)).length;
+    if (after !== 0) return { ok: false, detail: `${kind}: still open after Close (${before} → ${after} targets)` };
+
+    // Reopened through the shell, which is the other window on this port.
+    const shell = (await targets()).find((entry) => windowKind(entry) === 'shell');
+    if (shell) {
+      const shellCdp = await attach(shell.webSocketDebuggerUrl);
+      await shellCdp.evaluate(
+        kind === 'settings'
+          ? `window.eukoliaApi.openSettingsWindow()`
+          : `window.eukoliaApi.openSnippetsWindow()`
+      );
+      await sleep(4_000);
+    }
+    const reopened = (await targets()).some((entry) => (entry.url ?? '').includes(`window=${kind}`));
+    return reopened
+      ? { ok: true, detail: `${kind}: closed from ${before} target to none, and reopened` }
+      : { ok: false, detail: `${kind}: closed but did not reopen` };
+  };
+
+  for (const kind of ['settings', 'snippets']) {
+    const pressed = await closePress(kind);
+    results.verdicts.push({ check: `the ${kind} window's Close button really closes it`, ...pressed });
+  }
+
   results.ok = results.verdicts.every((verdict) => verdict.ok);
 } catch (error) {
   results = { ok: false, error: String(error?.message ?? error), stderrTail: stderr.slice(-3000) };

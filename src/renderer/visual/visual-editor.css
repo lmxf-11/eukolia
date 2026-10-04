@@ -64,12 +64,14 @@
    They were one mode-blind rule before, which gave Code Mode the visual
    surface's background and colour. */
 .eukolia-visual-editor .cm-editor[data-mode='visual'] {
+  --eu-current-editor-bg: var(--eu-visual-bg);
   background: var(--eu-visual-bg);
   color: var(--eu-visual-fg);
 }
 
 /* Code Mode is the source editor, and this is the surface Monaco gave it. */
 .eukolia-visual-editor .cm-editor[data-mode='source'] {
+  --eu-current-editor-bg: var(--eu-editor-bg);
   background: var(--eu-editor-bg);
   color: var(--eu-editor-fg);
 }
@@ -139,8 +141,7 @@
  * editor: `editorExtensions.ts` mounts one gutter set, and this is the only
  * stylesheet that colours it. The colours come from the `--eu-editor-gutter-*`
  * variables `themeManager` publishes from the one theme token table, and the
- * width and padding reproduce Monaco's `lineNumbersMinChars` and
- * `editorGutter.background`, so the bar reads the same whichever mode is
+ * width follows the document's line count, so the bar reads the same whichever mode is
  * showing (the ported Overleaf theme used to fade it in Visual Mode alone).
  *
  * The editor padding mirrors Code Mode's `padding: { top: 10, bottom: 40 }`, so
@@ -152,17 +153,17 @@
 }
 
 .eukolia-visual-editor .cm-gutters {
-  background: var(--eu-editor-gutter-bg);
+  background: var(--eu-current-editor-bg, var(--eu-editor-bg));
   color: var(--eu-editor-gutter-fg);
   border-right: none;
-  /* Matches Monaco's default `lineNumbersMinChars`, so the numbers do not shift
-     sideways when the document grows past a power of ten. */
-  min-width: 3.4em;
+  /* CodeMirror's line-number spacer already reserves the document's digits.
+     An extra minimum on the whole gutter leaves unused space on its right. */
+  min-width: 0;
   font-variant-numeric: tabular-nums;
 }
 
 .eukolia-visual-editor .cm-lineNumbers .cm-gutterElement {
-  padding: 0 8px 0 12px;
+  padding: 0 8px 0 3px;
   /* Monaco draws the active line number in `editorLineNumber.activeForeground`
      (`fgSecondary`); `highlightActiveLineGutter` puts the class on it. */
   color: var(--eu-editor-gutter-fg);
@@ -195,19 +196,29 @@
   justify-content: center;
 }
 
-.eukolia-visual-editor .cm-foldGutter .cm-gutterElement > span {
-  color: inherit;
-  border-radius: 3px;
-  transition: background-color 100ms ease-out;
-}
-
-.eukolia-visual-editor .cm-foldGutter .cm-gutterElement > span:hover {
-  background-color: var(--eu-bg-hover);
-  color: var(--eu-fg-primary);
-}
-
-.eukolia-visual-editor .cm-foldGutter .cm-gutterElement.cm-activeLineGutter > span {
+.eukolia-visual-editor .cm-foldGutter .cm-gutterElement > .eu-fold-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
   color: var(--eu-fg-secondary);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 100ms ease-out;
+}
+
+.eukolia-visual-editor .cm-gutters:hover .eu-fold-marker,
+.eukolia-visual-editor .cm-gutters:focus-within .eu-fold-marker,
+.eukolia-visual-editor .cm-foldGutter .cm-gutterElement > .eu-fold-marker[data-folded='true'] {
+  opacity: 1;
+}
+
+.eukolia-visual-editor .cm-foldGutter .cm-gutterElement > .eu-fold-marker:hover {
+  color: var(--eu-fg-primary);
+  box-shadow: none;
 }
 
 /* ------------------------------------------------ diagnostic line numbers
@@ -514,7 +525,28 @@
   opacity: 1;
 }
 
-/* Rendered math SVG blocks & preview math glyphs follow visual editor text color */
+/*
+ * Rendered math SVG blocks & preview math glyphs follow visual editor text color.
+ *
+ * **On `.ol-cm-math` itself, not on every element inside it.** There used to be a second
+ * rule here listing twenty-nine more selectors — `svg path`, `svg use`, `svg g`, and the
+ * same for the tooltip, the theorem header and the container — each carrying
+ * `color: … !important; fill: currentColor !important`. Both properties **inherit**, and
+ * an inline `<svg>` is a descendant of `.ol-cm-math`, so one declaration on the parent
+ * reaches every glyph; the descendant rule restated the same two properties for roughly
+ * a thousand elements per viewport.
+ *
+ * Measured with `scripts/probe-scroll.mjs` on `algebra.tex` (47 886 lines, 32 325 inline
+ * equations), where the browser attributed every long frame as
+ * `script 0 ms / style+layout 103 ms / blocking 212 ms` against frames of 177 ms: the
+ * stutter is style, layout and paint, and this is one of the few things in it that is
+ * ours. `!important` also defeats the style engine's inheritance optimisation, because a
+ * declaration that must win cannot be inherited — it has to be tested on each element.
+ *
+ * MathJax marks up `<g stroke="currentColor" fill="currentColor">` itself, so the
+ * presentation attributes are the port's own fallback and this rule is what follows the
+ * theme; neither needs restating per element.
+ */
 .ol-cm-math,
 .ol-cm-math svg,
 .ol-cm-math mjx-container,
@@ -528,35 +560,29 @@
   fill: currentColor !important;
 }
 
-.ol-cm-math svg path,
-.ol-cm-math svg use,
-.ol-cm-math svg rect,
-.ol-cm-math svg g,
-.ol-cm-math svg text,
-.ol-cm-math svg line,
-.ol-cm-math svg polygon,
-.ol-cm-math svg polyline,
-.ol-cm-math svg circle,
-.ol-cm-math-tooltip svg path,
-.ol-cm-math-tooltip svg use,
-.ol-cm-math-tooltip svg rect,
-.ol-cm-math-tooltip svg g,
-.ol-cm-math-tooltip svg text,
-.ol-cm-math-tooltip svg line,
-.ol-cm-math-tooltip svg polygon,
-.ol-cm-math-tooltip svg polyline,
-.ol-cm-math-tooltip svg circle,
-.eu-theorem-header-svg path,
-.eu-theorem-header-svg use,
-.eu-theorem-header-svg rect,
-.eu-theorem-header-svg g,
-.eukolia-visual-editor mjx-container svg path,
-.eukolia-visual-editor mjx-container svg use,
-.eukolia-visual-editor mjx-container svg rect,
-.eukolia-visual-editor mjx-container svg g {
-  color: var(--eu-visual-fg, #e8ecf4) !important;
-  fill: currentColor !important;
-}
+/* ------------------------------------------------- mathematics while scrolling
+ *
+ * Eukolia: **measured, and not applied.** Hiding the artwork inside a rendered equation
+ * while the page is being driven was implemented — `data-eukolia-scrolling` on the editor,
+ * `visibility: hidden` on the SVG so the boxes keep their geometry — and A/B tested from one
+ * build, three passes, on `algebra.tex` at line 21 000:
+ *
+ *   | | p50 | p90 | max | frames over 33 ms |
+ *   |---|---|---|---|---|
+ *   | artwork hidden while scrolling | 9.5 ms | 54.1 ms | 177.3 ms | 12.3 |
+ *   | untouched (control) | **7.3 ms** | **32.4 ms** | 134.3 ms | **5.3** |
+ *
+ * Worse on every measure, by 22–130 %. This is the **third** time this project has found
+ * that hiding rendered mathematics costs more than leaving it alone: §3.31 hid every SVG
+ * (`visibility: hidden`, 17.1 ms against an 18.9 ms control) and §3.33.1 removed every
+ * rendered equation from the DOM (3 ms, in the wrong direction). An attribute + descendant
+ * selector changing on a thousand elements mid-gesture is itself a style recalculation, and
+ * a `visibility` flip on a subtree invalidates more than it saves.
+ *
+ * The switch is kept so the experiment is repeatable rather than remembered:
+ * `EUKOLIA_NO_SCROLL_HIDE=1` disables it in `async-widget-render.ts`, which is where the
+ * attribute would be set.
+ */
 
 /* Autocomplete popups attached to body */
 .cm-tooltip.cm-tooltip-autocomplete {

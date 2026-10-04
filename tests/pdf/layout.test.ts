@@ -36,6 +36,7 @@ import {
   pageScrollTarget,
   pageSizeAfterRotation,
   pagesToRender,
+  pageVisibleAt,
   resolveDisplayMode,
   scrollTopForUnmeasuredPage,
   zoomRealFromVirtualForPage,
@@ -55,6 +56,14 @@ const LETTER = { width: 612, height: 792 };
 const VIEWPORT = { dx: 600, dy: 800 };
 const WINDOW_MARGIN = { top: 2, right: 4, bottom: 2, left: 4 };
 const PAGE_SPACING = { dx: 4, dy: 4 };
+
+it('uses the live horizontal offset to mount pages after a wide sheet is appended', () => {
+  const layout = lightPdfLayout(params({ pageCount: 2, pageBoxes: [LETTER, { width: 2400, height: 792 }] }));
+  const page = layout.pages[0];
+  expect(page.pos.x).toBeGreaterThan(VIEWPORT.dx);
+  expect(pagesToRender(layout, 0, 0, page.pos.x)).toContain(1);
+  expect(pageVisibleAt(layout, 1, 0, page.pos.x)).toBe(true);
+});
 
 /** `DisplayModel::SetInitialViewSettings`'s parameter set, with 3 letter pages. */
 function params(overrides: Partial<LightPdfLayoutParams> = {}): LightPdfLayoutParams {
