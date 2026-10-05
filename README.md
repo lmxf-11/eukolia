@@ -1,3 +1,4 @@
+![Screenshot](assets/preview/Screenshot3.png)
 ## 📦 Installation
 
 Download the latest release from: [**https://github.com/lmxf-11/eukolia/releases**](https://github.com/lmxf-11/eukolia/releases)
