@@ -2,6 +2,7 @@
   "name": "eukolia",
   "version": "0.5.0",
   "description": "A fast, modern, extensible, and purpose-built LaTeX editing application",
+  "author": "quoctrong1111@gmail.com",
   "license": "GPL-3.0-or-later",
   "main": "dist-electron/main.js",
   "type": "module",
