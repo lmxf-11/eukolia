@@ -2,14 +2,11 @@
 ## 📦 Installation
 
 Download the latest release from: [**https://github.com/lmxf-11/eukolia/releases**](https://github.com/lmxf-11/eukolia/releases)
-
-### Installer
-
-Download `Eukolia.Setup.0.5.0.exe` and run the setup wizard.
-
-### Portable
-
-Download `Eukolia-0.5.0.zip`, extract the archive, and run `Eukolia.exe`.
+#### Window
+- **Installer:** Download `Eukolia.Setup.0.5.0.exe` and run the setup wizard.
+- **Portable:** Download `Eukolia-0.5.0.zip`, extract the archive, and run `Eukolia.exe`.
+#### MacOS
+- **Installer:** Download `Eukolia-0.5.0-Mac.zip` extract and run `Eukolia-0.5.0-arm64.dmg`.
 
 ## 📚 Documentation & Configuration
 
